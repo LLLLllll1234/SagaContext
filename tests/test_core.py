@@ -6,6 +6,7 @@ from sagacontext.config import Config
 from sagacontext.capture import detect
 from sagacontext.transcript import read_incremental
 from sagacontext.reconcile import compress, correction_plan
+from sagacontext.models import Delta
 
 class CoreTests(unittest.TestCase):
     def test_memory_roundtrip(self):
@@ -42,6 +43,10 @@ class CoreTests(unittest.TestCase):
         second = correction_plan(candidate, "viking://~/memories/dev", "abcd1234")
         self.assertEqual(first.uri, second.uri)
         self.assertIn("MEMORY_FIELDS", first.content)
+
+    def test_delta_schema(self):
+        delta = Delta(layer="preference", type="dev_correction", relation="new", key="no_any")
+        self.assertEqual(delta.relation, "new")
 
 if __name__ == "__main__":
     unittest.main()

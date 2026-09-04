@@ -43,3 +43,14 @@ class Candidate(BaseModel):
     text: str
     files: list[str] = Field(default_factory=list)
     confidence: float = 0.5
+
+class Delta(BaseModel):
+    layer: Literal["user", "preference", "project", "task"]
+    type: str
+    relation: Literal["confirm", "refine", "supersede", "new", "conflict"]
+    anchor_uri: str | None = None
+    key: str
+    fields: dict[str, Any] = Field(default_factory=dict)
+    strong_signal: bool = False
+    confidence_hint: float = 0.5
+    rationale: str = ""
