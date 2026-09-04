@@ -10,6 +10,7 @@ from .recall import records, render
 from .capture import detect
 from .transcript import read_incremental
 from .reconcile import correction_plan
+from .runner import run as run_reconcile
 import uuid
 
 cfg = Config.load(); store = Store(cfg.state_path); ov = OpenVikingClient(cfg.ov_base_url, cfg.ov_api_key)
@@ -44,6 +45,7 @@ async def events(request: Request):
             if row:
                 plans = [correction_plan(c, cfg.dev_root, row["repo_key"]) for c in store.unconsumed_candidates(ev.host, ev.session_id) if c.kind == "explicit_negation"]
                 store.add_trace(str(uuid.uuid4()), "reconcile_plan", ev.host, ev.session_id, {"reason": ev.event, "plans": [p.uri for p in plans]})
+                asyncio.create_task(run_reconcile(ev.host, ev.session_id, store, ov, None))
             return {"reconcile": "scheduled", "reason": ev.event} if ev.event == "session_end" else {}
         if ev.event not in ("session_start", "prompt"): return {}
         targets = [f"{cfg.dev_root}/convention/global/", f"{cfg.dev_root}/convention/repo-{info['repo_key']}/"]

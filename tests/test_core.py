@@ -7,6 +7,7 @@ from sagacontext.capture import detect
 from sagacontext.transcript import read_incremental
 from sagacontext.reconcile import compress, correction_plan
 from sagacontext.models import Delta
+from sagacontext.reconcile import WritePlan
 
 class CoreTests(unittest.TestCase):
     def test_memory_roundtrip(self):
@@ -47,6 +48,12 @@ class CoreTests(unittest.TestCase):
     def test_delta_schema(self):
         delta = Delta(layer="preference", type="dev_correction", relation="new", key="no_any")
         self.assertEqual(delta.relation, "new")
+
+    def test_compress_prefers_user_turns(self):
+        class Turn:
+            def __init__(self, idx, role, text): self.idx, self.role, self.text = idx, role, text
+        result = compress([Turn(0, "assistant", "background" * 100), Turn(1, "user", "keep this")], 10)
+        self.assertIn("user", result)
 
 if __name__ == "__main__":
     unittest.main()

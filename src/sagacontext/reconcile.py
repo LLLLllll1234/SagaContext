@@ -16,7 +16,7 @@ class WritePlan:
 def compress(turns, budget: int = 6000) -> str:
     """Deterministically retain user text first, then useful assistant text."""
     chunks = []
-    for turn in turns:
+    for turn in sorted(turns, key=lambda t: 0 if t.role == "user" else 1):
         text = turn.text.strip()
         if not text: continue
         limit = 600 if turn.role == "user" else 300

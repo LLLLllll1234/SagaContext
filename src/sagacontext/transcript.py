@@ -10,6 +10,7 @@ class Turn:
     text: str
 
 def read_incremental(path: Path | None, offset: int = 0):
+    if isinstance(path, str): path = Path(path)
     if not path or not path.exists(): return [], offset
     turns, position, idx, failures = [], offset, 0, 0
     with path.open("rb") as fh:
