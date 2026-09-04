@@ -14,6 +14,10 @@ from sagacontext.writer import apply
 from sagacontext.store import Store
 from sagacontext.revert import detect as detect_revert, file_sha
 from sagacontext.tasks import create as create_task, resume_candidate
+from sagacontext.bench.adapters import FixtureAdapter, NoMemoryAdapter
+from sagacontext.bench.models import BenchmarkCase, Observation
+from sagacontext.bench.runner import run as run_bench
+from sagacontext.bench.report import markdown as benchmark_markdown
 
 class CoreTests(unittest.TestCase):
     def test_memory_roundtrip(self):
@@ -68,6 +72,14 @@ class CoreTests(unittest.TestCase):
             create_task(state.db, "repo", "main", "first goal", "viking://root")
             task = create_task(state.db, "repo", "feature", "feature goal", "viking://root")
             self.assertEqual(resume_candidate(state.db, "repo", "feature")["task_id"], task["task_id"])
+
+    def test_benchmark_metrics_and_smoke_warning(self):
+        case = BenchmarkCase(id="p", category="preference", expected_recall=["rule"], expected_follow=["rule"],
+                             forbidden_recall=["leak"], observations={"sagacontext": Observation(recalled=["rule"], followed=["rule"])})
+        results = run_bench([case], [NoMemoryAdapter(), FixtureAdapter("sagacontext")])
+        saga = next(result for result in results if result.system == "sagacontext")
+        self.assertEqual((saga.recall_hits, saga.follow_hits, saga.false_injections), (1, 1, 0))
+        self.assertIn("contains smoke data", benchmark_markdown(results))
 
     def test_reconcile_plan_is_stable(self):
         candidate = detect("不要使用 any")[0]

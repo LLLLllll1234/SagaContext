@@ -71,4 +71,19 @@ def coldstart(goal: str, cwd: Path = Path(".")):
     task = create(state.db, info["repo_key"], info["branch"], goal, cfg.dev_root)
     typer.echo(json.dumps(task, ensure_ascii=False, indent=2))
 
+@app.command()
+def bench(cases: Path = Path("bench/cases"), output: Path = Path("bench/results")):
+    """Run deterministic benchmark fixtures and write JSONL plus Markdown."""
+    from .bench.adapters import FixtureAdapter, NoMemoryAdapter
+    from .bench.report import markdown
+    from .bench.runner import load_cases, run, write_jsonl
+    loaded = load_cases(cases)
+    systems = sorted({name for case in loaded for name in case.observations if name != "no_memory"})
+    adapters = [NoMemoryAdapter(), *(FixtureAdapter(name) for name in systems)]
+    results = run(loaded, adapters)
+    output.mkdir(parents=True, exist_ok=True)
+    write_jsonl(results, output / "results.jsonl")
+    report = markdown(results); (output / "report.md").write_text(report)
+    typer.echo(json.dumps({"cases": len(loaded), "systems": [adapter.name for adapter in adapters], "report": str(output / "report.md")}, ensure_ascii=False))
+
 if __name__ == "__main__": app()

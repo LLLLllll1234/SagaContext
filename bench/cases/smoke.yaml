@@ -1,0 +1,33 @@
+cases:
+  - id: preference-no-any
+    dataset_kind: smoke
+    category: preference
+    expected_recall: [ts_no_any]
+    expected_follow: [ts_no_any]
+    forbidden_recall: [java_tabs]
+    observations:
+      sagacontext:
+        recalled: [ts_no_any]
+        followed: [ts_no_any]
+  - id: evolution-supersede
+    dataset_kind: smoke
+    category: evolution
+    expected_relation: supersede
+    observations:
+      sagacontext:
+        relation: supersede
+  - id: project-pytest-gotcha
+    dataset_kind: smoke
+    category: project_fact
+    expected_recall: [pytest_asyncio_cancel]
+    forbidden_recall: [other_repo_secret]
+    observations:
+      sagacontext:
+        recalled: [pytest_asyncio_cancel]
+  - id: task-resume-feature
+    dataset_kind: smoke
+    category: task_resume
+    expected_task: task-feature-1
+    observations:
+      sagacontext:
+        resumed_task: task-feature-1
