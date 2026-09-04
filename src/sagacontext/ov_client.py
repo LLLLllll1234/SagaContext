@@ -19,3 +19,10 @@ class OpenVikingClient:
     async def write(self, uri: str, content: str, processing_mode: str = "sync") -> dict[str, Any]:
         async with httpx.AsyncClient(base_url=self.base_url, headers=self.headers, timeout=self.timeout) as c:
             r = await c.post("/api/v1/content/write", json={"uri": uri, "content": content, "processing_mode": processing_mode}); r.raise_for_status(); return r.json()
+
+    @staticmethod
+    def content_from_response(payload: dict[str, Any]) -> str:
+        data = payload.get("data", payload)
+        if isinstance(data, dict):
+            return str(data.get("content") or data.get("text") or "")
+        return str(data)

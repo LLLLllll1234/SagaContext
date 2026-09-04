@@ -34,4 +34,22 @@ def pending():
     rows = Store(cfg.state_path).db.execute("SELECT * FROM pending WHERE resolved='' ORDER BY created_at DESC").fetchall()
     typer.echo(json.dumps([dict(r) for r in rows], ensure_ascii=False))
 
+@app.command()
+def review(pending_id: str, resolution: str = typer.Argument(help="accept_old, accept_new, or dismiss")):
+    """Resolve one pending reconciliation decision."""
+    if resolution not in {"accept_old", "accept_new", "dismiss"}:
+        raise typer.BadParameter("resolution must be accept_old, accept_new, or dismiss")
+    from .store import Store
+    changed = Store(Config.load().state_path).resolve_pending(pending_id, resolution)
+    if not changed: raise typer.Exit(code=1)
+    typer.echo(json.dumps({"id": pending_id, "resolved": resolution}))
+
+@app.command()
+def explain(trace_id: str):
+    """Show a reconciliation trace."""
+    from .store import Store
+    row = Store(Config.load().state_path).get_trace(trace_id)
+    if not row: raise typer.Exit(code=1)
+    typer.echo(json.dumps(dict(row), ensure_ascii=False, indent=2))
+
 if __name__ == "__main__": app()

@@ -53,3 +53,18 @@ class Store:
     def add_trace(self, trace_id: str, kind: str, host: str, session_id: str, payload: dict):
         import datetime, json
         self.db.execute("INSERT INTO traces VALUES (?,?,?,?,?,?)", (trace_id, kind, host, session_id, datetime.datetime.now(datetime.timezone.utc).isoformat(), json.dumps(payload, ensure_ascii=True))); self.db.commit()
+
+    def add_pending(self, items):
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self.db.executemany("INSERT OR REPLACE INTO pending(id,created_at,layer,type,old_uri,new_summary,resolved) VALUES (?,?,?,?,?,?,'')",
+                            [(item.id, now, item.layer, item.type, item.old_uri, item.new_summary) for item in items])
+        self.db.commit()
+
+    def resolve_pending(self, pending_id: str, resolution: str) -> bool:
+        cursor = self.db.execute("UPDATE pending SET resolved=? WHERE id=? AND resolved=''", (resolution, pending_id))
+        self.db.commit()
+        return cursor.rowcount == 1
+
+    def get_trace(self, trace_id: str):
+        return self.db.execute("SELECT * FROM traces WHERE trace_id=?", (trace_id,)).fetchone()

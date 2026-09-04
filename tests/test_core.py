@@ -6,9 +6,10 @@ from sagacontext.config import Config
 from sagacontext.capture import detect
 from sagacontext.transcript import read_incremental
 from sagacontext.reconcile import compress, correction_plan
-from sagacontext.models import Delta
+from sagacontext.models import Delta, MemoryRecord
 from sagacontext.compliance import check_pattern
-from sagacontext.reconcile import WritePlan
+from sagacontext.reconcile import WritePlan, evolve
+from sagacontext.writer import apply
 
 class CoreTests(unittest.TestCase):
     def test_memory_roundtrip(self):
@@ -59,6 +60,34 @@ class CoreTests(unittest.TestCase):
     def test_compliance_pattern(self):
         self.assertEqual(check_pattern("src/a.ts: any", r"\bany\b").decision, "deny")
         self.assertEqual(check_pattern("unknown", r"\bany\b").decision, "allow")
+
+    def test_evolve_relations(self):
+        existing = MemoryRecord(uri="viking://x/no_any.md", type="dev_convention", version=2,
+                                fields={"version": 2, "topic": "no_any", "rule": "no any", "evidence_count": 1, "contra_count": 0, "status": "active"})
+        confirm, _ = evolve(existing, Delta(layer="preference", type="dev_convention", relation="confirm", anchor_uri=existing.uri, key="no_any"), "viking://root", "repo")
+        self.assertEqual(confirm[0].fields["evidence_count"], 2)
+        refine, _ = evolve(existing, Delta(layer="preference", type="dev_convention", relation="refine", anchor_uri=existing.uri, key="no_any", fields={"rule": "use unknown"}), "viking://root", "repo")
+        self.assertEqual(refine[0].fields["rule"], "use unknown")
+        supersede, _ = evolve(existing, Delta(layer="preference", type="dev_convention", relation="supersede", anchor_uri=existing.uri, key="no_any", fields={"rule": "allow any"}, strong_signal=True), "viking://root", "repo")
+        self.assertEqual(len(supersede), 2)
+        self.assertEqual(supersede[0].fields["status"], "superseded")
+        conflict, pending = evolve(existing, Delta(layer="preference", type="dev_convention", relation="conflict", anchor_uri=existing.uri, key="no_any", fields={"rule": "maybe any"}), "viking://root", "repo")
+        self.assertEqual(conflict[0].fields["status"], "pending_confirm")
+        self.assertEqual(len(pending), 1)
+
+class AsyncCoreTests(unittest.IsolatedAsyncioTestCase):
+    async def test_writer_rebases_version(self):
+        class Client:
+            def __init__(self): self.writes = []
+            async def read(self, uri): return {"content": render({"version": 3, "topic": "x", "rule": "old"})}
+            async def write(self, uri, content): self.writes.append(content); return {}
+            @staticmethod
+            def content_from_response(payload): return payload["content"]
+        client = Client()
+        fields = {"version": 3, "topic": "x", "rule": "new"}
+        written = await apply([WritePlan("viking://x", "dev_convention", render(fields), fields, "update", 2)], client)
+        self.assertEqual(written, ["viking://x"])
+        self.assertIn('"version": 4', client.writes[0])
 
 if __name__ == "__main__":
     unittest.main()
