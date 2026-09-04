@@ -64,7 +64,14 @@ def evolve(existing: MemoryRecord | None, delta: Delta, dev_root: str, repo_key:
                   **delta.fields, "confidence": max(0.6, delta.confidence_hint), "evidence_count": 1,
                   "contra_count": 0, "valid_from": today.isoformat(), "last_confirmed": today.isoformat(),
                   "status": "active", "origin": "self"}
-        uri = f"{dev_root}/{delta.type.removeprefix('dev_')}/{scope}/{delta.key}.md"
+        leaf = delta.type.removeprefix("dev_")
+        if delta.layer == "project":
+            leaf = "map" if leaf == "project_map" else leaf
+            uri = f"{dev_root}/project/repo-{repo_key}/{leaf}/{delta.key}.md"
+        elif delta.layer == "task":
+            uri = f"{dev_root}/task/repo-{repo_key}/{delta.key}.md"
+        else:
+            uri = f"{dev_root}/{leaf}/{scope}/{delta.key}.md"
         return [WritePlan(uri, delta.type, render(fields), fields)], []
 
     fields = dict(existing.fields)

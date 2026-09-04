@@ -9,7 +9,7 @@ RULES = [
     ("en_always", "preference", "explicit_instruction", 0.7, re.compile(r"\b(?:always|from now on)\s+(?P<what>[^.!?]{2,80})", re.I)),
     ("zh_decision", "project", "decision_stmt", 0.6, re.compile(r"(?:我们决定|决定|改用|换成|统一用)\s*(?P<what>.{2,60}?)(?:因为|，|,|。|$)")),
     ("en_decision", "project", "decision_stmt", 0.6, re.compile(r"\b(?:we (?:decided|chose|switched) to|let's (?:use|go with))\s+(?P<what>[^.,;]{2,60})", re.I)),
-    ("task_stmt", "task", "task_stmt", 0.5, re.compile(r"^(?:帮我|请|我要|我想|implement|add|fix|refactor|migrate|实现|修复|重构|迁移)\b\s*(?P<what>.{4,120})", re.I)),
+    ("task_stmt", "task", "task_stmt", 0.5, re.compile(r"^(?:帮我|请|我要|我想|implement|add|fix|refactor|migrate|实现|修复|重构|迁移)\s*(?P<what>.{4,120})", re.I)),
 ]
 
 def detect(text: str, turn_idx: int = 0) -> list[Candidate]:

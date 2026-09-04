@@ -1,4 +1,5 @@
 import unittest
+import tempfile
 from pathlib import Path
 from sagacontext.memfile import parse, render
 from sagacontext.recall import render as render_recall
@@ -10,6 +11,9 @@ from sagacontext.models import Delta, MemoryRecord
 from sagacontext.compliance import check_pattern
 from sagacontext.reconcile import WritePlan, evolve
 from sagacontext.writer import apply
+from sagacontext.store import Store
+from sagacontext.revert import detect as detect_revert, file_sha
+from sagacontext.tasks import create as create_task, resume_candidate
 
 class CoreTests(unittest.TestCase):
     def test_memory_roundtrip(self):
@@ -32,6 +36,7 @@ class CoreTests(unittest.TestCase):
     def test_capture_rules(self):
         self.assertEqual(detect("以后不要使用 any")[0].kind, "explicit_negation")
         self.assertEqual(detect("We decided to use SQLite")[0].layer_guess, "project")
+        self.assertEqual(detect("实现任务接续功能")[0].layer_guess, "task")
 
     def test_incremental_transcript_ignores_partial_line(self):
         path = Path("/tmp/sagacontext-transcript.jsonl")
@@ -39,6 +44,30 @@ class CoreTests(unittest.TestCase):
         turns, offset = read_incremental(path)
         self.assertEqual(len(turns), 1)
         self.assertLess(offset, path.stat().st_size)
+
+    def test_codex_and_claude_transcript_shapes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "turns.jsonl"
+            path.write_text('{"type":"response_item","payload":{"role":"user","content":[{"type":"input_text","text":"codex"}]}}\n{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"claude"}]}}\n')
+            turns, _ = read_incremental(path)
+            self.assertEqual([turn.text for turn in turns], ["codex", "claude"])
+
+    def test_revert_snapshot_is_consumed_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); state = Store(root / "state.db"); target = root / "a.py"
+            state.upsert_session("claude-code", "s", cwd=str(root), repo_key="r")
+            target.write_text("before")
+            state.add_tool_edit("claude-code", "s", "a.py", file_sha(target))
+            target.write_text("after")
+            self.assertEqual(len(detect_revert("claude-code", "s", root, state)), 1)
+            self.assertEqual(detect_revert("claude-code", "s", root, state), [])
+
+    def test_task_resume_prefers_same_branch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Store(Path(directory) / "state.db")
+            create_task(state.db, "repo", "main", "first goal", "viking://root")
+            task = create_task(state.db, "repo", "feature", "feature goal", "viking://root")
+            self.assertEqual(resume_candidate(state.db, "repo", "feature")["task_id"], task["task_id"])
 
     def test_reconcile_plan_is_stable(self):
         candidate = detect("不要使用 any")[0]
@@ -74,6 +103,8 @@ class CoreTests(unittest.TestCase):
         conflict, pending = evolve(existing, Delta(layer="preference", type="dev_convention", relation="conflict", anchor_uri=existing.uri, key="no_any", fields={"rule": "maybe any"}), "viking://root", "repo")
         self.assertEqual(conflict[0].fields["status"], "pending_confirm")
         self.assertEqual(len(pending), 1)
+        project, _ = evolve(None, Delta(layer="project", type="dev_gotcha", relation="new", key="pytest_hang", fields={"symptom": "hang", "fix": "cancel"}), "viking://root", "repo")
+        self.assertEqual(project[0].uri, "viking://root/project/repo-repo/gotcha/pytest_hang.md")
 
 class AsyncCoreTests(unittest.IsolatedAsyncioTestCase):
     async def test_writer_rebases_version(self):

@@ -7,6 +7,7 @@ from .store import Store
 from .ov_client import OpenVikingClient
 from .transcript import read_incremental
 from .anchors import select as select_anchors
+from .tasks import apply_delta as apply_task_delta
 
 async def run(host: str, session_id: str, store: Store, client: OpenVikingClient, judge: Judge | None = None, dev_root: str = "viking://~/memories/dev") -> dict:
     row = store.get_session(host, session_id)
@@ -30,6 +31,9 @@ async def run(host: str, session_id: str, store: Store, client: OpenVikingClient
     if complete:
         store.add_pending(pending)
         store.consume_candidates(host, session_id)
+        if row["task_id"]:
+            for delta in deltas:
+                if delta.type == "dev_task": apply_task_delta(store.db, row["task_id"], delta.fields)
     store.upsert_session(host, session_id, cursor_offset=offset)
     store.add_trace(str(uuid.uuid4()), "reconcile", host, session_id, {"candidate_count": len(candidates), "anchor_count": len(anchors), "planned": len(plans), "written": len(written), "pending": len(pending)})
     return {"status": "ok", "candidates": len(candidates), "written": written, "pending": len(pending)}

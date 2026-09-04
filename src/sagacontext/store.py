@@ -11,12 +11,16 @@ class Store:
         PRAGMA journal_mode=WAL;
         PRAGMA busy_timeout=2000;
         CREATE TABLE IF NOT EXISTS repo_keys(realpath TEXT PRIMARY KEY, repo_key TEXT NOT NULL, kind TEXT NOT NULL, git_root TEXT);
-        CREATE TABLE IF NOT EXISTS sessions(host TEXT, session_id TEXT, cwd TEXT, repo_key TEXT, branch TEXT, transcript_path TEXT, cursor_offset INTEGER DEFAULT 0, turn_count INTEGER DEFAULT 0, token_estimate INTEGER DEFAULT 0, ended INTEGER DEFAULT 0, PRIMARY KEY(host, session_id));
+        CREATE TABLE IF NOT EXISTS sessions(host TEXT, session_id TEXT, cwd TEXT, repo_key TEXT, branch TEXT, transcript_path TEXT, cursor_offset INTEGER DEFAULT 0, turn_count INTEGER DEFAULT 0, token_estimate INTEGER DEFAULT 0, task_id TEXT, ended INTEGER DEFAULT 0, PRIMARY KEY(host, session_id));
         CREATE TABLE IF NOT EXISTS recalled(host TEXT, session_id TEXT, uri TEXT, type TEXT, score REAL, at_event TEXT, PRIMARY KEY(host, session_id, uri));
         CREATE TABLE IF NOT EXISTS buffer(id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT, session_id TEXT, turn_idx INTEGER, level TEXT, layer_guess TEXT, kind TEXT, text TEXT, files TEXT, confidence REAL, created_at TEXT, consumed INTEGER DEFAULT 0);
         CREATE TABLE IF NOT EXISTS pending(id TEXT PRIMARY KEY, created_at TEXT, layer TEXT, type TEXT, old_uri TEXT, new_summary TEXT, resolved TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS traces(trace_id TEXT PRIMARY KEY, kind TEXT, host TEXT, session_id TEXT, created_at TEXT, payload TEXT);
+        CREATE TABLE IF NOT EXISTS tool_edits(id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT, session_id TEXT, turn_idx INTEGER, path TEXT, sha_after TEXT, tool_call_id TEXT, created_at TEXT, checked INTEGER DEFAULT 0);
         """)
+        session_columns = {row[1] for row in self.db.execute("PRAGMA table_info(sessions)")}
+        if "task_id" not in session_columns:
+            self.db.execute("ALTER TABLE sessions ADD COLUMN task_id TEXT")
         from .tasks import ensure_schema
         from .weights import ensure_schema as ensure_weights
         ensure_schema(self.db); ensure_weights(self.db)
@@ -68,3 +72,16 @@ class Store:
 
     def get_trace(self, trace_id: str):
         return self.db.execute("SELECT * FROM traces WHERE trace_id=?", (trace_id,)).fetchone()
+
+    def add_tool_edit(self, host: str, session_id: str, path: str, sha_after: str, tool_call_id: str = ""):
+        import datetime
+        row = self.get_session(host, session_id)
+        turn = int(row["turn_count"] or 0) if row else 0
+        self.db.execute("INSERT INTO tool_edits(host,session_id,turn_idx,path,sha_after,tool_call_id,created_at) VALUES (?,?,?,?,?,?,?)", (host, session_id, turn, path, sha_after, tool_call_id, datetime.datetime.now(datetime.timezone.utc).isoformat())); self.db.commit()
+
+    def tool_edits(self, host: str, session_id: str):
+        return self.db.execute("SELECT * FROM tool_edits WHERE host=? AND session_id=? AND checked=0 ORDER BY created_at", (host, session_id)).fetchall()
+
+    def mark_tool_edits_checked(self, ids: list[int]):
+        if not ids: return
+        self.db.executemany("UPDATE tool_edits SET checked=1 WHERE id=?", [(item,) for item in ids]); self.db.commit()

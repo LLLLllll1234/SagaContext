@@ -52,4 +52,23 @@ def explain(trace_id: str):
     if not row: raise typer.Exit(code=1)
     typer.echo(json.dumps(dict(row), ensure_ascii=False, indent=2))
 
+@app.command("tasks")
+def list_tasks(cwd: Path = Path(".")):
+    """List indexed tasks for the current repository."""
+    from .store import Store
+    from .scope import resolve
+    state = Store(Config.load().state_path); info = resolve(cwd, state)
+    rows = state.db.execute("SELECT * FROM tasks_index WHERE repo_key=? ORDER BY last_active DESC", (info["repo_key"],)).fetchall()
+    typer.echo(json.dumps([dict(row) for row in rows], ensure_ascii=False, indent=2))
+
+@app.command()
+def coldstart(goal: str, cwd: Path = Path(".")):
+    """Create an explicit task that a later host session can resume."""
+    from .store import Store
+    from .scope import resolve
+    from .tasks import create
+    cfg = Config.load(); state = Store(cfg.state_path); info = resolve(cwd, state)
+    task = create(state.db, info["repo_key"], info["branch"], goal, cfg.dev_root)
+    typer.echo(json.dumps(task, ensure_ascii=False, indent=2))
+
 if __name__ == "__main__": app()
