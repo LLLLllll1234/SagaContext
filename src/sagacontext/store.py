@@ -14,6 +14,8 @@ class Store:
         CREATE TABLE IF NOT EXISTS sessions(host TEXT, session_id TEXT, cwd TEXT, repo_key TEXT, branch TEXT, transcript_path TEXT, cursor_offset INTEGER DEFAULT 0, turn_count INTEGER DEFAULT 0, token_estimate INTEGER DEFAULT 0, ended INTEGER DEFAULT 0, PRIMARY KEY(host, session_id));
         CREATE TABLE IF NOT EXISTS recalled(host TEXT, session_id TEXT, uri TEXT, type TEXT, score REAL, at_event TEXT, PRIMARY KEY(host, session_id, uri));
         CREATE TABLE IF NOT EXISTS buffer(id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT, session_id TEXT, turn_idx INTEGER, level TEXT, layer_guess TEXT, kind TEXT, text TEXT, files TEXT, confidence REAL, created_at TEXT, consumed INTEGER DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS pending(id TEXT PRIMARY KEY, created_at TEXT, layer TEXT, type TEXT, old_uri TEXT, new_summary TEXT, resolved TEXT DEFAULT '');
+        CREATE TABLE IF NOT EXISTS traces(trace_id TEXT PRIMARY KEY, kind TEXT, host TEXT, session_id TEXT, created_at TEXT, payload TEXT);
         """)
         self.db.commit()
 
@@ -44,3 +46,7 @@ class Store:
 
     def consume_candidates(self, host: str, session_id: str):
         self.db.execute("UPDATE buffer SET consumed=1 WHERE host=? AND session_id=? AND consumed=0", (host, session_id)); self.db.commit()
+
+    def add_trace(self, trace_id: str, kind: str, host: str, session_id: str, payload: dict):
+        import datetime, json
+        self.db.execute("INSERT INTO traces VALUES (?,?,?,?,?,?)", (trace_id, kind, host, session_id, datetime.datetime.now(datetime.timezone.utc).isoformat(), json.dumps(payload, ensure_ascii=True))); self.db.commit()

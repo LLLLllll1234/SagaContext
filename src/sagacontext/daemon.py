@@ -9,6 +9,8 @@ from .ov_client import OpenVikingClient
 from .recall import records, render
 from .capture import detect
 from .transcript import read_incremental
+from .reconcile import correction_plan
+import uuid
 
 cfg = Config.load(); store = Store(cfg.state_path); ov = OpenVikingClient(cfg.ov_base_url, cfg.ov_api_key)
 app = FastAPI(title="SagaContext", version="0.1.0")
@@ -28,13 +30,20 @@ async def events(request: Request):
         ev = _normalize(host, event, raw); info = resolve(ev.cwd, store)
         store.upsert_session(ev.host, ev.session_id, cwd=str(ev.cwd), repo_key=info["repo_key"], branch=info["branch"], transcript_path=str(ev.transcript_path) if ev.transcript_path else None)
         if ev.event == "prompt" and ev.prompt:
-            store.add_candidates(ev.host, ev.session_id, detect(ev.prompt))
+            candidates = detect(ev.prompt)
+            store.add_candidates(ev.host, ev.session_id, candidates)
             row = store.get_session(ev.host, ev.session_id)
             if row and ev.transcript_path:
                 turns, new_offset = read_incremental(ev.transcript_path, row["cursor_offset"] or 0)
                 store.upsert_session(ev.host, ev.session_id, cursor_offset=new_offset, turn_count=(row["turn_count"] or 0) + 1, token_estimate=(row["token_estimate"] or 0) + len(ev.prompt) // 3)
         if ev.event in ("stop", "session_end", "pre_compact"):
             store.upsert_session(ev.host, ev.session_id, ended=1 if ev.event == "session_end" else 0)
+            # Deterministic fallback: preserve L0 evidence as plans for a future
+            # provider-backed judge; do not write to OV without semantic review.
+            row = store.get_session(ev.host, ev.session_id)
+            if row:
+                plans = [correction_plan(c, cfg.dev_root, row["repo_key"]) for c in store.unconsumed_candidates(ev.host, ev.session_id) if c.kind == "explicit_negation"]
+                store.add_trace(str(uuid.uuid4()), "reconcile_plan", ev.host, ev.session_id, {"reason": ev.event, "plans": [p.uri for p in plans]})
             return {"reconcile": "scheduled", "reason": ev.event} if ev.event == "session_end" else {}
         if ev.event not in ("session_start", "prompt"): return {}
         targets = [f"{cfg.dev_root}/convention/global/", f"{cfg.dev_root}/convention/repo-{info['repo_key']}/"]

@@ -5,6 +5,7 @@ from sagacontext.recall import render as render_recall
 from sagacontext.config import Config
 from sagacontext.capture import detect
 from sagacontext.transcript import read_incremental
+from sagacontext.reconcile import compress, correction_plan
 
 class CoreTests(unittest.TestCase):
     def test_memory_roundtrip(self):
@@ -34,6 +35,13 @@ class CoreTests(unittest.TestCase):
         turns, offset = read_incremental(path)
         self.assertEqual(len(turns), 1)
         self.assertLess(offset, path.stat().st_size)
+
+    def test_reconcile_plan_is_stable(self):
+        candidate = detect("不要使用 any")[0]
+        first = correction_plan(candidate, "viking://~/memories/dev", "abcd1234")
+        second = correction_plan(candidate, "viking://~/memories/dev", "abcd1234")
+        self.assertEqual(first.uri, second.uri)
+        self.assertIn("MEMORY_FIELDS", first.content)
 
 if __name__ == "__main__":
     unittest.main()
