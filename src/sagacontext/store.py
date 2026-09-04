@@ -13,6 +13,7 @@ class Store:
         CREATE TABLE IF NOT EXISTS repo_keys(realpath TEXT PRIMARY KEY, repo_key TEXT NOT NULL, kind TEXT NOT NULL, git_root TEXT);
         CREATE TABLE IF NOT EXISTS sessions(host TEXT, session_id TEXT, cwd TEXT, repo_key TEXT, branch TEXT, transcript_path TEXT, cursor_offset INTEGER DEFAULT 0, turn_count INTEGER DEFAULT 0, token_estimate INTEGER DEFAULT 0, ended INTEGER DEFAULT 0, PRIMARY KEY(host, session_id));
         CREATE TABLE IF NOT EXISTS recalled(host TEXT, session_id TEXT, uri TEXT, type TEXT, score REAL, at_event TEXT, PRIMARY KEY(host, session_id, uri));
+        CREATE TABLE IF NOT EXISTS buffer(id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT, session_id TEXT, turn_idx INTEGER, level TEXT, layer_guess TEXT, kind TEXT, text TEXT, files TEXT, confidence REAL, created_at TEXT, consumed INTEGER DEFAULT 0);
         """)
         self.db.commit()
 
@@ -30,3 +31,16 @@ class Store:
 
     def recalled_uris(self, host: str, session_id: str) -> set[str]:
         return {r[0] for r in self.db.execute("SELECT uri FROM recalled WHERE host=? AND session_id=?", (host, session_id))}
+
+    def add_candidates(self, host: str, session_id: str, candidates):
+        import json, datetime
+        self.db.executemany("INSERT INTO buffer(host,session_id,turn_idx,level,layer_guess,kind,text,files,confidence,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)", [(host, session_id, c.turn_idx, c.level, c.layer_guess, c.kind, c.text, json.dumps(c.files), c.confidence, datetime.datetime.now(datetime.timezone.utc).isoformat()) for c in candidates]); self.db.commit()
+
+    def unconsumed_candidates(self, host: str, session_id: str):
+        import json
+        from .models import Candidate
+        rows = self.db.execute("SELECT * FROM buffer WHERE host=? AND session_id=? AND consumed=0 ORDER BY id", (host, session_id)).fetchall()
+        return [Candidate(level=r["level"], layer_guess=r["layer_guess"], kind=r["kind"], turn_idx=r["turn_idx"], text=r["text"], files=json.loads(r["files"] or "[]"), confidence=r["confidence"]) for r in rows]
+
+    def consume_candidates(self, host: str, session_id: str):
+        self.db.execute("UPDATE buffer SET consumed=1 WHERE host=? AND session_id=? AND consumed=0", (host, session_id)); self.db.commit()

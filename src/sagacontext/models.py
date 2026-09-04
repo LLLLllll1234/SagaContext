@@ -34,3 +34,12 @@ class HostEvent(BaseModel):
     transcript_path: Path | None = None
     prompt: str | None = None
     raw: dict[str, Any] = Field(default_factory=dict)
+
+class Candidate(BaseModel):
+    level: Literal["L0", "L1"]
+    layer_guess: Literal["preference", "project", "task", "user"]
+    kind: str
+    turn_idx: int = 0
+    text: str
+    files: list[str] = Field(default_factory=list)
+    confidence: float = 0.5

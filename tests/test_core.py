@@ -3,6 +3,8 @@ from pathlib import Path
 from sagacontext.memfile import parse, render
 from sagacontext.recall import render as render_recall
 from sagacontext.config import Config
+from sagacontext.capture import detect
+from sagacontext.transcript import read_incremental
 
 class CoreTests(unittest.TestCase):
     def test_memory_roundtrip(self):
@@ -21,6 +23,17 @@ class CoreTests(unittest.TestCase):
     def test_default_config_loads(self):
         cfg = Config.load(Path("/tmp/sagacontext-config-that-does-not-exist"))
         self.assertEqual(cfg.port, 37780)
+
+    def test_capture_rules(self):
+        self.assertEqual(detect("以后不要使用 any")[0].kind, "explicit_negation")
+        self.assertEqual(detect("We decided to use SQLite")[0].layer_guess, "project")
+
+    def test_incremental_transcript_ignores_partial_line(self):
+        path = Path("/tmp/sagacontext-transcript.jsonl")
+        path.write_bytes(b'{"role":"user","text":"hello"}\n{"role":"assistant","text":"partial"}')
+        turns, offset = read_incremental(path)
+        self.assertEqual(len(turns), 1)
+        self.assertLess(offset, path.stat().st_size)
 
 if __name__ == "__main__":
     unittest.main()
