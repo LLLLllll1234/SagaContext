@@ -11,9 +11,12 @@ from .capture import detect
 from .transcript import read_incremental
 from .reconcile import correction_plan
 from .runner import run as run_reconcile
+from .compliance import check_pattern
+from .llm import OpenAIJudge
 import uuid
 
 cfg = Config.load(); store = Store(cfg.state_path); ov = OpenVikingClient(cfg.ov_base_url, cfg.ov_api_key)
+judge = OpenAIJudge(cfg.llm_base_url, cfg.llm_api_key, cfg.llm_model) if cfg.llm_base_url and cfg.llm_model else None
 app = FastAPI(title="SagaContext", version="0.1.0")
 
 def _normalize(host: str, event: str, raw: dict) -> HostEvent:
@@ -37,6 +40,12 @@ async def events(request: Request):
             if row and ev.transcript_path:
                 turns, new_offset = read_incremental(ev.transcript_path, row["cursor_offset"] or 0)
                 store.upsert_session(ev.host, ev.session_id, cursor_offset=new_offset, turn_count=(row["turn_count"] or 0) + 1, token_estimate=(row["token_estimate"] or 0) + len(ev.prompt) // 3)
+        if ev.event == "pre_tool":
+            tool = raw.get("tool") or {}
+            regex = tool.get("compliance_regex")
+            if regex:
+                result = check_pattern(str(tool.get("input", "")), regex)
+                return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": result.decision, "permissionDecisionReason": result.reason}}
         if ev.event in ("stop", "session_end", "pre_compact"):
             store.upsert_session(ev.host, ev.session_id, ended=1 if ev.event == "session_end" else 0)
             # Deterministic fallback: preserve L0 evidence as plans for a future
@@ -45,7 +54,7 @@ async def events(request: Request):
             if row:
                 plans = [correction_plan(c, cfg.dev_root, row["repo_key"]) for c in store.unconsumed_candidates(ev.host, ev.session_id) if c.kind == "explicit_negation"]
                 store.add_trace(str(uuid.uuid4()), "reconcile_plan", ev.host, ev.session_id, {"reason": ev.event, "plans": [p.uri for p in plans]})
-                asyncio.create_task(run_reconcile(ev.host, ev.session_id, store, ov, None))
+                asyncio.create_task(run_reconcile(ev.host, ev.session_id, store, ov, judge))
             return {"reconcile": "scheduled", "reason": ev.event} if ev.event == "session_end" else {}
         if ev.event not in ("session_start", "prompt"): return {}
         targets = [f"{cfg.dev_root}/convention/global/", f"{cfg.dev_root}/convention/repo-{info['repo_key']}/"]

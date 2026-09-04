@@ -26,4 +26,12 @@ def doctor():
     """Check local configuration and daemon dependencies."""
     cfg = Config.load(); typer.echo(json.dumps({"state_path": str(cfg.state_path), "ov_base_url": cfg.ov_base_url, "dev_root": cfg.dev_root, "status": "ok"}, ensure_ascii=False))
 
+@app.command()
+def pending():
+    """List unresolved reconciliation items."""
+    cfg = Config.load()
+    from .store import Store
+    rows = Store(cfg.state_path).db.execute("SELECT * FROM pending WHERE resolved='' ORDER BY created_at DESC").fetchall()
+    typer.echo(json.dumps([dict(r) for r in rows], ensure_ascii=False))
+
 if __name__ == "__main__": app()

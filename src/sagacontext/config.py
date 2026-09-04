@@ -14,6 +14,9 @@ class Config:
     dev_root: str = "viking://~/memories/dev"
     ov_base_url: str = "http://127.0.0.1:1933"
     ov_api_key: str = ""
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    llm_model: str = ""
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Config":
@@ -29,9 +32,11 @@ class Config:
             values.update({"dev_root": str(data.get("openviking", {}).get("dev_root", defaults.dev_root)),
                            "ov_base_url": str(data.get("openviking", {}).get("base_url", defaults.ov_base_url)),
                            "ov_api_key": str(data.get("openviking", {}).get("api_key", ""))})
+        llm = data.get("llm", {}) if path.exists() else {}
         return cls(state_path=root / "state.db", host=values.get("host", defaults.host),
                    port=int(values.get("port", defaults.port)),
                    hook_timeout_ms=int(values.get("hook_timeout_ms", defaults.hook_timeout_ms)),
                    recall_budget_tokens=int(data.get("recall", {}).get("session_start_budget_tokens", defaults.recall_budget_tokens)) if path.exists() else defaults.recall_budget_tokens,
                    dev_root=values.get("dev_root", defaults.dev_root), ov_base_url=values.get("ov_base_url", defaults.ov_base_url),
-                   ov_api_key=values.get("ov_api_key", defaults.ov_api_key))
+                   ov_api_key=values.get("ov_api_key", defaults.ov_api_key),
+                   llm_base_url=str(llm.get("base_url", "")), llm_api_key=str(llm.get("api_key", "")), llm_model=str(llm.get("model", "")))

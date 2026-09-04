@@ -7,6 +7,7 @@ from sagacontext.capture import detect
 from sagacontext.transcript import read_incremental
 from sagacontext.reconcile import compress, correction_plan
 from sagacontext.models import Delta
+from sagacontext.compliance import check_pattern
 from sagacontext.reconcile import WritePlan
 
 class CoreTests(unittest.TestCase):
@@ -54,6 +55,10 @@ class CoreTests(unittest.TestCase):
             def __init__(self, idx, role, text): self.idx, self.role, self.text = idx, role, text
         result = compress([Turn(0, "assistant", "background" * 100), Turn(1, "user", "keep this")], 10)
         self.assertIn("user", result)
+
+    def test_compliance_pattern(self):
+        self.assertEqual(check_pattern("src/a.ts: any", r"\bany\b").decision, "deny")
+        self.assertEqual(check_pattern("unknown", r"\bany\b").decision, "allow")
 
 if __name__ == "__main__":
     unittest.main()

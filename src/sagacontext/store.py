@@ -17,6 +17,9 @@ class Store:
         CREATE TABLE IF NOT EXISTS pending(id TEXT PRIMARY KEY, created_at TEXT, layer TEXT, type TEXT, old_uri TEXT, new_summary TEXT, resolved TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS traces(trace_id TEXT PRIMARY KEY, kind TEXT, host TEXT, session_id TEXT, created_at TEXT, payload TEXT);
         """)
+        from .tasks import ensure_schema
+        from .weights import ensure_schema as ensure_weights
+        ensure_schema(self.db); ensure_weights(self.db)
         self.db.commit()
 
     def upsert_session(self, host: str, session_id: str, **values):
