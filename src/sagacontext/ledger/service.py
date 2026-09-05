@@ -1,0 +1,507 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import sqlite3
+import uuid
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Iterator
+
+from .models import CommitRequest, CommitResult, MemoryView, Scope, TaskContext
+from .schema import MIGRATION_1, SCHEMA_VERSION
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _canonical(value: object) -> str:
+    return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+
+class Ledger:
+    def __init__(self, path: Path, owner_id: str | None = None):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = path
+        self.db = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute("PRAGMA foreign_keys=ON")
+        self.db.execute("PRAGMA journal_mode=WAL")
+        self.db.execute("PRAGMA busy_timeout=2000")
+        self._migrate()
+        row = self.db.execute("SELECT owner_id FROM owners ORDER BY created_at LIMIT 1").fetchone()
+        self.owner_id = owner_id or (row[0] if row else str(uuid.uuid4()))
+        self.db.execute("INSERT OR IGNORE INTO owners(owner_id,created_at) VALUES (?,?)", (self.owner_id, _now()))
+
+    def close(self) -> None:
+        self.db.close()
+
+    def _migrate(self) -> None:
+        self.db.execute("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)")
+        applied = {row[0] for row in self.db.execute("SELECT version FROM schema_migrations")}
+        if SCHEMA_VERSION not in applied:
+            applied_at = _now().replace("'", "''")
+            try:
+                self.db.executescript(
+                    f"BEGIN IMMEDIATE;\n{MIGRATION_1}\n"
+                    f"INSERT INTO schema_migrations(version,applied_at) VALUES ({SCHEMA_VERSION},'{applied_at}');\n"
+                    "COMMIT;"
+                )
+            except Exception:
+                self.db.rollback()
+                raise
+
+    @contextmanager
+    def _write_transaction(self) -> Iterator[None]:
+        self.db.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+        except Exception:
+            self.db.rollback()
+            raise
+        else:
+            self.db.commit()
+
+    def register_project(self, name: str, location: Path) -> dict[str, str]:
+        realpath = str(location.resolve(strict=True))
+        existing = self.db.execute(
+            "SELECT project_id,workspace_id FROM project_locations WHERE owner_id=? AND realpath=?",
+            (self.owner_id, realpath),
+        ).fetchone()
+        if existing:
+            return dict(existing)
+        project_id, workspace_id = str(uuid.uuid4()), str(uuid.uuid4())
+        with self._write_transaction():
+            self.db.execute(
+                "INSERT INTO projects(project_id,owner_id,name,created_at) VALUES (?,?,?,?)",
+                (project_id, self.owner_id, name, _now()),
+            )
+            self.db.execute(
+                "INSERT INTO project_locations(location_id,owner_id,project_id,workspace_id,realpath) VALUES (?,?,?,?,?)",
+                (str(uuid.uuid4()), self.owner_id, project_id, workspace_id, realpath),
+            )
+        return {"project_id": project_id, "workspace_id": workspace_id}
+
+    def bind_location(self, project_id: str, location: Path) -> str:
+        self._require_project(project_id)
+        realpath = str(location.resolve(strict=True))
+        existing = self.db.execute(
+            "SELECT project_id,workspace_id FROM project_locations WHERE owner_id=? AND realpath=?",
+            (self.owner_id, realpath),
+        ).fetchone()
+        if existing:
+            if existing["project_id"] != project_id:
+                raise ValueError("location already belongs to another project")
+            return existing["workspace_id"]
+        workspace_id = str(uuid.uuid4())
+        with self._write_transaction():
+            self.db.execute(
+                "INSERT INTO project_locations(location_id,owner_id,project_id,workspace_id,realpath) VALUES (?,?,?,?,?)",
+                (str(uuid.uuid4()), self.owner_id, project_id, workspace_id, realpath),
+            )
+        return workspace_id
+
+    def resolve_project(self, location: Path) -> dict[str, str] | None:
+        realpath = location.resolve(strict=True)
+        matches = []
+        for row in self.db.execute(
+            "SELECT project_id,workspace_id,realpath FROM project_locations WHERE owner_id=?", (self.owner_id,)
+        ):
+            root = Path(row["realpath"])
+            if realpath == root or realpath.is_relative_to(root):
+                matches.append((len(root.parts), row))
+        if not matches:
+            return None
+        row = max(matches, key=lambda item: item[0])[1]
+        return {"project_id": row["project_id"], "workspace_id": row["workspace_id"], "root": row["realpath"]}
+
+    def rebind_location(self, project_id: str, old_location: Path, new_location: Path) -> str:
+        old_path = str(old_location.resolve(strict=False))
+        new_path = str(new_location.resolve(strict=True))
+        with self._write_transaction():
+            row = self.db.execute(
+                "SELECT workspace_id FROM project_locations WHERE owner_id=? AND project_id=? AND realpath=?",
+                (self.owner_id, project_id, old_path),
+            ).fetchone()
+            if not row:
+                raise ValueError("old location is not bound to project")
+            self.db.execute(
+                "UPDATE project_locations SET realpath=? WHERE owner_id=? AND project_id=? AND realpath=?",
+                (new_path, self.owner_id, project_id, old_path),
+            )
+        return row["workspace_id"]
+
+    def create_task(self, project_id: str, goal: str) -> str:
+        self._require_project(project_id)
+        task_id, now = str(uuid.uuid4()), _now()
+        with self._write_transaction():
+            self.db.execute(
+                "INSERT INTO tasks(task_id,owner_id,project_id,goal,status,created_at,last_active) VALUES (?,?,?,?,?,?,?)",
+                (task_id, self.owner_id, project_id, goal, "active", now, now),
+            )
+        return task_id
+
+    def open_session(self, host: str, host_session_id: str, workspace_id: str) -> str:
+        location = self.db.execute(
+            "SELECT 1 FROM project_locations WHERE owner_id=? AND workspace_id=?",
+            (self.owner_id, workspace_id),
+        ).fetchone()
+        if not location:
+            raise ValueError("unknown workspace")
+        existing = self.db.execute(
+            "SELECT session_id FROM sessions WHERE owner_id=? AND host=? AND host_session_id=?",
+            (self.owner_id, host, host_session_id),
+        ).fetchone()
+        if existing:
+            return existing["session_id"]
+        session_id = str(uuid.uuid4())
+        with self._write_transaction():
+            self.db.execute(
+                "INSERT INTO sessions(session_id,owner_id,host,host_session_id,workspace_id,opened_at) VALUES (?,?,?,?,?,?)",
+                (session_id, self.owner_id, host, host_session_id, workspace_id, _now()),
+            )
+        return session_id
+
+    def bind_task(self, session_id: str, task_id: str, start_event_id: str) -> str:
+        row = self.db.execute(
+            "SELECT t.project_id,pl.project_id AS workspace_project FROM sessions s "
+            "JOIN project_locations pl ON pl.workspace_id=s.workspace_id AND pl.owner_id=s.owner_id "
+            "JOIN tasks t ON t.task_id=? AND t.owner_id=s.owner_id "
+            "WHERE s.session_id=? AND s.owner_id=?",
+            (task_id, session_id, self.owner_id),
+        ).fetchone()
+        if not row or row["project_id"] != row["workspace_project"]:
+            raise ValueError("task and session must belong to the same project")
+        binding_id = str(uuid.uuid4())
+        with self._write_transaction():
+            self.db.execute(
+                "UPDATE task_bindings SET end_event_id=? WHERE session_id=? AND end_event_id IS NULL",
+                (start_event_id, session_id),
+            )
+            self.db.execute(
+                "INSERT INTO task_bindings VALUES (?,?,?,?,?,?,?)",
+                (binding_id, self.owner_id, session_id, task_id, start_event_id, None, _now()),
+            )
+        return binding_id
+
+    def current_task(self, session_id: str) -> str | None:
+        row = self.db.execute(
+            "SELECT task_id FROM task_bindings WHERE owner_id=? AND session_id=? AND end_event_id IS NULL",
+            (self.owner_id, session_id),
+        ).fetchone()
+        return row["task_id"] if row else None
+
+    def commit(self, request: CommitRequest) -> CommitResult:
+        digest = hashlib.sha256(_canonical(request.model_dump(mode="json")).encode()).hexdigest()
+        old_receipt = self.db.execute(
+            "SELECT request_digest,result_json FROM commit_receipts WHERE owner_id=? AND receipt=?",
+            (self.owner_id, request.receipt),
+        ).fetchone()
+        if old_receipt:
+            if old_receipt["request_digest"] != digest:
+                return CommitResult(status="rejected", ledger_sequence=self.sequence, reason="receipt_reused")
+            return CommitResult.model_validate_json(old_receipt["result_json"])
+
+        self._validate_scope(request.scope)
+        memory_id = request.memory_id or str(uuid.uuid4())
+        with self._write_transaction():
+            scope_json = _canonical(request.scope.model_dump())
+            topic_digest = self._topic_digest(request.memory_type, scope_json, _canonical(request.payload))
+            source_ids = sorted(
+                {self._source_claim_digest(item.source_event_id, item.claim_key) for item in request.evidence}
+            )
+            source_clause = ""
+            source_values: list[str] = []
+            if source_ids:
+                source_clause = f" OR source_claim_digest IN ({','.join('?' for _ in source_ids)})"
+                source_values = source_ids
+            suppressed = self.db.execute(
+                f"SELECT 1 FROM suppression_rules WHERE owner_id=? AND (topic_digest=?{source_clause})",
+                (self.owner_id, topic_digest, *source_values),
+            ).fetchone()
+            if request.operation == "new" and suppressed:
+                result = CommitResult(
+                    status="rejected", ledger_sequence=self.sequence, reason="suppressed_after_deletion"
+                )
+                self._save_receipt(request.receipt, digest, result)
+                return result
+            current = self.db.execute(
+                "SELECT * FROM memories WHERE memory_id=? AND owner_id=?", (memory_id, self.owner_id)
+            ).fetchone()
+            if request.operation == "new":
+                if current:
+                    return self._store_conflict_receipt(request, digest, "memory_exists")
+                revision = 1
+            else:
+                if not current or current["state"] != "active":
+                    return self._store_conflict_receipt(request, digest, "missing_or_inactive")
+                if current["current_revision"] != request.expected_revision:
+                    return self._store_conflict_receipt(request, digest, "revision_changed")
+                if current["memory_type"] != request.memory_type or current["scope_json"] != _canonical(request.scope.model_dump()):
+                    return self._store_conflict_receipt(request, digest, "identity_changed")
+                if request.operation == "confirm":
+                    previous = self.db.execute(
+                        "SELECT payload_json FROM revisions WHERE memory_id=? AND revision=?",
+                        (memory_id, current["current_revision"]),
+                    ).fetchone()
+                    if not request.evidence:
+                        return self._store_conflict_receipt(request, digest, "confirmation_requires_evidence")
+                    if previous["payload_json"] != _canonical(request.payload):
+                        return self._store_conflict_receipt(request, digest, "confirmation_cannot_change_payload")
+                revision = current["current_revision"] + 1
+
+            sequence = self._next_sequence()
+            if current:
+                changed = self.db.execute(
+                    "UPDATE memories SET current_revision=?,ledger_sequence=? WHERE memory_id=? AND current_revision=?",
+                    (revision, sequence, memory_id, request.expected_revision),
+                )
+                if changed.rowcount != 1:
+                    raise RuntimeError("concurrent head update")
+            else:
+                self.db.execute(
+                    "INSERT INTO memories VALUES (?,?,?,?,?,'active','none',?)",
+                    (memory_id, self.owner_id, revision, request.memory_type, scope_json, sequence),
+                )
+            self.db.execute(
+                "INSERT INTO revisions VALUES (?,?,?,?,?,?,?)",
+                (memory_id, revision, request.operation, request.payload_schema_version, _canonical(request.payload), _now(), request.source_kind),
+            )
+            self._attach_evidence(memory_id, revision, request)
+            projected = self._enqueue_projection(memory_id, revision, "upsert")
+            result = CommitResult(
+                status="committed_pending_projection" if projected else "committed_local_only",
+                memory_id=memory_id,
+                revision=revision,
+                ledger_sequence=sequence,
+            )
+            self._save_receipt(request.receipt, digest, result)
+        return result
+
+    def _store_conflict_receipt(self, request: CommitRequest, digest: str, reason: str) -> CommitResult:
+        result = CommitResult(status="conflict", memory_id=request.memory_id, ledger_sequence=self.sequence, reason=reason)
+        self._save_receipt(request.receipt, digest, result)
+        return result
+
+    def _save_receipt(self, receipt: str, digest: str, result: CommitResult) -> None:
+        self.db.execute(
+            "INSERT INTO commit_receipts VALUES (?,?,?,?,?)",
+            (self.owner_id, receipt, digest, result.model_dump_json(), _now()),
+        )
+
+    def _attach_evidence(self, memory_id: str, revision: int, request: CommitRequest) -> None:
+        for item in request.evidence:
+            self.db.execute(
+                "INSERT OR IGNORE INTO evidence VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    item.evidence_id,
+                    self.owner_id,
+                    item.source_event_id,
+                    item.claim_key,
+                    item.evidence_kind,
+                    _canonical(item.locator),
+                    item.observed_at.isoformat(),
+                    _canonical(item.verification.model_dump(mode="json")) if item.verification is not None else None,
+                    item.redacted_excerpt,
+                ),
+            )
+            row = self.db.execute(
+                "SELECT evidence_id FROM evidence WHERE owner_id=? AND source_event_id=? AND claim_key=?",
+                (self.owner_id, item.source_event_id, item.claim_key),
+            ).fetchone()
+            if row is None:
+                raise ValueError("evidence_id_collision")
+            self.db.execute(
+                "INSERT OR IGNORE INTO revision_evidence VALUES (?,?,?,?)",
+                (memory_id, revision, row["evidence_id"], item.claim_key),
+            )
+
+    def get_current(self, memory_ids: list[str], context: TaskContext) -> list[MemoryView]:
+        if context.owner_id != self.owner_id or not memory_ids:
+            return []
+        placeholders = ",".join("?" for _ in memory_ids)
+        rows = self.db.execute(
+            f"SELECT m.*,r.payload_json FROM memories m JOIN revisions r ON r.memory_id=m.memory_id AND r.revision=m.current_revision "
+            f"WHERE m.owner_id=? AND m.state='active' AND m.memory_id IN ({placeholders})",
+            (self.owner_id, *memory_ids),
+        ).fetchall()
+        result = []
+        for row in rows:
+            scope = Scope.model_validate_json(row["scope_json"])
+            if self._scope_allows(scope, context):
+                result.append(self._view(row, scope))
+        return result
+
+    def read_history(self, memory_id: str, context: TaskContext) -> list[MemoryView]:
+        if context.owner_id != self.owner_id:
+            return []
+        head = self.db.execute(
+            "SELECT * FROM memories WHERE memory_id=? AND owner_id=? AND state!='deleted'", (memory_id, self.owner_id)
+        ).fetchone()
+        if not head:
+            return []
+        scope = Scope.model_validate_json(head["scope_json"])
+        if not self._scope_allows(scope, context):
+            return []
+        rows = self.db.execute("SELECT * FROM revisions WHERE memory_id=? ORDER BY revision", (memory_id,)).fetchall()
+        return [
+            MemoryView(
+                owner_id=self.owner_id,
+                memory_id=memory_id,
+                revision=row["revision"],
+                memory_type=head["memory_type"],
+                scope=scope,
+                state=head["state"],
+                conflict_state=head["conflict_state"],
+                payload=json.loads(row["payload_json"]),
+                ledger_sequence=head["ledger_sequence"],
+            )
+            for row in rows
+        ]
+
+    def forget(self, memory_id: str, receipt: str) -> dict[str, str]:
+        receipt_key = f"forget:{receipt}"
+        prior = self.db.execute(
+            "SELECT result_json FROM commit_receipts WHERE owner_id=? AND receipt=?", (self.owner_id, receipt_key)
+        ).fetchone()
+        if prior:
+            return json.loads(prior[0])
+        with self._write_transaction():
+            head = self.db.execute(
+                "SELECT m.*,r.payload_json FROM memories m JOIN revisions r "
+                "ON r.memory_id=m.memory_id AND r.revision=m.current_revision "
+                "WHERE m.memory_id=? AND m.owner_id=?",
+                (memory_id, self.owner_id),
+            ).fetchone()
+            if not head:
+                result = {"status": "needs_action", "reason": "not_found"}
+            else:
+                job_id, suppression_id = str(uuid.uuid4()), str(uuid.uuid4())
+                sequence = self._next_sequence()
+                self.db.execute(
+                    "UPDATE memories SET state='deleted',ledger_sequence=? WHERE memory_id=?", (sequence, memory_id)
+                )
+                self.db.execute("UPDATE revisions SET payload_json='{}' WHERE memory_id=?", (memory_id,))
+                self.db.execute(
+                    "UPDATE evidence SET redacted_excerpt=NULL WHERE evidence_id IN (SELECT evidence_id FROM revision_evidence WHERE memory_id=?)",
+                    (memory_id,),
+                )
+                topic_digest = self._topic_digest(
+                    head["memory_type"], head["scope_json"], head["payload_json"]
+                )
+                source_rows = self.db.execute(
+                    "SELECT DISTINCT e.source_event_id,e.claim_key FROM evidence e JOIN revision_evidence re "
+                    "ON re.evidence_id=e.evidence_id WHERE re.memory_id=?",
+                    (memory_id,),
+                ).fetchall()
+                source_ids = [
+                    self._source_claim_digest(row["source_event_id"], row["claim_key"])
+                    for row in source_rows
+                ] or [None]
+                self.db.executemany(
+                    "INSERT INTO suppression_rules VALUES (?,?,?,?,?,?,?)",
+                    [
+                        (
+                            suppression_id if index == 0 else str(uuid.uuid4()),
+                            self.owner_id,
+                            memory_id,
+                            source_event_id,
+                            head["scope_json"],
+                            topic_digest,
+                            _now(),
+                        )
+                        for index, source_event_id in enumerate(source_ids)
+                    ],
+                )
+                projected = self._enqueue_projection(memory_id, head["current_revision"], "delete")
+                status = "remote_pending" if projected else "local_redacted"
+                self.db.execute(
+                    "INSERT INTO deletion_jobs VALUES (?,?,?,?,?)", (job_id, self.owner_id, memory_id, status, _now())
+                )
+                result = {"status": status, "job_id": job_id, "memory_id": memory_id}
+            self.db.execute(
+                "INSERT INTO commit_receipts VALUES (?,?,?,?,?)",
+                (self.owner_id, receipt_key, hashlib.sha256(memory_id.encode()).hexdigest(), _canonical(result), _now()),
+            )
+        return result
+
+    def register_backend_generation(self, backend: str, generation: str, active: bool = True) -> None:
+        with self._write_transaction():
+            if active:
+                self.db.execute("UPDATE backend_generations SET active=0 WHERE backend=?", (backend,))
+            self.db.execute(
+                "INSERT INTO backend_generations VALUES (?,?,?) ON CONFLICT(backend,generation) DO UPDATE SET active=excluded.active",
+                (backend, generation, int(active)),
+            )
+
+    @property
+    def sequence(self) -> int:
+        return int(self.db.execute("SELECT value FROM ledger_meta WHERE key='sequence'").fetchone()[0])
+
+    def _next_sequence(self) -> int:
+        value = self.sequence + 1
+        self.db.execute("UPDATE ledger_meta SET value=? WHERE key='sequence'", (str(value),))
+        return value
+
+    def _enqueue_projection(self, memory_id: str, revision: int, action: str) -> bool:
+        rows = self.db.execute("SELECT backend,generation FROM backend_generations WHERE active=1").fetchall()
+        for row in rows:
+            self.db.execute(
+                "INSERT OR IGNORE INTO outbox(backend,generation,memory_id,revision,action,created_at) VALUES (?,?,?,?,?,?)",
+                (row["backend"], row["generation"], memory_id, revision, action, _now()),
+            )
+        return bool(rows)
+
+    @staticmethod
+    def _topic_digest(memory_type: str, scope_json: str, payload_json: str) -> str:
+        return hashlib.sha256(f"{memory_type}\0{scope_json}\0{payload_json}".encode()).hexdigest()
+
+    @staticmethod
+    def _source_claim_digest(source_event_id: str, claim_key: str) -> str:
+        return hashlib.sha256(f"{source_event_id}\0{claim_key}".encode()).hexdigest()
+
+    def _validate_scope(self, scope: Scope) -> None:
+        if scope.project_id:
+            self._require_project(scope.project_id)
+        if scope.task_id:
+            task = self.db.execute(
+                "SELECT project_id FROM tasks WHERE task_id=? AND owner_id=?", (scope.task_id, self.owner_id)
+            ).fetchone()
+            if not task or task["project_id"] != scope.project_id:
+                raise ValueError("task scope is not owned by the project")
+
+    def _require_project(self, project_id: str) -> None:
+        row = self.db.execute(
+            "SELECT 1 FROM projects WHERE project_id=? AND owner_id=?", (project_id, self.owner_id)
+        ).fetchone()
+        if not row:
+            raise ValueError("unknown project")
+
+    @staticmethod
+    def _scope_allows(scope: Scope, context: TaskContext) -> bool:
+        if scope.kind == "global":
+            return True
+        if scope.project_id != context.project_id:
+            return False
+        if scope.kind == "project":
+            return True
+        if scope.kind == "task":
+            return scope.task_id == context.task_id
+        root = Path("/")
+        pattern = scope.path_pattern or ""
+        return any((root / path).match(pattern) for path in context.touched_paths if not Path(path).is_absolute())
+
+    def _view(self, row: sqlite3.Row, scope: Scope) -> MemoryView:
+        return MemoryView(
+            owner_id=row["owner_id"],
+            memory_id=row["memory_id"],
+            revision=row["current_revision"],
+            memory_type=row["memory_type"],
+            scope=scope,
+            state=row["state"],
+            conflict_state=row["conflict_state"],
+            payload=json.loads(row["payload_json"]),
+            ledger_sequence=row["ledger_sequence"],
+        )

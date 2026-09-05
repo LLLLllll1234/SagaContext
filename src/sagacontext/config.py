@@ -6,6 +6,7 @@ from pathlib import Path
 @dataclass(slots=True)
 class Config:
     state_path: Path
+    ledger_path: Path | None = None
     host: str = "127.0.0.1"
     port: int = 37780
     hook_timeout_ms: int = 800
@@ -33,7 +34,7 @@ class Config:
                            "ov_base_url": str(data.get("openviking", {}).get("base_url", defaults.ov_base_url)),
                            "ov_api_key": str(data.get("openviking", {}).get("api_key", ""))})
         llm = data.get("llm", {}) if path.exists() else {}
-        return cls(state_path=root / "state.db", host=values.get("host", defaults.host),
+        return cls(state_path=root / "state.db", ledger_path=root / "ledger-v3.db", host=values.get("host", defaults.host),
                    port=int(values.get("port", defaults.port)),
                    hook_timeout_ms=int(values.get("hook_timeout_ms", defaults.hook_timeout_ms)),
                    recall_budget_tokens=int(data.get("recall", {}).get("session_start_budget_tokens", defaults.recall_budget_tokens)) if path.exists() else defaults.recall_budget_tokens,
