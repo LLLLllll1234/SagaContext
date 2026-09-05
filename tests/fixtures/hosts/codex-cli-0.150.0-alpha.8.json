@@ -1,27 +1,157 @@
 {
-  "adapter_version": "g3-probe-v1",
-  "config_fingerprint": "sha256:951f44c678332866b26cea4458394efeeee93c2767ab212dcc44ce6a092eca68",
+  "adapter_version": "g3-probe-v2",
+  "cleanup": {
+    "global_config_modified": false,
+    "private_transcript_read": false,
+    "raw_reference_mapping_saved": false,
+    "temporary_root_removed": true,
+    "temporary_workspace_policy": "delete_after_capture"
+  },
+  "config_fingerprint": "sha256:9f252e8a99b19ac754ba0b163a604765b20cbc7f32bc2dcdb94c8c3fbf8571d0",
   "executable_version": "codex-cli 0.150.0-alpha.8",
+  "finished_at": "2026-09-05T12:46:43.821145+00:00",
   "host_form": "cli-exec",
   "host_name": "codex",
   "injection_modes": [],
+  "model_runtime": {
+    "auth_material_available": true,
+    "auth_material_saved": false,
+    "mode": "temporary_minimal_codex_home",
+    "provider_configured": true,
+    "provider_endpoint_saved": false,
+    "provider_value_saved": false
+  },
   "official_references": [
     "https://developers.openai.com/codex/hooks",
     "https://developers.openai.com/codex/config-file/config-reference",
     "https://developers.openai.com/codex/cli/reference"
   ],
+  "payload_policy": "synthetic_only_redacted_receipts",
   "payload_shapes": [],
+  "pinned_executable_version": "codex-cli 0.150.0-alpha.8",
   "probe_date": "2026-09-05",
+  "probe_id": "g3-20260905T124544Z-bd2b4ed7",
   "probe_result": {
     "agent_received_injected_context": false,
     "blocker": "model_authentication_failed",
-    "exit_code": null,
-    "status": "blocked",
+    "exit_code": 1,
+    "status": "blocked_environment",
     "stderr_present": true
   },
+  "requested_model": "gpt-5.6-luna",
+  "required_runtime_events": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "Stop",
+    "SessionEnd"
+  ],
   "runtime_feature_flags": {
     "hooks": true
   },
+  "scenarios": [
+    {
+      "agent_received_injected_context": false,
+      "blocker": "model_authentication_failed",
+      "cli_event_types": {
+        "error": 6,
+        "item.completed": 2,
+        "thread.started": 1,
+        "turn.failed": 1,
+        "turn.started": 1
+      },
+      "elapsed_ms": 16540.78,
+      "event_counts": {},
+      "exit_code": 1,
+      "finished_at": "2026-09-05T12:46:00.572277+00:00",
+      "name": "baseline_with_duplicate",
+      "outer_timeout": false,
+      "receipt_occurrences": [],
+      "started_at": "2026-09-05T12:45:44.031304+00:00",
+      "stderr_summary": {
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false,
+        "present": true
+      }
+    },
+    {
+      "agent_received_injected_context": false,
+      "blocker": "model_authentication_failed",
+      "cli_event_types": {
+        "error": 6,
+        "item.completed": 2,
+        "thread.started": 1,
+        "turn.failed": 1,
+        "turn.started": 1
+      },
+      "elapsed_ms": 14850.962,
+      "event_counts": {},
+      "exit_code": 1,
+      "finished_at": "2026-09-05T12:46:15.424579+00:00",
+      "name": "hook_nonzero_exit",
+      "outer_timeout": false,
+      "receipt_occurrences": [],
+      "started_at": "2026-09-05T12:46:00.573521+00:00",
+      "stderr_summary": {
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false,
+        "present": true
+      }
+    },
+    {
+      "agent_received_injected_context": false,
+      "blocker": "model_authentication_failed",
+      "cli_event_types": {
+        "error": 6,
+        "item.completed": 2,
+        "thread.started": 1,
+        "turn.failed": 1,
+        "turn.started": 1
+      },
+      "elapsed_ms": 14215.0,
+      "event_counts": {},
+      "exit_code": 1,
+      "finished_at": "2026-09-05T12:46:29.642200+00:00",
+      "name": "hook_timeout",
+      "outer_timeout": false,
+      "receipt_occurrences": [],
+      "started_at": "2026-09-05T12:46:15.426435+00:00",
+      "stderr_summary": {
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false,
+        "present": true
+      }
+    },
+    {
+      "agent_received_injected_context": false,
+      "blocker": "model_authentication_failed",
+      "cli_event_types": {
+        "error": 6,
+        "item.completed": 2,
+        "thread.started": 1,
+        "turn.failed": 1,
+        "turn.started": 1
+      },
+      "elapsed_ms": 14176.412,
+      "event_counts": {},
+      "exit_code": 1,
+      "finished_at": "2026-09-05T12:46:43.820071+00:00",
+      "name": "restart_recovery",
+      "outer_timeout": false,
+      "receipt_occurrences": [],
+      "started_at": "2026-09-05T12:46:29.643533+00:00",
+      "stderr_summary": {
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false,
+        "present": true
+      }
+    }
+  ],
   "source_declared_events": [
     "PreToolUse",
     "PermissionRequest",
@@ -37,10 +167,12 @@
     "Interrupt"
   ],
   "source_revision": "728cb12fe5794b0c3a8e776fb4994b1650b973a8",
+  "started_at": "2026-09-05T12:45:44.014606+00:00",
   "timeout_behavior": {
-    "long_hook_clamp": "not_probed",
-    "session_end_configured_seconds": 1,
-    "session_end_observed": false
+    "host_timeout_signal_observed": false,
+    "pre_tool_sleep_seconds": 2.5,
+    "pre_tool_timeout_configured_seconds": 1,
+    "session_end_configured_seconds": 1
   },
   "transcript_support": {
     "content_saved": false,

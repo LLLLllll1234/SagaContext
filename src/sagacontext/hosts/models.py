@@ -13,7 +13,13 @@ class HostEventCapability(BaseModel):
 
 
 class HostProbeResult(BaseModel):
-    status: Literal["passed", "blocked", "failed"]
+    status: Literal[
+        "completed",
+        "blocked_environment",
+        "failed",
+        "passed",
+        "blocked",
+    ]
     blocker: str | None = None
     exit_code: int | None = None
     stderr_present: bool
@@ -28,8 +34,8 @@ class HostCapabilities(BaseModel):
     config_fingerprint: str
     verified_events: list[HostEventCapability]
     injection_modes: list[str] = Field(default_factory=list)
-    timeout_behavior: dict[str, str | int | bool]
-    transcript_support: dict[str, str | int | bool]
+    timeout_behavior: dict[str, str | int | float | bool]
+    transcript_support: dict[str, str | int | float | bool]
     probe_date: date
     official_references: list[str] = Field(default_factory=list)
     runtime_feature_flags: dict[str, bool] = Field(default_factory=dict)
