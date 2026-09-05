@@ -5,10 +5,10 @@ from sagacontext.memfile import parse, render
 from sagacontext.recall import render as render_recall
 from sagacontext.config import Config
 from sagacontext.capture import detect
-from sagacontext.transcript import read_incremental
+from sagacontext.transcript import read_incremental, read_edit_attempts
 from sagacontext.reconcile import compress, correction_plan
 from sagacontext.models import Delta, MemoryRecord
-from sagacontext.compliance import check_pattern
+from sagacontext.compliance import Rule, check_pattern, compile_rules, evaluate, run_commands
 from sagacontext.reconcile import WritePlan, evolve
 from sagacontext.writer import apply
 from sagacontext.store import Store
@@ -56,6 +56,17 @@ class CoreTests(unittest.TestCase):
             turns, _ = read_incremental(path)
             self.assertEqual([turn.text for turn in turns], ["codex", "claude"])
 
+    def test_codex_apply_patch_compliance_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rollout.jsonl"
+            payload = {"type": "response_item", "payload": {"type": "function_call", "name": "apply_patch",
+                       "arguments": '{"patch":"*** Update File: src/a.ts\\n+let value: any\\n"}'}}
+            import json
+            path.write_text(json.dumps(payload) + "\n")
+            edits, offset = read_edit_attempts(path)
+            self.assertEqual(edits, [("src/a.ts", "let value: any")])
+            self.assertEqual(offset, path.stat().st_size)
+
     def test_revert_snapshot_is_consumed_once(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); state = Store(root / "state.db"); target = root / "a.py"
@@ -101,6 +112,36 @@ class CoreTests(unittest.TestCase):
     def test_compliance_pattern(self):
         self.assertEqual(check_pattern("src/a.ts: any", r"\bany\b").decision, "deny")
         self.assertEqual(check_pattern("unknown", r"\bany\b").decision, "allow")
+
+    def test_compliance_compile_and_evaluate(self):
+        memory = MemoryRecord(uri="viking://rule", type="dev_convention", fields={"status": "active", "confidence": 0.8,
+            "rule": "no any", "check_hint": "pattern", "check_spec": '{"regex":"\\\\bany\\\\b","paths":["src/*.ts"],"mode":"block"}'})
+        rules = compile_rules([memory])
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(evaluate(rules, "src/a.ts", "let x: any")[0].decision, "deny")
+        self.assertEqual(evaluate(rules, "tests/a.ts", "let x: any"), [])
+        memory.fields["confidence"] = 0.5
+        self.assertEqual(compile_rules([memory]), [])
+        unsafe = MemoryRecord(uri="viking://unsafe", type="dev_convention", fields={"status": "active", "confidence": 0.8,
+            "rule": "run shell", "check_hint": "command", "check_spec": '{"command":["sh","-c","echo unsafe"]}'})
+        self.assertEqual(compile_rules([unsafe]), [])
+
+    def test_compliance_path_warn_and_command(self):
+        path_rule = Rule("viking://path", "path", "fixtures belong in conftest", "warn", forbid_paths=["tests/*fixture*.py"])
+        self.assertEqual(evaluate([path_rule], "tests/my_fixture.py", "")[0].decision, "warn")
+        command_rule = Rule("viking://cmd", "command", "check failed", command=["sh", "-c", "exit 2"])
+        self.assertEqual(len(run_commands([command_rule], Path("."))), 1)
+
+    def test_repeated_override_softens_rule(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Store(Path(directory) / "state.db")
+            rule = Rule("viking://rule", "pattern", "no any", "block", regex="any")
+            state.replace_compliance_rules("claude-code", "s", [rule])
+            for _ in range(3): state.add_violation("claude-code", "s", rule.uri, "a.ts", rule.reason)
+            self.assertEqual(state.soften_compliance_after_override("claude-code", "s"), [rule.uri])
+            self.assertEqual(state.compliance_rules("claude-code", "s")[0].mode, "warn")
+            count = state.db.execute("SELECT COUNT(*) FROM pending").fetchone()[0]
+            self.assertEqual(count, 1)
 
     def test_evolve_relations(self):
         existing = MemoryRecord(uri="viking://x/no_any.md", type="dev_convention", version=2,

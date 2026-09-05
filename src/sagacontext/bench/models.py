@@ -7,16 +7,18 @@ class Observation(BaseModel):
     followed: list[str] = Field(default_factory=list)
     relation: str | None = None
     resumed_task: str | None = None
+    blocked: bool | None = None
 
 class BenchmarkCase(BaseModel):
     id: str
     dataset_kind: Literal["smoke", "labeled"] = "smoke"
-    category: Literal["preference", "evolution", "project_fact", "task_resume"]
+    category: Literal["preference", "evolution", "project_fact", "task_resume", "compliance"]
     expected_recall: list[str] = Field(default_factory=list)
     forbidden_recall: list[str] = Field(default_factory=list)
     expected_follow: list[str] = Field(default_factory=list)
     expected_relation: str | None = None
     expected_task: str | None = None
+    expected_block: bool | None = None
     observations: dict[str, Observation] = Field(default_factory=dict)
 
 class CaseResult(BaseModel):
@@ -34,3 +36,5 @@ class CaseResult(BaseModel):
     evolution_total: int = 0
     task_correct: int = 0
     task_total: int = 0
+    false_blocks: int = 0
+    block_total: int = 0

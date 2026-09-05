@@ -17,6 +17,9 @@ class Store:
         CREATE TABLE IF NOT EXISTS pending(id TEXT PRIMARY KEY, created_at TEXT, layer TEXT, type TEXT, old_uri TEXT, new_summary TEXT, resolved TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS traces(trace_id TEXT PRIMARY KEY, kind TEXT, host TEXT, session_id TEXT, created_at TEXT, payload TEXT);
         CREATE TABLE IF NOT EXISTS tool_edits(id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT, session_id TEXT, turn_idx INTEGER, path TEXT, sha_after TEXT, tool_call_id TEXT, created_at TEXT, checked INTEGER DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS compliance_rules(host TEXT, session_id TEXT, uri TEXT, payload TEXT, PRIMARY KEY(host,session_id,uri));
+        CREATE TABLE IF NOT EXISTS compliance_violations(id INTEGER PRIMARY KEY AUTOINCREMENT, host TEXT, session_id TEXT, uri TEXT, path TEXT, reason TEXT, created_at TEXT, injected INTEGER DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS compliance_cursors(host TEXT, session_id TEXT, offset INTEGER DEFAULT 0, PRIMARY KEY(host,session_id));
         """)
         session_columns = {row[1] for row in self.db.execute("PRAGMA table_info(sessions)")}
         if "task_id" not in session_columns:
@@ -85,3 +88,48 @@ class Store:
     def mark_tool_edits_checked(self, ids: list[int]):
         if not ids: return
         self.db.executemany("UPDATE tool_edits SET checked=1 WHERE id=?", [(item,) for item in ids]); self.db.commit()
+
+    def replace_compliance_rules(self, host: str, session_id: str, rules):
+        import json
+        from dataclasses import asdict
+        self.db.execute("DELETE FROM compliance_rules WHERE host=? AND session_id=?", (host, session_id))
+        self.db.executemany("INSERT INTO compliance_rules VALUES (?,?,?,?)", [(host, session_id, rule.uri, json.dumps(asdict(rule), ensure_ascii=True)) for rule in rules]); self.db.commit()
+
+    def compliance_rules(self, host: str, session_id: str):
+        import json
+        from .compliance import Rule
+        rows = self.db.execute("SELECT payload FROM compliance_rules WHERE host=? AND session_id=?", (host, session_id)).fetchall()
+        return [Rule(**json.loads(row[0])) for row in rows]
+
+    def add_violation(self, host: str, session_id: str, uri: str, path: str, reason: str):
+        import datetime
+        self.db.execute("INSERT INTO compliance_violations(host,session_id,uri,path,reason,created_at) VALUES (?,?,?,?,?,?)", (host, session_id, uri, path, reason, datetime.datetime.now(datetime.timezone.utc).isoformat())); self.db.commit()
+
+    def pending_violations(self, host: str, session_id: str):
+        return self.db.execute("SELECT * FROM compliance_violations WHERE host=? AND session_id=? AND injected=0 ORDER BY id", (host, session_id)).fetchall()
+
+    def mark_violations_injected(self, ids: list[int]):
+        if ids:
+            self.db.executemany("UPDATE compliance_violations SET injected=1 WHERE id=?", [(item,) for item in ids]); self.db.commit()
+
+    def soften_compliance_after_override(self, host: str, session_id: str) -> list[str]:
+        import json, datetime, hashlib
+        rows = self.db.execute("SELECT uri,COUNT(*) n FROM compliance_violations WHERE host=? AND session_id=? GROUP BY uri HAVING n>=3", (host, session_id)).fetchall()
+        changed = []
+        for row in rows:
+            rule = self.db.execute("SELECT payload FROM compliance_rules WHERE host=? AND session_id=? AND uri=?", (host, session_id, row["uri"])).fetchone()
+            if not rule: continue
+            payload = json.loads(rule[0]); payload["mode"] = "warn"
+            self.db.execute("UPDATE compliance_rules SET payload=? WHERE host=? AND session_id=? AND uri=?", (json.dumps(payload), host, session_id, row["uri"]))
+            pending_id = hashlib.sha1(f"override:{host}:{session_id}:{row['uri']}".encode()).hexdigest()[:16]
+            self.db.execute("INSERT OR IGNORE INTO pending(id,created_at,layer,type,old_uri,new_summary,resolved) VALUES (?,?,?,?,?,?,'')", (pending_id, datetime.datetime.now(datetime.timezone.utc).isoformat(), "preference", "dev_convention", row["uri"], "Repeated override: consider warn mode"))
+            changed.append(row["uri"])
+        self.db.commit()
+        return changed
+
+    def compliance_cursor(self, host: str, session_id: str) -> int:
+        row = self.db.execute("SELECT offset FROM compliance_cursors WHERE host=? AND session_id=?", (host, session_id)).fetchone()
+        return int(row[0]) if row else 0
+
+    def set_compliance_cursor(self, host: str, session_id: str, offset: int):
+        self.db.execute("INSERT OR REPLACE INTO compliance_cursors VALUES (?,?,?)", (host, session_id, offset)); self.db.commit()

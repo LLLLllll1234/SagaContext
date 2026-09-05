@@ -31,3 +31,10 @@ cases:
     observations:
       sagacontext:
         resumed_task: task-feature-1
+  - id: compliance-safe-unknown
+    dataset_kind: smoke
+    category: compliance
+    expected_block: false
+    observations:
+      sagacontext:
+        blocked: false

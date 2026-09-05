@@ -11,4 +11,6 @@ def judge(case: BenchmarkCase, system: str, observed: Observation) -> CaseResult
         evolution_correct=int(case.expected_relation is not None and observed.relation == case.expected_relation),
         evolution_total=int(case.expected_relation is not None),
         task_correct=int(case.expected_task is not None and observed.resumed_task == case.expected_task),
-        task_total=int(case.expected_task is not None))
+        task_total=int(case.expected_task is not None),
+        false_blocks=int(case.expected_block is False and observed.blocked is True),
+        block_total=int(case.expected_block is False))
