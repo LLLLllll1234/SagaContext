@@ -6,6 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .config import Config
 from .ledger import Ledger, TaskContext
+from .maintenance import BatchService, BatchWorker, EventJournal, ReviewService
+from .projection import Projector
 
 
 class TaskContextInput(BaseModel):
@@ -27,6 +29,11 @@ class Application:
     def __init__(self, config: Config):
         self.config = config
         self.ledger = Ledger(config.ledger_path)
+        self.event_journal = EventJournal(self.ledger)
+        self.batches = BatchService(self.ledger)
+        self.batch_worker = BatchWorker(self.ledger)
+        self.reviews = ReviewService(self.ledger)
+        self.projector = Projector(self.ledger)
         self._closed = False
 
     @property

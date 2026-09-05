@@ -2,7 +2,7 @@
 
 **日期：** 2026-09-05
 
-**状态：** 设计已批准，尚未实现。
+**状态：** 设计已批准并实现；本地验收记录见 `docs/probes/2026-09-05-s2-acceptance.md`。
 
 **上位设计：** `2026-09-05-sagacontext-v0.3-design.md` 的 S2 持续维护阶段。
 
@@ -154,7 +154,8 @@ pending | processing | awaiting_review | settled | quarantined | retry
 
 ```text
 batch_id, owner_id, session_id, task_id,
-event_upper_sequence, input_digest,
+event_upper_sequence, policy_version, maintenance_schema_version,
+judge_version, input_digest,
 status, lease_owner, lease_token, lease_until,
 attempt_count, next_attempt_at, last_error_class,
 created_at, settled_at

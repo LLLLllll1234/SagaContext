@@ -1,7 +1,15 @@
 from .models import (
+    BatchCandidateResult,
+    BatchCommitResult,
+    BatchConflictRecord,
+    BatchEvidenceLink,
+    BatchMemoryOperation,
+    BatchTaskUpdate,
     CommitRequest,
+    CommitBatchPlan,
     CommitResult,
     EvidenceInput,
+    ExpectedHead,
     MemoryView,
     Scope,
     TaskContext,
@@ -9,9 +17,17 @@ from .models import (
 from .service import Ledger
 
 __all__ = [
+    "BatchCandidateResult",
+    "BatchCommitResult",
+    "BatchConflictRecord",
+    "BatchEvidenceLink",
+    "BatchMemoryOperation",
+    "BatchTaskUpdate",
+    "CommitBatchPlan",
     "CommitRequest",
     "CommitResult",
     "EvidenceInput",
+    "ExpectedHead",
     "Ledger",
     "MemoryView",
     "Scope",

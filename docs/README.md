@@ -8,7 +8,8 @@
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
-| 15 | [S2 持续维护设计](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) | EventJournal、固定 batch、proposal/review、原子 `commit_batch`、task checkpoint、可控故障 projector、lease fencing 与 G2 验收矩阵 | **设计已批准，尚未实现**；仅限本地合成数据和测试后端，不启用真实宿主或后端 |
+| 16 | [S2 持续维护验收](probes/2026-09-05-s2-acceptance.md) | Schema v2、J1-J4、B1-B5、R1-R4、A1-A2、C1、P1-P6 与 G2 故障时序的具名本地验收 | **86 项测试通过；S2 本地退出条件满足**；不代表真实宿主或后端已启用 |
+| 15 | [S2 持续维护设计](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) | EventJournal、固定 batch、proposal/review、原子 `commit_batch`、task checkpoint、可控故障 projector、lease fencing 与 G2 验收矩阵 | **已批准并实现**；仅限本地合成数据和测试后端，不启用真实宿主或后端 |
 | 14 | [S1 数据收口验收](probes/2026-09-05-s1-acceptance.md) | 入口隔离、I01–I11、G4、旧库不变与固定命令的具名验收结果 | **53 项测试通过；S1 本地退出条件满足** |
 | 13 | [S1 数据收口设计](superpowers/specs/2026-09-05-s1-data-closure-design.md) | Ledger 唯一权威入口、应用组合层、daemon/CLI 契约、禁用宿主写入、删除语义、G4 与 I01–I11 验收 | **已批准并实现；真实宿主与后端仍受 S0 门槛约束** |
 | 12 | [S0 本机能力探针](probes/2026-09-05-s0-local.md) | OpenViking 与 Codex CLI 的本机前置检查、通过状态和执行边界 | **G1 未通过，G3 因模型认证受阻**；已保存脱敏 fixture，未启用真实后端或自动注入 |

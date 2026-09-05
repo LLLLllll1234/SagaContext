@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Scope(BaseModel):
@@ -102,3 +103,94 @@ class CommitResult(BaseModel):
     revision: int | None = None
     ledger_sequence: int
     reason: str | None = None
+
+
+class BatchMemoryOperation(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    proposal_id: str
+    operation: Literal["new", "confirm", "refine", "supersede"]
+    memory_type: Literal["profile", "taste", "convention", "decision", "project_map", "gotcha", "task_checkpoint"]
+    scope: Scope
+    payload_json: str
+    memory_id: str | None = None
+    expected_revision: int | None = None
+    source_kind: str = "reconcile"
+    payload_schema_version: int = 1
+
+    @model_validator(mode="after")
+    def validate_operation(self) -> "BatchMemoryOperation":
+        try:
+            payload = json.loads(self.payload_json)
+        except json.JSONDecodeError as error:
+            raise ValueError("payload_json must be valid JSON") from error
+        if not isinstance(payload, dict):
+            raise ValueError("payload_json must contain a JSON object")
+        if self.operation == "new":
+            if self.memory_id is not None or self.expected_revision is not None:
+                raise ValueError("new operations cannot target an existing revision")
+        elif self.memory_id is None or self.expected_revision is None:
+            raise ValueError("non-new operations require memory_id and expected_revision")
+        return self
+
+
+class ExpectedHead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    memory_id: str
+    revision: int
+
+
+class BatchEvidenceLink(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    proposal_id: str
+    evidence_ids: tuple[str, ...]
+
+
+class BatchCandidateResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    candidate_id: str
+    claim_token: str
+    status: Literal["settled", "awaiting_review", "quarantined"]
+    result_ref: str | None = None
+
+
+class BatchConflictRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    conflict_id: str
+    candidate_id: str
+    proposal_id: str
+    reason: str
+    target_id: str | None = None
+    base_revision: int | None = None
+
+
+class BatchTaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    task_id: str
+    touch_last_active: bool = True
+
+
+class CommitBatchPlan(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    batch_id: str
+    proposal_ids: tuple[str, ...]
+    expected_heads: tuple[ExpectedHead, ...] = ()
+    memory_operations: tuple[BatchMemoryOperation, ...] = ()
+    evidence_links: tuple[BatchEvidenceLink, ...] = ()
+    candidate_results: tuple[BatchCandidateResult, ...] = ()
+    conflict_records: tuple[BatchConflictRecord, ...] = ()
+    task_update: BatchTaskUpdate | None = None
+
+
+class BatchCommitResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: Literal["settled", "awaiting_review"]
+    batch_id: str
+    memory_ids: tuple[str, ...] = ()

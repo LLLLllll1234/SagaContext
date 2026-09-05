@@ -10,6 +10,8 @@ from unittest.mock import patch
 
 from sagacontext.application import Application
 from sagacontext.config import Config
+from sagacontext.maintenance import BatchService, BatchWorker, EventJournal, ReviewService
+from sagacontext.projection import Projector
 
 
 class ApplicationTests(unittest.TestCase):
@@ -30,6 +32,21 @@ class ApplicationTests(unittest.TestCase):
             first.close()
             with Application(Config(state_path=Path(directory) / "state.db", ledger_path=path)) as second:
                 self.assertEqual(second.owner_id, owner_id)
+
+    def test_application_composes_s2_services_without_starting_workers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config = Config(
+                state_path=Path(directory) / "state.db",
+                ledger_path=Path(directory) / "ledger-v3.db",
+            )
+            with Application(config) as application:
+                self.assertIsInstance(application.event_journal, EventJournal)
+                self.assertIsInstance(application.batches, BatchService)
+                self.assertIsInstance(application.batch_worker, BatchWorker)
+                self.assertIsInstance(application.reviews, ReviewService)
+                self.assertIsInstance(application.projector, Projector)
+                self.assertFalse(hasattr(application, "worker_task"))
+                self.assertFalse(config.state_path.exists())
 
     def test_daemon_import_has_no_filesystem_side_effect(self):
         with tempfile.TemporaryDirectory() as directory:
