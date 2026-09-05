@@ -1,7 +1,7 @@
 # 真实 Judge 适配器与语义验收设计
 
 **日期：** 2026-09-06  
-**状态：** 范围已于 2026-09-06 确认；待审阅书面规格
+**状态：** 范围已于 2026-09-06 确认；四项审查意见已纳入，待确认修订规格
 **范围：** OpenAI-compatible HTTP Judge、同步 ProposalJudge 门面、Delta 转换、困难样本与固定回放语义验收
 
 ## 1. 目标与非目标
@@ -36,7 +36,7 @@
     ReplayRunner
         -> 冻结 case + 标注
         -> OpenAIProposalJudge
-        -> 关系/正文/证据/转换四维评分
+        -> 关系/正文/证据/转换四维评分 + 忽略安全门槛
         -> JSONL artifact + Markdown report
 
 同步门面只允许在当前线程没有运行中事件循环时调用。若检测到 asyncio.get_running_loop() 成功，立即抛出明确的 JudgeEventLoopError，不能嵌套 asyncio.run。异步 HTTP 客户端不得保存到跨调用或跨事件循环的共享状态中。
@@ -111,18 +111,36 @@ candidate_id 是适配层必须校验的关联字段。relation 只允许 confir
 
 空 Delta 列表时，为当前唯一候选生成一个 operation=no_change 的 DeltaProposal，payload 为空、target/evidence 按候选冻结上下文填充，供 worker 正常落 proposal 并 settle。非空但全部 Delta 被拒绝时抛出 judge_conversion_error，不得生成 no-change proposal。
 
+转换评分只测量“适配器是否忠实地把模型 Delta 转为 proposal”，不再将 proposal 的 operation 与人工关系标注比较。评分器直接根据实际 Delta 和冻结 batch context 校验以下不变式：operation 等于实际 relation、target/revision 由实际 anchor 解析、type/key/fields/evidence 原样传递、scope 从候选继承。空 Delta 只校验规定的 `no_change` 合成行为。“最终 proposal 是否匹配人工标注”另作为端到端组合指标报告，不作为独立 100% 转换门槛。
+
 ## 6. 固定回放数据与 runner
 
-回放文件放在 `bench/cases/real_judge/`，输入与标注分离但由同一个 case ID 关联。每个 case 固定：
+回放文件放在 `bench/cases/real_judge/`，输入与标注分离但由同一个 case ID 关联。现有 `cases.yaml` 固定为历史 `real-judge-v1`，不就地修改；首次真实语义验收使用新的 `cases-v2.yaml`。runner 必须显式记录 dataset ID、schema version 和 digest，禁止以新文件覆盖旧 artifact。
+
+每个 v2 case 固定：
 
 - 一个合成或脱敏候选、事件摘要和 anchors；
 - 预期 relation：`new/confirm/refine/supersede/conflict`，或者显式 `no_change`；
 - `should_ignore`，用于单独标记信息不足、无关内容等不应写入的候选；
-- 预期记忆正文，以规范化后的 `key + fields` 结构表示；
+- 预期记忆正文，以符合冻结 body schema 的 `key + fields` 结构表示；
 - 预期 evidence IDs；
-- 预期 target、revision、memory type、scope 和 operation 转换结果。
+- 预期 target、revision、memory type 和 scope，供端到端组合评分；
+- `field_evidence`：为每个预期正文字段记录 candidate 或 anchor 中的具体 JSON Pointer，以及该位置的精确 quote 或结构值；不得存在无输入依据的标准值。
 
-### 6.1 样本矩阵
+### 6.1 v1 标注依据审计
+
+| v1 case | 审计结论 | v2 处理 |
+|---|---|---|
+| `real-new-decision` | `pytest` 由 candidate 明确提供 | 保留语义，补 `field_evidence` |
+| `real-confirm-convention` | 关系和正文同时由 candidate 与 anchor 支持 | 保留语义，补 `field_evidence` |
+| `real-refine-gotcha` | 新的 `applies_when` 由 candidate 提供，其余字段由 anchor 提供 | 保留语义，显式标注合并来源 |
+| `real-supersede-taste` | `json` 取代 `prose` 由 candidate 明确提供 | 保留语义，补 `field_evidence` |
+| `real-conflict-project-map` | 标注中 `src/new.py` 未出现在任何输入 | v1 仅作历史反例；v2 候选显式给出该路径和未确认措辞 |
+| `real-no-change` | 无虚构正文，但输入直接泄露“should not update”标签 | v1 仅作链路冒烟；v2 改为不带判定结论的自然一次性请求 |
+
+v2 发布前执行全量人工审计和结构校验。结构校验证明 JSON Pointer 存在、类型合法且 quote/结构值确实出现在所指输入中；它仍不能替代“该来源在语义上支持标注”的人工判断。审计结果与 dataset digest 一起冻结。
+
+### 6.2 样本矩阵
 
 数据集至少包含 14 个单候选 case：
 
@@ -136,35 +154,55 @@ candidate_id 是适配层必须校验的关联字段。relation 只允许 confir
 
 困难样本不仅替换同义词，还要改变否定、时间范围、确定性和持久性措辞。每个样本仍只有一个候选，避免把“候选间分配”混入本阶段。
 
-### 6.2 评分口径
+### 6.3 正文 schema 与规范化契约
 
-每次调用产生五个独立结果：
+v2 固定 `body-schema-v1` 和 `body-normalizer-v1`。评分器不接受任意字段别名，也不使用另一个 LLM 判断等义：
 
-1. `relation_correct`：只比较关系或 `no_change`；
-2. `memory_body_correct`：对规范化后的 `key + fields` 做结构化精确比较，`no_change` 要求正文为空；
-3. `evidence_correct`：对 evidence ID 集合做精确比较，不允许虚构或遗漏；
-4. `conversion_correct`：只比较 target、expected revision、memory type、scope 和 operation，不再把正文和证据错误折叠进该指标；
-5. `ignore_correct`：`should_ignore=true` 的样本必须返回合法空 Delta，不得产生写入型 proposal。
+| memory type | 允许字段 | 值类型 |
+|---|---|---|
+| `decision` | `key`, `command` | 规范命令 |
+| `convention` | `key`, `command` | 规范命令 |
+| `gotcha` | `key`, `symptom`, `fix`, `applies_when` | 短文本 |
+| `taste` | `key`, `format` | 冻结枚举 |
+| `project_map` | `key`, `path` | POSIX 相对路径 |
+
+schema 为每个 case 进一步冻结 required/optional 字段；实际输出出现未允许字段、缺失 required 字段或类型错误时，`memory_body_correct=false`。`body-normalizer-v1` 只做 Unicode NFKC、字符串首尾空白删除、连续空白折叠和 object key 排序；不小写化命令或路径，不自动改名字段。
+
+枚举、命令和路径在规范化后必须精确匹配。自由短文本由 case 预先冻结有限 `acceptable_bodies`，命中任一完整结构即通过；可接受答案必须通过 `field_evidence` 审计，首次实测后不因模型新表达而追加。
+
+### 6.4 评分适用范围
+
+每次调用产生五个独立分项和一个组合诊断结果：
+
+1. `relation_correct`：所有成功调用适用，只比较实际 Delta relation 与标注关系；合法空 Delta 映射为 `no_change`。
+2. `memory_body_correct`：只对预期非空 Delta 的 case 适用；读取模型 Delta 的 `key + fields`，按 `body-schema-v1/body-normalizer-v1` 比较。预期 `no_change` 时为 N/A。
+3. `evidence_correct`：只对预期非空 Delta 的 case 适用；读取模型原始 Delta 的 evidence ID 集合并精确比较。不读取 proposal，因为空 Delta 时转换器自动填入的 candidate event IDs 不是模型引用。预期 `no_change` 时为 N/A。
+4. `conversion_fidelity_correct`：所有成功调用适用；按第 5 节不变式检查 proposal 是否忠实转换实际 Delta，不与人工 relation/body/evidence 标注重复计分。
+5. `ignore_correct`：只对 `should_ignore=true` 的 case 适用，必须返回合法空 Delta；`should_ignore=false` 时为 N/A，不进入分母。
+6. `proposal_semantic_correct`：端到端诊断项，只有所有适用的 relation/body/evidence 指标以及 proposal target/revision/type/scope 都正确时才为 true；不用它替代分项指标。
 
 另行报告调用成功率、错误分类、耗时、token 和费用。配置失败、网络失败或 schema 失败不记为语义错误，但整次验收不能因此判定通过。
 
-### 6.3 冻结与重复运行
+### 6.5 冻结与重复运行
 
 运行前计算 case/annotation digest，运行期间拒绝隐式修改。验收固定模型名、endpoint 配置指纹、prompt/schema/converter 版本、`temperature=0`、timeout 和样本顺序，对全部 case 独立运行 3 次。任何 prompt、schema、标注或模型变更都生成新版本和新 artifact，不覆盖旧结果，不允许只选最好一轮报告。
 
 凭据只通过环境变量或用户本机的 `~/.sagacontext/config.toml` 提供，不写入仓库。CLI 或脚本显式要求 LLM 配置存在；没有配置时报告 `blocked_configuration`，不伪造通过。
 
-每个结果 JSONL 至少保存 run ID、repeat index、case ID、上述版本与配置指纹、sampling、latency、status、error class、response digest、actual deltas/proposals、全部冻结标注和五项评分结果。
+每个结果 JSONL 至少保存 run ID、repeat index、case ID、上述版本与配置指纹、sampling、latency、status、error class、response digest、actual deltas/proposals、全部冻结标注和六项评分结果。不适用的指标写为 `null`，不得写为 true 或 false。
 
 不得写入 API key、Authorization header、完整内部 URL、私人正文或未脱敏 transcript。失败案例保留错误分类和脱敏输入/输出摘要。
 
 报告至少分开显示：
 
 - Judge 调用成功率和错误分类计数；
-- relation、memory body、evidence、conversion 和 ignore accuracy，分子分母明确；
+- relation、memory body、evidence、conversion fidelity 和 ignore accuracy，分子分母明确，N/A 不进入分母；
+- proposal semantic correctness 仅作端到端组合诊断；
 - 按六类冒烟与四类困难样本分组的逐例、逐次结果；
 - 跨 3 次重复运行的稳定性与所有失败案例；
 - 每例耗时及总 token/费用（只有 provider 返回且可安全记录时才展示，否则标记 unavailable）。
+
+聚合先按单个 case 处理三次重复，再汇总分组和全局，禁止直接把同组的六个 observation 合并后掩盖某个不稳定 case。对 relation/body/evidence，单 case 在适用时至少 2/3 才算 case-pass；对 ignore 和 conversion fidelity，单 case 必须 3/3。每一轮的全局准确率仍独立报告，不只报告三轮池化值。
 
 报告不得把调用成功率当作语义质量，也不得把合成回放结果描述为任意正常对话的自动抽取效果。
 
@@ -179,15 +217,23 @@ candidate_id 是适配层必须校验的关联字段。relation 只允许 confir
 - 未知 candidate、anchor、evidence、memory type、scope 扩大和 revision 伪造均阻断；
 - worker 对 retryable 错误有限重试，对确定性错误一次阻断；
 - request 版本、schema、converter version 和 digest 稳定写入 artifact。
+- dataset v1/v2 可独立加载且 digest 不混用；`field_evidence` 的 JSON Pointer 不存在时拒绝数据集；
+- `body-schema-v1/body-normalizer-v1` 对空白、Unicode、字段别名、未知字段、命令大小写和可接受自由文本的处理符合契约；
+- relation 错误但 Delta 被忠实转换时，`relation_correct=false` 且 `conversion_fidelity_correct=true`；
+- 空 Delta 时 evidence 和 body 为 N/A，proposal 自动填入的 event IDs 不会反向变成模型证据得分；
+- 聚合器先判定单 case 的 2/3 或 3/3，并保留每轮独立结果。
 
 ### 固定回放退出条件
 
 - 至少 14 个冻结 case，覆盖六类冒烟和四类困难语义；
+- `real-judge-v1` 作为历史数据保留，通过标注依据审计的 `real-judge-v2` 使用新 dataset ID、schema version 和 digest；
 - 每个 case 真实调用同一 OpenAI-compatible endpoint 3 次，不能用 fixture observation 冒充；
-- 每个 case 都有 relation、memory body、evidence、conversion 和 ignore 五项结果；
+- 每个 observation 都有 relation、memory body、evidence、conversion fidelity、ignore 和 proposal semantic 六项结果，不适用项为 N/A；
 - 失败案例完整保留并能从 case digest 复现；
 - 调用成功率必须为 100%，否则整次验收状态为阻断，不计算或粉饰语义通过；
-- `[TARGET]` evidence、conversion 和 ignore 安全门槛均为 100%，relation 和 memory body 总准确率均不低于 90%，每个困难分组不低于 2/3；
+- `[TARGET]` 每个 case 的 relation、memory body 和 evidence 在适用时至少 2/3；每个 ignore 和 conversion fidelity case 必须 3/3；
+- `[TARGET]` 每一轮单独计算的 relation 和 memory body 全局准确率均不低于 90%，evidence、conversion fidelity 和 ignore 在各自适用集合上均为 100%；
+- 困难分组只有在组内每个 case 都达到上述单 case 门槛时才通过，不使用组内池化 `4/6` 替代单例判定；
 - 上述门槛是运行前冻结的验收目标，不是已验证结果；首轮实测后即使未达标也保留原始 artifact，不修改标注来追求通过；
 - 当前全量回归测试继续通过；新增测试全部通过；
 - 报告明确标注模型、提示词、schema、转换器和采样参数，且不泄露秘密。
