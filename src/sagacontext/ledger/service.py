@@ -801,8 +801,9 @@ class Ledger:
                     "memory_id": memory_id,
                 }
             else:
-                job_id, suppression_id = str(uuid.uuid4()), str(uuid.uuid4())
+                job_id = str(uuid.uuid4())
                 sequence = self._next_sequence()
+                self._suppress_memory(memory_id)
                 self.db.execute(
                     "UPDATE memories SET state='deleted',ledger_sequence=? WHERE memory_id=?", (sequence, memory_id)
                 )
@@ -810,33 +811,6 @@ class Ledger:
                 self.db.execute(
                     "UPDATE evidence SET redacted_excerpt=NULL WHERE evidence_id IN (SELECT evidence_id FROM revision_evidence WHERE memory_id=?)",
                     (memory_id,),
-                )
-                topic_digest = self._topic_digest(
-                    head["memory_type"], head["scope_json"], head["payload_json"]
-                )
-                source_rows = self.db.execute(
-                    "SELECT DISTINCT e.source_event_id,e.claim_key FROM evidence e JOIN revision_evidence re "
-                    "ON re.evidence_id=e.evidence_id WHERE re.memory_id=?",
-                    (memory_id,),
-                ).fetchall()
-                source_ids = [
-                    self._source_claim_digest(row["source_event_id"], row["claim_key"])
-                    for row in source_rows
-                ] or [None]
-                self.db.executemany(
-                    "INSERT INTO suppression_rules VALUES (?,?,?,?,?,?,?)",
-                    [
-                        (
-                            suppression_id if index == 0 else str(uuid.uuid4()),
-                            self.owner_id,
-                            memory_id,
-                            source_event_id,
-                            head["scope_json"],
-                            topic_digest,
-                            _now(),
-                        )
-                        for index, source_event_id in enumerate(source_ids)
-                    ],
                 )
                 projected = self._enqueue_projection(memory_id, head["current_revision"], "delete")
                 status = "remote_pending" if projected else "local_redacted"
@@ -891,6 +865,21 @@ class Ledger:
         return value
 
     def _enqueue_projection(self, memory_id: str, revision: int, action: str) -> bool:
+        if action == "delete":
+            state = self.db.execute("SELECT state FROM memories WHERE memory_id=?", (memory_id,)).fetchone()
+            if state and state["state"] == "retired":
+                self._suppress_memory(memory_id)
+            # Cover older revisions and inactive generations as well as the current head.
+            rows = self.db.execute(
+                "SELECT DISTINCT backend,generation,revision FROM outbox WHERE memory_id=? AND action='upsert'",
+                (memory_id,),
+            ).fetchall()
+            for row in rows:
+                self.db.execute(
+                    "INSERT OR IGNORE INTO outbox(backend,generation,memory_id,revision,action,created_at) VALUES (?,?,?,?,?,?)",
+                    (row["backend"], row["generation"], memory_id, row["revision"], action, _now()),
+                )
+            return bool(rows)
         rows = self.db.execute("SELECT backend,generation FROM backend_generations WHERE active=1").fetchall()
         for row in rows:
             self.db.execute(
@@ -898,6 +887,21 @@ class Ledger:
                 (row["backend"], row["generation"], memory_id, revision, action, _now()),
             )
         return bool(rows)
+
+    def _suppress_memory(self, memory_id: str) -> None:
+        head = self.db.execute("SELECT memory_type,scope_json FROM memories WHERE memory_id=? AND owner_id=?",
+                               (memory_id, self.owner_id)).fetchone()
+        payloads = self.db.execute("SELECT payload_json FROM revisions WHERE memory_id=?", (memory_id,)).fetchall()
+        sources = self.db.execute(
+            "SELECT DISTINCT e.source_event_id,e.claim_key FROM evidence e JOIN revision_evidence re "
+            "ON re.evidence_id=e.evidence_id WHERE re.memory_id=?", (memory_id,),
+        ).fetchall()
+        source_ids = [self._source_claim_digest(row["source_event_id"], row["claim_key"]) for row in sources] or [None]
+        for payload in payloads:
+            topic = self._topic_digest(head["memory_type"], head["scope_json"], payload["payload_json"])
+            for source_id in source_ids:
+                self.db.execute("INSERT INTO suppression_rules VALUES (?,?,?,?,?,?,?)",
+                    (str(uuid.uuid4()), self.owner_id, memory_id, source_id, head["scope_json"], topic, _now()))
 
     @staticmethod
     def _topic_digest(memory_type: str, scope_json: str, payload_json: str) -> str:

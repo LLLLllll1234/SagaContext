@@ -1,4 +1,5 @@
 from .base import BackendAdapter, BackendCapabilities, BackendHit, Projection
+from .openviking import OpenVikingBackendAdapter
 from .memory import (
     BackendDefiniteError,
     BackendUnknownError,
@@ -17,4 +18,5 @@ __all__ = [
     "InMemoryBackend",
     "InMemoryBackendState",
     "Projection",
+    "OpenVikingBackendAdapter",
 ]

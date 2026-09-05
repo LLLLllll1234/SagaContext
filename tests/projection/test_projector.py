@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sagacontext.backends import InMemoryBackend, InMemoryBackendState, Projection
+from sagacontext.backends import (
+    BackendUnknownError, BackendVerificationTimeout,
+    InMemoryBackend, InMemoryBackendState, Projection,
+)
 from sagacontext.ledger import CommitRequest, Ledger, Scope
 from sagacontext.projection import Projector
 
@@ -263,6 +267,49 @@ class ProjectorTests(unittest.TestCase):
         self._commit("create")
         result = self._drain(TransactionCheckingBackend(self.ledger))
         self.assertEqual(result.status, "confirmed")
+
+    def test_elapsed_backend_call_fences_completion(self):
+        self._commit("create")
+        backend = InMemoryBackend()
+        with patch("sagacontext.projection.worker.time.monotonic", side_effect=[0, 0, 11]):
+            result = self._drain(backend)
+        self.assertEqual(result.status, "fenced")
+        self.assertEqual(self.ledger.db.execute("SELECT COUNT(*) FROM projection_receipts").fetchone()[0], 0)
+
+    def test_inspection_timeout_leaves_unknown_for_recovery(self):
+        self._commit("create")
+        backend = InMemoryBackend()
+        with patch.object(backend, "inspect_projection", side_effect=BackendVerificationTimeout):
+            self.assertEqual(self._drain(backend).status, "unknown")
+        self.assertEqual(self._drain(backend).status, "confirmed")
+
+    def test_repeated_completion_inspection_timeout_is_bounded(self):
+        self._commit("create")
+        backend = InMemoryBackend()
+        with patch.object(backend, "inspect_projection", side_effect=BackendVerificationTimeout):
+            results = [self._drain(backend, max_attempts=2).status for _ in range(2)]
+        self.assertEqual(results, ["unknown", "blocked"])
+
+    def test_unknown_delete_recovers_by_absence_at_target_locator(self):
+        created = self._commit("create")
+        backend = InMemoryBackend()
+        old = self.projector.claim_next(
+            backend, worker_id="old", now=NOW, lease_duration=timedelta(seconds=10),
+            backend_timeout=timedelta(seconds=5), local_completion_margin=timedelta(seconds=2),
+        )
+        locator = self.projector.call_backend(old, backend, now=NOW)
+        self._commit("new", memory_id=created.memory_id, expected_revision=1, value="v2")
+        self.projector.complete(old, backend, locator, now=NOW)
+        self._drain(backend)
+        remove = backend.remove_projection
+        def lost_response(locators):
+            remove(locators)
+            raise BackendUnknownError()
+        with patch.object(backend, "remove_projection", side_effect=lost_response):
+            self.assertEqual(self._drain(backend).status, "unknown")
+        result = self._drain(backend)
+        self.assertEqual(result.status, "confirmed")
+        self.assertTrue(result.recovered)
 
 
 if __name__ == "__main__":

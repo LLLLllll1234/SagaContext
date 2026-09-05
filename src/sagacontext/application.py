@@ -8,6 +8,7 @@ from .config import Config
 from .ledger import Ledger, TaskContext
 from .maintenance import BatchService, BatchWorker, EventJournal, ReviewService
 from .projection import Projector
+from .recall_policy import RecallPolicy
 
 
 class TaskContextInput(BaseModel):
@@ -34,6 +35,7 @@ class Application:
         self.batch_worker = BatchWorker(self.ledger)
         self.reviews = ReviewService(self.ledger)
         self.projector = Projector(self.ledger)
+        self.recall_policy = RecallPolicy(self.ledger)
         self._closed = False
 
     @property

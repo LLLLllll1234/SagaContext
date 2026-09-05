@@ -4,18 +4,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from .base import BackendCapabilities, BackendHit, Projection
-
-
-class BackendDefiniteError(RuntimeError):
-    pass
-
-
-class BackendUnknownError(TimeoutError):
-    pass
-
-
-class BackendVerificationTimeout(TimeoutError):
-    pass
+from .errors import BackendDefiniteError, BackendUnknownError, BackendVerificationTimeout
 
 
 @dataclass

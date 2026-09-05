@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal
@@ -69,6 +70,15 @@ class Projector:
     ) -> ProjectionRunResult:
         if verification_timeout <= timedelta(0):
             raise ValueError("verification_timeout must be positive")
+        started = time.monotonic()
+        def observed_now():
+            return now + timedelta(seconds=time.monotonic() - started)
+
+        configured_timeout = getattr(backend, "timeout", None)
+        if configured_timeout is not None and configured_timeout > min(
+            backend_timeout.total_seconds(), verification_timeout.total_seconds()
+        ):
+            raise ValueError("adapter timeout exceeds worker timeout budget")
         claim = self.claim_next(
             backend,
             worker_id=worker_id,
@@ -83,28 +93,31 @@ class Projector:
             "SELECT backend_locator FROM projection_receipts WHERE operation_key=?",
             (claim.operation_key,),
         ).fetchone()
-        if receipt:
+        if receipt and claim.action != "delete":
             return self.complete(
-                claim, backend, receipt["backend_locator"], recovered=True, now=now
+                claim, backend, receipt["backend_locator"], recovered=True, now=observed_now(), max_attempts=max_attempts
             )
         if claim.source_status == "unknown":
-            return self._verify_unknown(claim, backend, max_attempts, now)
+            return self._verify_unknown(claim, backend, max_attempts, observed_now())
         if claim.action == "upsert" and not self._is_current(claim.projection):
             return self._finish_without_locator(
                 claim, "obsolete", "revision_not_current", now
             )
         try:
-            locator = self.call_backend(claim, backend, now=now)
+            locator = self.call_backend(claim, backend, now=observed_now())
         except BackendDefiniteError:
             status = "blocked" if claim.attempt_no >= max_attempts else "retry"
             return self._finish_without_locator(
-                claim, status, "backend_definite_error", now
+                claim, status, "backend_definite_error", observed_now()
             )
         except BackendUnknownError:
             return self._finish_without_locator(
-                claim, "unknown", "backend_result_unknown", now
+                claim, "unknown", "backend_result_unknown", observed_now()
             )
-        return self.complete(claim, backend, locator, now=now)
+        except BackendVerificationTimeout:
+            status = "blocked" if claim.attempt_no >= max_attempts else "unknown"
+            return self._finish_without_locator(claim, status, "verification_timeout", observed_now())
+        return self.complete(claim, backend, locator, now=observed_now(), max_attempts=max_attempts)
 
     def claim_next(
         self,
@@ -124,7 +137,7 @@ class Projector:
         with self.ledger._write_transaction():
             expired = self.ledger.db.execute(
                 "SELECT outbox_id FROM outbox WHERE backend=? AND status='running' "
-                "AND lease_until<? "
+                "AND lease_until<=? "
                 "ORDER BY outbox_id",
                 (backend_name, now_text),
             ).fetchall()
@@ -217,10 +230,14 @@ class Projector:
             row = self.ledger.db.execute(
                 "SELECT target_locator FROM outbox WHERE outbox_id=?", (claim.outbox_id,)
             ).fetchone()
-            if not row or not row["target_locator"]:
-                raise BackendDefiniteError("cleanup requires an explicit locator")
-            backend.remove_projection([row["target_locator"]])
-            return row["target_locator"]
+            locator = row["target_locator"] if row else None
+            if not locator:
+                locator = backend.locate_projection(
+                    claim.projection.memory_id, claim.projection.revision, claim.projection.generation
+                )
+            if locator:
+                backend.remove_projection([locator])
+            return locator or ""
         if claim.action != "upsert":
             raise BackendDefiniteError("unsupported projection action")
         return backend.materialize(claim.projection, claim.operation_key)
@@ -233,14 +250,38 @@ class Projector:
         *,
         recovered: bool = False,
         now: datetime,
+        max_attempts: int = 3,
     ) -> ProjectionRunResult:
         if not self._owns(claim, now):
             return ProjectionRunResult(status="fenced", outbox_id=claim.outbox_id)
-        observed = backend.inspect_projection(locator)
+        started = time.monotonic()
+        try:
+            observed = backend.inspect_projection(locator) if locator else None
+        except (BackendVerificationTimeout, BackendUnknownError):
+            return self._finish_without_locator(
+                claim, "blocked" if claim.attempt_no >= max_attempts else "unknown", "verification_timeout",
+                now + timedelta(seconds=time.monotonic() - started),
+            )
+        except BackendDefiniteError:
+            return self._finish_without_locator(
+                claim, "blocked", "projection_identity_mismatch",
+                now + timedelta(seconds=time.monotonic() - started),
+            )
+        now = now + timedelta(seconds=time.monotonic() - started)
         backend_name = backend.capabilities().backend
         with self.ledger._write_transaction():
             if not self._owns(claim, now):
                 return ProjectionRunResult(status="fenced", outbox_id=claim.outbox_id)
+            head = self.ledger.db.execute(
+                "SELECT state FROM memories WHERE memory_id=? AND owner_id=?",
+                (claim.projection.memory_id, self.ledger.owner_id),
+            ).fetchone()
+            # Deletion erased the Ledger body. Retain only a validated late projection's
+            # identity for a cleanup receipt; it must never become current again.
+            if claim.action == "upsert" and head and head["state"] == "deleted" and observed:
+                fields = ("owner_id", "memory_id", "revision", "generation")
+                if all(getattr(observed, key) == getattr(claim.projection, key) for key in fields):
+                    claim = claim.model_copy(update={"projection": observed})
             projection_matches = (
                 observed is None
                 if claim.action == "delete"
@@ -286,8 +327,11 @@ class Projector:
             status = "confirmed" if current else "obsolete"
             if status == "obsolete" and claim.action == "upsert":
                 self.ledger.db.execute(
-                    "INSERT OR IGNORE INTO outbox(backend,generation,memory_id,revision,action,"
-                    "status,target_locator,created_at,updated_at) VALUES (?,?,?,?,?,'pending',?,?,?)",
+                    "INSERT INTO outbox(backend,generation,memory_id,revision,action,"
+                    "status,target_locator,created_at,updated_at) VALUES (?,?,?,?,?,'pending',?,?,?) "
+                    "ON CONFLICT(backend,generation,memory_id,revision,action) DO UPDATE SET "
+                    "status='pending',target_locator=excluded.target_locator,confirmed_receipt_id=NULL,"
+                    "lease_owner=NULL,lease_token=NULL,lease_until=NULL",
                     (
                         backend_name,
                         claim.projection.generation,
@@ -349,30 +393,46 @@ class Projector:
         max_attempts: int,
         now: datetime,
     ) -> ProjectionRunResult:
+        started = time.monotonic()
+        def observed_now():
+            return now + timedelta(seconds=time.monotonic() - started)
+
         try:
             self._mark_call_started(claim, now)
+            if claim.action == "delete":
+                row = self.ledger.db.execute(
+                    "SELECT target_locator FROM outbox WHERE outbox_id=?", (claim.outbox_id,)
+                ).fetchone()
+                locator = row["target_locator"] or backend.locate_projection(
+                    claim.projection.memory_id, claim.projection.revision, claim.projection.generation
+                )
+                if not locator or backend.inspect_projection(locator) is None:
+                    return self.complete(claim, backend, locator or "", recovered=True, now=observed_now(), max_attempts=max_attempts)
+                return self._finish_without_locator(claim, "blocked" if claim.attempt_no >= max_attempts else "retry", "delete_still_present", observed_now())
             locator = backend.locate_projection(
                 claim.projection.memory_id,
                 claim.projection.revision,
                 claim.projection.generation,
                 claim.operation_key,
             )
-        except BackendVerificationTimeout:
+        except (BackendVerificationTimeout, BackendUnknownError):
             status = "blocked" if claim.attempt_no >= max_attempts else "unknown"
             return self._finish_without_locator(
-                claim, status, "verification_timeout", now
+                claim, status, "verification_timeout", observed_now()
             )
+        except BackendDefiniteError:
+            return self._finish_without_locator(claim, "blocked", "verification_rejected", observed_now())
         if locator is None:
             capabilities = backend.capabilities()
             status = (
                 "retry"
-                if capabilities.stable_id_mapping and capabilities.enumerable_managed_area
+                if claim.attempt_no < max_attempts and capabilities.stable_id_mapping and capabilities.enumerable_managed_area
                 else "blocked"
             )
             return self._finish_without_locator(
-                claim, status, "projection_not_found", now
+                claim, status, "projection_not_found", observed_now()
             )
-        return self.complete(claim, backend, locator, recovered=True, now=now)
+        return self.complete(claim, backend, locator, recovered=True, now=observed_now(), max_attempts=max_attempts)
 
     def _mark_call_started(self, claim: ProjectionClaim, now: datetime) -> None:
         with self.ledger._write_transaction():

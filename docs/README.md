@@ -2,23 +2,30 @@
 
 对外介绍见根目录 `README.md`。本页记录文档状态、已拍板决定与内部工作信息。
 
-## 文档
+## 当前阅读入口
 
-按阅读顺序：
+- 查看当前实现与验收结论：[S3-1 后端故障恢复](probes/2026-09-05-s3-1-openviking-recovery.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
+- 复查测试记录：[验收报告索引](probes/README.md) → [S3 原始运行清单](../artifacts/probes/S3-RESULTS.md)。
+- 理解实现约束：[v0.3 总设计](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) → [S1](superpowers/specs/2026-09-05-s1-data-closure-design.md) → [S2](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) → [S3](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md)。
+- 本地部署与操作：[OpenViking 部署记录](ops-openviking-local.md)。
 
-本地运行与探针操作：[本地 OpenViking 部署记录](ops-openviking-local.md)。
+## 全量文档目录
+
+下表按阶段由新到旧排列。验收数字属于对应日期的运行快照；S0–S2 的限制、旧探针失败和早期草案不覆盖 S3 的当前结论。保留原文件名和位置，避免破坏既有引用。
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
+| 21 | [S3 RecallPolicy、Shadow、G5/G6 验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md) | Ledger 正文复核、预算/省略、实际事件回放、删除/取代、三条真实 Codex 下一会话消费与清理恢复 | **完整合成纵向运行 69/69 通过**；不是生产服务或通用语义抽取验收 |
+| 20 | [S3-1 OpenViking 适配器与真实故障恢复](probes/2026-09-05-s3-1-openviking-recovery.md) | Ledger → outbox → 真实 OpenViking；P1–P6、重复写、检索与临时数据清理 | **首次真实验收 22/22 通过**；后续阶段单独验收 |
 | 19 | [S3-0 / G3 Codex 宿主事件准入](probes/2026-09-05-s3-g3-codex-host-terra.md) | 使用 gpt-5.6-terra 重跑四场景；旧报告和 fixture 保留作历史记录 | **19/19 必需断言通过；G3 passed；仅限合成探针，不授权真实记忆注入** |
-| 18 | [S3-0 / G1 OpenViking 后端准入](probes/2026-09-05-s3-g1-openviking.md) | 固定镜像、隔离 projection、identity/locator、索引、删除、重启、错误分类与清理 | **17/17 必需断言通过；G1 passed**；G3 当前为 blocked_environment，未授权真实 adapter |
-| 17 | [S3 准入探针与真实纵向闭环设计](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md) | OpenViking + 本机 Codex CLI 候选、G1/G3 独立判定、Shadow/G6 边界与分级授权 | **设计已批准；G1 passed，G3 blocked_environment；未授权真实适配编码** |
+| 18 | [S3-0 / G1 OpenViking 后端准入](probes/2026-09-05-s3-g1-openviking.md) | 固定镜像、隔离 projection、identity/locator、索引、删除、重启、错误分类与清理 | **17/17 必需断言通过；G1 passed**；G3 也已通过，S3-1 见 #20 |
+| 17 | [S3 准入探针与真实纵向闭环设计](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md) | OpenViking + 本机 Codex CLI 候选、G1/G3 独立判定、Shadow/G6 边界与分级授权 | **已按用户指令顺序实施；S3-1 至 S3-5 合成验收见 #20/#21** |
 | 16 | [S2 持续维护验收](probes/2026-09-05-s2-acceptance.md) | Schema v2、J1-J4、B1-B5、R1-R4、A1-A2、C1、P1-P6 与 G2 故障时序的具名本地验收 | **86 项测试通过；S2 本地退出条件满足**；不代表真实宿主或后端已启用 |
 | 15 | [S2 持续维护设计](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) | EventJournal、固定 batch、proposal/review、原子 `commit_batch`、task checkpoint、可控故障 projector、lease fencing 与 G2 验收矩阵 | **已批准并实现**；仅限本地合成数据和测试后端，不启用真实宿主或后端 |
 | 14 | [S1 数据收口验收](probes/2026-09-05-s1-acceptance.md) | 入口隔离、I01–I11、G4、旧库不变与固定命令的具名验收结果 | **53 项测试通过；S1 本地退出条件满足** |
-| 13 | [S1 数据收口设计](superpowers/specs/2026-09-05-s1-data-closure-design.md) | Ledger 唯一权威入口、应用组合层、daemon/CLI 契约、禁用宿主写入、删除语义、G4 与 I01–I11 验收 | **已批准并实现；真实宿主与后端仍受 S0 门槛约束** |
+| 13 | [S1 数据收口设计](superpowers/specs/2026-09-05-s1-data-closure-design.md) | Ledger 唯一权威入口、应用组合层、daemon/CLI 契约、禁用宿主写入、删除语义、G4 与 I01–I11 验收 | **已批准并实现**；本阶段门槛保留，当前进展见 #20/#21 |
 | 12 | [S0 本机能力探针](probes/2026-09-05-s0-local.md) | OpenViking 与 Codex CLI 的本机前置检查、通过状态和执行边界 | 历史 S0 记录；最新 G1/G3 结果分别见 #18/#19 |
-| 11 | [技术实现方案 v0.3](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) | 权威账本/检索投影/宿主边界、身份与记忆模型、持续对账、并发恢复、遗忘安全、代码和数据迁移、G1–G6 门槛与分阶段实施 | **已批准为分阶段实现基线**；S1 本地数据收口完成，外部能力仍受探针门槛约束 |
+| 11 | [技术实现方案 v0.3](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) | 权威账本/检索投影/宿主边界、身份与记忆模型、持续对账、并发恢复、遗忘安全、代码和数据迁移、G1–G6 门槛与分阶段实施 | **当前分阶段实现基线**；S1–S3 验收报告见上方入口 |
 | 10 | [调研报告审查意见](10-调研报告审查意见-2026-09-05.md) | 固定源码证据、九项发现、R1–R6 完成度、六个实施准入探针 | **审查完成：部分通过，需补证后再冻结设计** |
 | 09 | [个性化记忆策略层调研报告](09-个性化记忆策略层-调研报告.md) | 后端与宿主对比、权威账本与 SPI 草案、演化场景、策略及评测建议 | **已提交，审查意见见 10；尚非冻结设计依据** |
 | 08 | [个性化记忆策略层：调研目标与交付要求](08-个性化记忆策略层-调研目标与交付要求.md) | 后端解耦、项目记忆持续维护、证据与安全、宿主适配、个性化策略、评测六个工作包，以及场景、证据与回传模板 | **调研任务书**，报告见 09、审查见 10；不代表已通过的新设计 |

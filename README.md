@@ -4,7 +4,11 @@
 
 SagaContext 是叠在 [OpenViking](https://github.com/volcengine/OpenViking) 之上的开发者个性化记忆层。它让 Claude Code 与 Codex 在你所有的项目里越用越懂你：知道你希望代码怎么写，知道这个仓库里做过哪些决定、踩过哪些坑，知道你上次做到哪。而且不只是"记得"，还会真的照做。
 
-> **状态：** 设计阶段，尚无可运行代码。设计文档已公开，欢迎讨论。
+> **状态：** 已有可运行的 Python 实现：S1 Ledger、S2 持续维护已通过本地验收；G1/G3 准入、S3-1 真实 OpenViking 故障恢复、RecallPolicy、Codex Shadow、G5 删除/取代和 G6 三条跨会话合成链路均已通过。当前仍是隔离合成验收，未启用正常会话自动化；下文是产品目标，不代表全部已实现。
+
+本地验证：`PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -q`。当前真实后端交付见 [S3-1 故障恢复报告](docs/probes/2026-09-05-s3-1-openviking-recovery.md)，完整状态见 [文档索引](docs/README.md)。
+
+[S3 纵向验收报告](docs/probes/2026-09-06-s3-policy-shadow-g5-g6.md)包含真实下一会话输入、任务结果和清理证据。
 
 ---
 
@@ -60,7 +64,7 @@ OpenViking 已经把记忆系统的基础设施做得很扎实：类型化 schem
 ## 了解更多
 
 - [分层模型与对账循环](docs/05-分层模型与对账循环.md)：项目定位与核心机制
-- [设计规格](docs/04-设计规格-v0.2.md)：记忆类型、对账流程、评测方案
+- [当前设计基线 v0.3](docs/superpowers/specs/2026-09-05-sagacontext-v0.3-design.md)：Ledger 权威边界、持续维护与分阶段验收
 - [重新定位：个性化记忆](docs/03-重新定位-个性化记忆.md)：为什么是"个性化"，与现有方案的差异
 - [审核意见](docs/02-审核意见.md)：竞品与先例的源码级对照
 - [全部文档索引](docs/README.md)
