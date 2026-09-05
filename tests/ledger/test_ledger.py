@@ -110,7 +110,7 @@ class LedgerTests(unittest.TestCase):
         changed = request.model_copy(update={"payload": {"rule": "different"}})
         self.assertEqual(self.ledger.commit(changed).reason, "receipt_reused")
 
-    def test_stale_revision_conflicts_without_overwrite(self):
+    def test_i07_stale_revision_conflicts_without_overwrite(self):
         created = self.ledger.commit(self._new())
         refine = CommitRequest(
             receipt="refine-1",
@@ -172,7 +172,7 @@ class LedgerTests(unittest.TestCase):
         foreign = self.context.model_copy(update={"owner_id": "owner-b"})
         self.assertEqual(self.ledger.get_current([created.memory_id], foreign), [])
 
-    def test_revision_evidence_and_outbox_share_commit(self):
+    def test_i03_revision_evidence_and_outbox_share_commit(self):
         self.ledger.register_backend_generation("test", "g1")
         result = self.ledger.commit(self._new())
         self.assertEqual(result.status, "committed_pending_projection")
@@ -197,6 +197,16 @@ class LedgerTests(unittest.TestCase):
         replay = self.ledger.commit(self._new(receipt="replay"))
         self.assertEqual((replay.status, replay.reason), ("rejected", "suppressed_after_deletion"))
 
+    def test_forget_receipt_cannot_be_reused_for_another_memory(self):
+        first = self.ledger.commit(self._new("first"))
+        second = self.ledger.commit(
+            self._new("second", Scope(kind="global"))
+        )
+        self.ledger.forget(first.memory_id, "one-delete-request")
+        reused = self.ledger.forget(second.memory_id, "one-delete-request")
+        self.assertEqual(reused, {"status": "needs_action", "reason": "receipt_reused"})
+        self.assertEqual(self.ledger.get_current([second.memory_id], self.context)[0].state, "active")
+
     def test_forget_blocks_replay_of_evidence_from_an_older_revision(self):
         created = self.ledger.commit(self._new())
         refined = CommitRequest(
@@ -213,7 +223,7 @@ class LedgerTests(unittest.TestCase):
         replay = self.ledger.commit(self._new(receipt="replay-old-evidence"))
         self.assertEqual((replay.status, replay.reason), ("rejected", "suppressed_after_deletion"))
 
-    def test_commit_failure_rolls_back_head_revision_and_outbox(self):
+    def test_i03_commit_failure_rolls_back_head_revision_and_outbox(self):
         request = self._new()
         request.evidence.append(
             request.evidence[0].model_copy(

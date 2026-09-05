@@ -70,6 +70,7 @@ class CoreTests(unittest.TestCase):
     def test_revert_snapshot_is_consumed_once(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); state = Store(root / "state.db"); target = root / "a.py"
+            self.addCleanup(state.db.close)
             state.upsert_session("claude-code", "s", cwd=str(root), repo_key="r")
             target.write_text("before")
             state.add_tool_edit("claude-code", "s", "a.py", file_sha(target))
@@ -80,6 +81,7 @@ class CoreTests(unittest.TestCase):
     def test_task_resume_prefers_same_branch(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Store(Path(directory) / "state.db")
+            self.addCleanup(state.db.close)
             create_task(state.db, "repo", "main", "first goal", "viking://root")
             task = create_task(state.db, "repo", "feature", "feature goal", "viking://root")
             self.assertEqual(resume_candidate(state.db, "repo", "feature")["task_id"], task["task_id"])
@@ -135,6 +137,7 @@ class CoreTests(unittest.TestCase):
     def test_repeated_override_softens_rule(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Store(Path(directory) / "state.db")
+            self.addCleanup(state.db.close)
             rule = Rule("viking://rule", "pattern", "no any", "block", regex="any")
             state.replace_compliance_rules("claude-code", "s", [rule])
             for _ in range(3): state.add_violation("claude-code", "s", rule.uri, "a.ts", rule.reason)

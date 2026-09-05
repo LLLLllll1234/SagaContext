@@ -151,10 +151,12 @@ class Ledger:
         if not location:
             raise ValueError("unknown workspace")
         existing = self.db.execute(
-            "SELECT session_id FROM sessions WHERE owner_id=? AND host=? AND host_session_id=?",
+            "SELECT session_id,workspace_id FROM sessions WHERE owner_id=? AND host=? AND host_session_id=?",
             (self.owner_id, host, host_session_id),
         ).fetchone()
         if existing:
+            if existing["workspace_id"] != workspace_id:
+                raise ValueError("host session is already bound to another workspace")
             return existing["session_id"]
         session_id = str(uuid.uuid4())
         with self._write_transaction():
@@ -255,8 +257,15 @@ class Ledger:
             sequence = self._next_sequence()
             if current:
                 changed = self.db.execute(
-                    "UPDATE memories SET current_revision=?,ledger_sequence=? WHERE memory_id=? AND current_revision=?",
-                    (revision, sequence, memory_id, request.expected_revision),
+                    "UPDATE memories SET current_revision=?,state=?,ledger_sequence=? "
+                    "WHERE memory_id=? AND current_revision=?",
+                    (
+                        revision,
+                        "retired" if request.operation == "supersede" else "active",
+                        sequence,
+                        memory_id,
+                        request.expected_revision,
+                    ),
                 )
                 if changed.rowcount != 1:
                     raise RuntimeError("concurrent head update")
@@ -270,7 +279,8 @@ class Ledger:
                 (memory_id, revision, request.operation, request.payload_schema_version, _canonical(request.payload), _now(), request.source_kind),
             )
             self._attach_evidence(memory_id, revision, request)
-            projected = self._enqueue_projection(memory_id, revision, "upsert")
+            action = "delete" if request.operation == "supersede" else "upsert"
+            projected = self._enqueue_projection(memory_id, revision, action)
             result = CommitResult(
                 status="committed_pending_projection" if projected else "committed_local_only",
                 memory_id=memory_id,
@@ -319,7 +329,7 @@ class Ledger:
             )
 
     def get_current(self, memory_ids: list[str], context: TaskContext) -> list[MemoryView]:
-        if context.owner_id != self.owner_id or not memory_ids:
+        if not self._context_is_valid(context) or not memory_ids:
             return []
         placeholders = ",".join("?" for _ in memory_ids)
         rows = self.db.execute(
@@ -335,7 +345,7 @@ class Ledger:
         return result
 
     def read_history(self, memory_id: str, context: TaskContext) -> list[MemoryView]:
-        if context.owner_id != self.owner_id:
+        if not self._context_is_valid(context):
             return []
         head = self.db.execute(
             "SELECT * FROM memories WHERE memory_id=? AND owner_id=? AND state!='deleted'", (memory_id, self.owner_id)
@@ -363,11 +373,15 @@ class Ledger:
 
     def forget(self, memory_id: str, receipt: str) -> dict[str, str]:
         receipt_key = f"forget:{receipt}"
+        request_digest = hashlib.sha256(memory_id.encode()).hexdigest()
         prior = self.db.execute(
-            "SELECT result_json FROM commit_receipts WHERE owner_id=? AND receipt=?", (self.owner_id, receipt_key)
+            "SELECT request_digest,result_json FROM commit_receipts WHERE owner_id=? AND receipt=?",
+            (self.owner_id, receipt_key),
         ).fetchone()
         if prior:
-            return json.loads(prior[0])
+            if prior["request_digest"] != request_digest:
+                return {"status": "needs_action", "reason": "receipt_reused"}
+            return json.loads(prior["result_json"])
         with self._write_transaction():
             head = self.db.execute(
                 "SELECT m.*,r.payload_json FROM memories m JOIN revisions r "
@@ -377,6 +391,17 @@ class Ledger:
             ).fetchone()
             if not head:
                 result = {"status": "needs_action", "reason": "not_found"}
+            elif head["state"] == "deleted":
+                job = self.db.execute(
+                    "SELECT job_id,status FROM deletion_jobs WHERE owner_id=? AND memory_id=? "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (self.owner_id, memory_id),
+                ).fetchone()
+                result = {
+                    "status": job["status"] if job else "local_redacted",
+                    "job_id": job["job_id"] if job else "",
+                    "memory_id": memory_id,
+                }
             else:
                 job_id, suppression_id = str(uuid.uuid4()), str(uuid.uuid4())
                 sequence = self._next_sequence()
@@ -423,9 +448,30 @@ class Ledger:
                 result = {"status": status, "job_id": job_id, "memory_id": memory_id}
             self.db.execute(
                 "INSERT INTO commit_receipts VALUES (?,?,?,?,?)",
-                (self.owner_id, receipt_key, hashlib.sha256(memory_id.encode()).hexdigest(), _canonical(result), _now()),
+                (self.owner_id, receipt_key, request_digest, _canonical(result), _now()),
             )
         return result
+
+    def deletion_status(self, job_id: str) -> dict[str, str | int] | None:
+        row = self.db.execute(
+            "SELECT job_id,memory_id,status,created_at FROM deletion_jobs WHERE owner_id=? AND job_id=?",
+            (self.owner_id, job_id),
+        ).fetchone()
+        if not row:
+            return None
+        pending = self.db.execute(
+            "SELECT COUNT(*) FROM outbox WHERE memory_id=? AND action='delete' AND status='pending'",
+            (row["memory_id"],),
+        ).fetchone()[0]
+        return {**dict(row), "pending_outbox": pending}
+
+    def list_outbox(self, status: str = "pending") -> list[dict[str, object]]:
+        rows = self.db.execute(
+            "SELECT outbox_id,backend,generation,memory_id,revision,action,status,created_at "
+            "FROM outbox WHERE status=? ORDER BY outbox_id",
+            (status,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def register_backend_generation(self, backend: str, generation: str, active: bool = True) -> None:
         with self._write_transaction():
@@ -478,6 +524,32 @@ class Ledger:
         ).fetchone()
         if not row:
             raise ValueError("unknown project")
+
+    def _context_is_valid(self, context: TaskContext) -> bool:
+        if context.owner_id != self.owner_id:
+            return False
+        if context.project_id:
+            project = self.db.execute(
+                "SELECT 1 FROM projects WHERE owner_id=? AND project_id=?",
+                (self.owner_id, context.project_id),
+            ).fetchone()
+            if not project:
+                return False
+        if context.workspace_id:
+            workspace = self.db.execute(
+                "SELECT project_id FROM project_locations WHERE owner_id=? AND workspace_id=?",
+                (self.owner_id, context.workspace_id),
+            ).fetchone()
+            if not workspace or workspace["project_id"] != context.project_id:
+                return False
+        if context.task_id:
+            task = self.db.execute(
+                "SELECT project_id FROM tasks WHERE owner_id=? AND task_id=?",
+                (self.owner_id, context.task_id),
+            ).fetchone()
+            if not task or task["project_id"] != context.project_id:
+                return False
+        return True
 
     @staticmethod
     def _scope_allows(scope: Scope, context: TaskContext) -> bool:
