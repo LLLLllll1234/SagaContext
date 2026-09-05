@@ -1,12 +1,12 @@
-# 真实 Judge 适配器与固定回放评测设计
+# 真实 Judge 适配器与语义验收设计
 
 **日期：** 2026-09-06  
-**状态：** 待用户审阅；架构方向已确认  
-**范围：** OpenAI-compatible HTTP Judge、同步 ProposalJudge 门面、Delta 转换、固定回放报告
+**状态：** 范围已于 2026-09-06 确认；待审阅书面规格
+**范围：** OpenAI-compatible HTTP Judge、同步 ProposalJudge 门面、Delta 转换、困难样本与固定回放语义验收
 
 ## 1. 目标与非目标
 
-本阶段把维护 worker 当前使用的 ScriptedJudge 替换为可调用真实 OpenAI-compatible HTTP 模型的适配器，并提供一组固定、合成或脱敏的回放样本，用真实 Judge 产生结构化结果后与预先冻结的标注比较。
+本阶段把维护 worker 当前使用的 ScriptedJudge 替换为可调用真实 OpenAI-compatible HTTP 模型的适配器，并提供一组固定、合成或脱敏的回放样本，用真实 Judge 产生结构化结果后与预先冻结的标注比较。现有六个单候选样本是调用链路冒烟，不单独构成语义验收。
 
 必须达到：
 
@@ -14,7 +14,8 @@
 - 复用现有异步 HTTP 请求契约，单次调用使用单独的异步客户端和事件循环生命周期；
 - 区分超时、限流、暂时性服务错误、认证失败、配置错误、响应格式错误和 schema/转换校验错误；
 - 明确完成 Delta[] -> DeltaProposal[]，模型只提出候选变更，Ledger 仍是提交、CAS、冲突和证据关联的权威；
-- 固定回放实际调用 Judge，分别统计调用状态、关系判断正确性和转换正确性，并保留失败案例；
+- 固定回放实际调用 Judge，将调用状态与语义质量分开，并独立评分关系判断、记忆正文、证据引用和转换结果；
+- 新增重复表达、偏好反转、信息不足和无关内容困难样本，对不应写入的内容设置独立安全门槛；
 - artifact 记录 Judge 版本、提示词/schema/转换器版本、采样参数、耗时和脱敏结构化结果。
 
 不包含：正常会话自动化、常驻 worker、私人 transcript、OpenViking 写入、第二后端、线上效果结论、自动调参和凭据持久化。
@@ -35,7 +36,7 @@
     ReplayRunner
         -> 冻结 case + 标注
         -> OpenAIProposalJudge
-        -> 关系/转换双重评分
+        -> 关系/正文/证据/转换四维评分
         -> JSONL artifact + Markdown report
 
 同步门面只允许在当前线程没有运行中事件循环时调用。若检测到 asyncio.get_running_loop() 成功，立即抛出明确的 JudgeEventLoopError，不能嵌套 asyncio.run。异步 HTTP 客户端不得保存到跨调用或跨事件循环的共享状态中。
@@ -112,25 +113,57 @@ candidate_id 是适配层必须校验的关联字段。relation 只允许 confir
 
 ## 6. 固定回放数据与 runner
 
-回放文件放在 bench/cases/real_judge/，输入与标注分离但由同一个 case ID 关联。每个 case 固定：
+回放文件放在 `bench/cases/real_judge/`，输入与标注分离但由同一个 case ID 关联。每个 case 固定：
 
 - 一个合成或脱敏候选、事件摘要和 anchors；
-- 预期 relation（新增、确认、补全/refine、推翻/supersede、冲突、无需更新）；
-- 预期 target/revision/evidence 关联；
-- 允许的 payload 字段和转换结果。
+- 预期 relation：`new/confirm/refine/supersede/conflict`，或者显式 `no_change`；
+- `should_ignore`，用于单独标记信息不足、无关内容等不应写入的候选；
+- 预期记忆正文，以规范化后的 `key + fields` 结构表示；
+- 预期 evidence IDs；
+- 预期 target、revision、memory type、scope 和 operation 转换结果。
 
-运行前计算 case/annotation digest，运行期间拒绝隐式修改。CLI 或脚本显式要求 LLM 配置存在；没有配置时报告 blocked_configuration，不伪造通过。
+### 6.1 样本矩阵
 
-每个结果 JSONL 至少保存 case_id、judge_version、prompt_contract_version、schema_version、converter_version、model 摘要、sampling、latency_ms、status、error_class、response_digest、actual_deltas、actual_proposals、expected_relation、relation_correct 和 conversion_correct。
+数据集至少包含 14 个单候选 case：
+
+| 分组 | 最少数量 | 主要验证 |
+|---|---:|---|
+| 现有六类冒烟 | 6 | `new/confirm/refine/supersede/conflict/no_change` 各一例 |
+| 重复表达 | 2 | 字面重复和语义改写均不得新建重复记忆 |
+| 偏好反转 | 2 | 强时序措辞可 `supersede`，弱或临时措辞不得误覆盖 |
+| 信息不足 | 2 | 无法得出稳定正文时必须 `no_change` |
+| 无关内容 | 2 | 闲聊、一次性指令或无持久价值内容必须 `no_change` |
+
+困难样本不仅替换同义词，还要改变否定、时间范围、确定性和持久性措辞。每个样本仍只有一个候选，避免把“候选间分配”混入本阶段。
+
+### 6.2 评分口径
+
+每次调用产生五个独立结果：
+
+1. `relation_correct`：只比较关系或 `no_change`；
+2. `memory_body_correct`：对规范化后的 `key + fields` 做结构化精确比较，`no_change` 要求正文为空；
+3. `evidence_correct`：对 evidence ID 集合做精确比较，不允许虚构或遗漏；
+4. `conversion_correct`：只比较 target、expected revision、memory type、scope 和 operation，不再把正文和证据错误折叠进该指标；
+5. `ignore_correct`：`should_ignore=true` 的样本必须返回合法空 Delta，不得产生写入型 proposal。
+
+另行报告调用成功率、错误分类、耗时、token 和费用。配置失败、网络失败或 schema 失败不记为语义错误，但整次验收不能因此判定通过。
+
+### 6.3 冻结与重复运行
+
+运行前计算 case/annotation digest，运行期间拒绝隐式修改。验收固定模型名、endpoint 配置指纹、prompt/schema/converter 版本、`temperature=0`、timeout 和样本顺序，对全部 case 独立运行 3 次。任何 prompt、schema、标注或模型变更都生成新版本和新 artifact，不覆盖旧结果，不允许只选最好一轮报告。
+
+凭据只通过环境变量或用户本机的 `~/.sagacontext/config.toml` 提供，不写入仓库。CLI 或脚本显式要求 LLM 配置存在；没有配置时报告 `blocked_configuration`，不伪造通过。
+
+每个结果 JSONL 至少保存 run ID、repeat index、case ID、上述版本与配置指纹、sampling、latency、status、error class、response digest、actual deltas/proposals、全部冻结标注和五项评分结果。
 
 不得写入 API key、Authorization header、完整内部 URL、私人正文或未脱敏 transcript。失败案例保留错误分类和脱敏输入/输出摘要。
 
 报告至少分开显示：
 
 - Judge 调用成功率和错误分类计数；
-- relation accuracy：实际 relation 与冻结标注的匹配；
-- conversion accuracy：target、revision、scope、evidence、payload 和 operation 全部匹配；
-- 按六类场景的逐例结果和失败案例；
+- relation、memory body、evidence、conversion 和 ignore accuracy，分子分母明确；
+- 按六类冒烟与四类困难样本分组的逐例、逐次结果；
+- 跨 3 次重复运行的稳定性与所有失败案例；
 - 每例耗时及总 token/费用（只有 provider 返回且可安全记录时才展示，否则标记 unavailable）。
 
 报告不得把调用成功率当作语义质量，也不得把合成回放结果描述为任意正常对话的自动抽取效果。
@@ -149,11 +182,14 @@ candidate_id 是适配层必须校验的关联字段。relation 只允许 confir
 
 ### 固定回放退出条件
 
-- 至少六个冻结 case 覆盖 new/confirm/refine/supersede/conflict/no_change；
-- 每个 case 真实调用 OpenAI-compatible endpoint，或在无配置时明确 blocked_configuration，不能用 fixture observation 冒充；
-- 每个 case 都有 relation 与 conversion 两项结果；
+- 至少 14 个冻结 case，覆盖六类冒烟和四类困难语义；
+- 每个 case 真实调用同一 OpenAI-compatible endpoint 3 次，不能用 fixture observation 冒充；
+- 每个 case 都有 relation、memory body、evidence、conversion 和 ignore 五项结果；
 - 失败案例完整保留并能从 case digest 复现；
-- 本地现有 111 项回归测试继续通过；新增测试全部通过；
+- 调用成功率必须为 100%，否则整次验收状态为阻断，不计算或粉饰语义通过；
+- `[TARGET]` evidence、conversion 和 ignore 安全门槛均为 100%，relation 和 memory body 总准确率均不低于 90%，每个困难分组不低于 2/3；
+- 上述门槛是运行前冻结的验收目标，不是已验证结果；首轮实测后即使未达标也保留原始 artifact，不修改标注来追求通过；
+- 当前全量回归测试继续通过；新增测试全部通过；
 - 报告明确标注模型、提示词、schema、转换器和采样参数，且不泄露秘密。
 
 ## 8. 后续阶段边界
