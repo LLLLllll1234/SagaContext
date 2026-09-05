@@ -8,6 +8,7 @@
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
+| 17 | [S3 准入探针与真实纵向闭环设计](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md) | OpenViking + 本机 Codex CLI 候选、G1/G3 独立判定、Shadow/G6 边界与分级授权 | **设计已批准；尚未批准探针执行或真实适配编码** |
 | 16 | [S2 持续维护验收](probes/2026-09-05-s2-acceptance.md) | Schema v2、J1-J4、B1-B5、R1-R4、A1-A2、C1、P1-P6 与 G2 故障时序的具名本地验收 | **86 项测试通过；S2 本地退出条件满足**；不代表真实宿主或后端已启用 |
 | 15 | [S2 持续维护设计](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) | EventJournal、固定 batch、proposal/review、原子 `commit_batch`、task checkpoint、可控故障 projector、lease fencing 与 G2 验收矩阵 | **已批准并实现**；仅限本地合成数据和测试后端，不启用真实宿主或后端 |
 | 14 | [S1 数据收口验收](probes/2026-09-05-s1-acceptance.md) | 入口隔离、I01–I11、G4、旧库不变与固定命令的具名验收结果 | **53 项测试通过；S1 本地退出条件满足** |
