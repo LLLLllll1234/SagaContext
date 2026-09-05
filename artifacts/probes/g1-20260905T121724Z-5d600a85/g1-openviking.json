@@ -1,0 +1,151 @@
+{
+  "assertions": [
+    {
+      "evidence": {
+        "configured": "ghcr.io/volcengine/openviking@sha256:14553ec16f2bda9bd08a188cffb659fcfff4fde5891cbb881ed1bd8488b23294",
+        "expected": "ghcr.io/volcengine/openviking@sha256:14553ec16f2bda9bd08a188cffb659fcfff4fde5891cbb881ed1bd8488b23294"
+      },
+      "name": "image_reference_pinned",
+      "status": "pass"
+    },
+    {
+      "evidence": {
+        "status": "ready",
+        "status_code": 200
+      },
+      "name": "backend_ready",
+      "status": "pass"
+    },
+    {
+      "evidence": {
+        "namespace": "viking://user/default/memories/sagacontext-g1/g1-20260905T121724Z-5d600a85",
+        "payload_class": "synthetic"
+      },
+      "name": "isolated_namespace",
+      "status": "pass"
+    },
+    {
+      "evidence": {
+        "attempted": true,
+        "error_class": "authentication_failed",
+        "result": "fail"
+      },
+      "name": "namespace_cleanup",
+      "status": "fail"
+    }
+  ],
+  "cleanup": {
+    "attempted": true,
+    "error_class": "authentication_failed",
+    "result": "fail"
+  },
+  "fatal_error": {
+    "detail": "credential rejected",
+    "error_class": "authentication_failed"
+  },
+  "finished_at": "2026-09-05T12:17:24.951464+00:00",
+  "gate": "G1",
+  "http_exchanges": [
+    {
+      "elapsed_ms": 13.222,
+      "error_class": null,
+      "method": "GET",
+      "path": "/api/v1/system/status",
+      "request": {
+        "body_bytes": 2,
+        "body_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "body_keys": [],
+        "query_keys": []
+      },
+      "response": {
+        "body_bytes": 107,
+        "body_digest": "sha256:db5da2ab2700ce9d2a1b1de1eebf89c220f42f586ff7f85295dbcf958c327b7e",
+        "shape": {
+          "error": "null",
+          "profile": "null",
+          "result": {
+            "initialized": "bool",
+            "user": "str"
+          },
+          "status": "str",
+          "telemetry": "null"
+        }
+      },
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 6.666,
+      "error_class": "authentication_failed",
+      "method": "POST",
+      "path": "/api/v1/content/write",
+      "request": {
+        "body_bytes": 1064,
+        "body_digest": "sha256:a0df7a0387a8366460dec1f253d905caab61857194099cbfcad19ff3d6bc3bc0",
+        "body_keys": [
+          "content",
+          "mode",
+          "processing_mode",
+          "uri",
+          "wait"
+        ],
+        "query_keys": []
+      },
+      "status_code": 403
+    },
+    {
+      "elapsed_ms": 6.305,
+      "error_class": "authentication_failed",
+      "method": "DELETE",
+      "path": "/api/v1/fs",
+      "request": {
+        "body_bytes": 2,
+        "body_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "body_keys": [],
+        "query_keys": [
+          "recursive",
+          "timeout",
+          "uri",
+          "wait"
+        ]
+      },
+      "status_code": 403
+    }
+  ],
+  "metadata": {
+    "api_version": "0.1.0",
+    "auth_mode": "api_key",
+    "code_revision": "8b712c20d64a05249d2a4de4ba6066f6a858d991",
+    "config_fingerprint": "sha256:eb13902fa03a1c2068c0362ce08a94747e555b43856a3f58d61155ff03a3b2cc",
+    "container_image_id": "sha256:2e6281eeeea40013db6c296261386925dc686555547f5c06456f0891b85da274",
+    "container_version": "v0.4.17.1",
+    "image_architecture": "arm64",
+    "image_id": "sha256:2e6281eeeea40013db6c296261386925dc686555547f5c06456f0891b85da274",
+    "image_reference": "ghcr.io/volcengine/openviking@sha256:14553ec16f2bda9bd08a188cffb659fcfff4fde5891cbb881ed1bd8488b23294",
+    "image_repo_digests": [
+      "ghcr.io/volcengine/openviking@sha256:14553ec16f2bda9bd08a188cffb659fcfff4fde5891cbb881ed1bd8488b23294"
+    ],
+    "probe_version": "g1-openviking-probe-v1",
+    "ready_checks": {
+      "agfs": {
+        "checks": {
+          "filesystem": "ok",
+          "multiwrite_sync": "not_supported"
+        },
+        "status": "ok"
+      },
+      "api_key_manager": "[REDACTED]",
+      "embedding": "ok",
+      "ollama": "ok",
+      "vectordb": "ok"
+    },
+    "ready_status_code": 200,
+    "schema_version": "projection-v1",
+    "source_revision": "420d4074f74070bc6fe7151aa54527cf1ff15152"
+  },
+  "namespace": "viking://user/default/memories/sagacontext-g1/g1-20260905T121724Z-5d600a85",
+  "payload_policy": "synthetic_only",
+  "probe_id": "g1-20260905T121724Z-5d600a85",
+  "started_at": "2026-09-05T12:17:24.361643+00:00",
+  "status": "failed_contract",
+  "visibility": []
+}

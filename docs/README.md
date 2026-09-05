@@ -6,14 +6,17 @@
 
 按阅读顺序：
 
+本地运行与探针操作：[本地 OpenViking 部署记录](ops-openviking-local.md)。
+
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
-| 17 | [S3 准入探针与真实纵向闭环设计](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md) | OpenViking + 本机 Codex CLI 候选、G1/G3 独立判定、Shadow/G6 边界与分级授权 | **设计已批准；尚未批准探针执行或真实适配编码** |
+| 18 | [S3-0 / G1 OpenViking 后端准入](probes/2026-09-05-s3-g1-openviking.md) | 固定镜像、隔离 projection、identity/locator、索引、删除、重启、错误分类与清理 | **17/17 必需断言通过；G1 passed**；G3 尚未通过，未授权真实 adapter |
+| 17 | [S3 准入探针与真实纵向闭环设计](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md) | OpenViking + 本机 Codex CLI 候选、G1/G3 独立判定、Shadow/G6 边界与分级授权 | **设计已批准；G1 已执行通过，G3 尚未通过；未授权真实适配编码** |
 | 16 | [S2 持续维护验收](probes/2026-09-05-s2-acceptance.md) | Schema v2、J1-J4、B1-B5、R1-R4、A1-A2、C1、P1-P6 与 G2 故障时序的具名本地验收 | **86 项测试通过；S2 本地退出条件满足**；不代表真实宿主或后端已启用 |
 | 15 | [S2 持续维护设计](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) | EventJournal、固定 batch、proposal/review、原子 `commit_batch`、task checkpoint、可控故障 projector、lease fencing 与 G2 验收矩阵 | **已批准并实现**；仅限本地合成数据和测试后端，不启用真实宿主或后端 |
 | 14 | [S1 数据收口验收](probes/2026-09-05-s1-acceptance.md) | 入口隔离、I01–I11、G4、旧库不变与固定命令的具名验收结果 | **53 项测试通过；S1 本地退出条件满足** |
 | 13 | [S1 数据收口设计](superpowers/specs/2026-09-05-s1-data-closure-design.md) | Ledger 唯一权威入口、应用组合层、daemon/CLI 契约、禁用宿主写入、删除语义、G4 与 I01–I11 验收 | **已批准并实现；真实宿主与后端仍受 S0 门槛约束** |
-| 12 | [S0 本机能力探针](probes/2026-09-05-s0-local.md) | OpenViking 与 Codex CLI 的本机前置检查、通过状态和执行边界 | **G1 未通过，G3 因模型认证受阻**；已保存脱敏 fixture，未启用真实后端或自动注入 |
+| 12 | [S0 本机能力探针](probes/2026-09-05-s0-local.md) | OpenViking 与 Codex CLI 的本机前置检查、通过状态和执行边界 | 历史 S0 记录；当时 G1 未通过、G3 因模型认证受阻；最新 G1 结果见 #18 |
 | 11 | [技术实现方案 v0.3](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) | 权威账本/检索投影/宿主边界、身份与记忆模型、持续对账、并发恢复、遗忘安全、代码和数据迁移、G1–G6 门槛与分阶段实施 | **已批准为分阶段实现基线**；S1 本地数据收口完成，外部能力仍受探针门槛约束 |
 | 10 | [调研报告审查意见](10-调研报告审查意见-2026-09-05.md) | 固定源码证据、九项发现、R1–R6 完成度、六个实施准入探针 | **审查完成：部分通过，需补证后再冻结设计** |
 | 09 | [个性化记忆策略层调研报告](09-个性化记忆策略层-调研报告.md) | 后端与宿主对比、权威账本与 SPI 草案、演化场景、策略及评测建议 | **已提交，审查意见见 10；尚非冻结设计依据** |
