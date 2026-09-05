@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
+from ..llm import JudgeError
 from ..ledger import (
     BatchCandidateResult,
     BatchConflictRecord,
@@ -104,6 +105,24 @@ class BatchWorker:
         if not existing:
             try:
                 proposals = judge.judge(batch_input)
+            except JudgeError as error:
+                if not error.retryable:
+                    self.batches.block_batch(
+                        batch_id,
+                        worker_id,
+                        claim.lease_token,
+                        error.class_name,
+                        now=now,
+                    )
+                    return BatchRunResult(status="blocked", batch_id=batch_id)
+                return self._retry_or_block(
+                    batch_id,
+                    worker_id,
+                    claim.lease_token,
+                    error.class_name,
+                    now,
+                    max_attempts,
+                )
             except Exception:
                 return self._retry_or_block(
                     batch_id, worker_id, claim.lease_token, "judge_error", now, max_attempts

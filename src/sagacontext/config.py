@@ -36,6 +36,9 @@ class Config:
         recall = data.get("recall", {}) if isinstance(data.get("recall", {}), dict) else {}
         openviking = data.get("openviking", {}) if isinstance(data.get("openviking", {}), dict) else {}
         llm = data.get("llm", {}) if isinstance(data.get("llm", {}), dict) else {}
+        llm_base_url = os.environ.get("SAGACONTEXT_LLM_BASE_URL", llm.get("base_url", defaults.llm_base_url))
+        llm_api_key = os.environ.get("SAGACONTEXT_LLM_API_KEY", llm.get("api_key", defaults.llm_api_key))
+        llm_model = os.environ.get("SAGACONTEXT_LLM_MODEL", llm.get("model", defaults.llm_model))
         return cls(
             state_path=root / "state.db",
             ledger_path=root / "ledger-v3.db",
@@ -49,7 +52,7 @@ class Config:
             dev_root=str(openviking.get("dev_root", defaults.dev_root)),
             ov_base_url=str(openviking.get("base_url", defaults.ov_base_url)),
             ov_api_key=str(openviking.get("api_key", defaults.ov_api_key)),
-            llm_base_url=str(llm.get("base_url", defaults.llm_base_url)),
-            llm_api_key=str(llm.get("api_key", defaults.llm_api_key)),
-            llm_model=str(llm.get("model", defaults.llm_model)),
+            llm_base_url=str(llm_base_url),
+            llm_api_key=str(llm_api_key),
+            llm_model=str(llm_model),
         )

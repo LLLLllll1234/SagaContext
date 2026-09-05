@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 class Scope(BaseModel):
     kind: Literal["global", "repo", "glob"]
@@ -39,18 +39,27 @@ class Candidate(BaseModel):
     level: Literal["L0", "L1"]
     layer_guess: Literal["preference", "project", "task", "user"]
     kind: str
+    candidate_id: str | None = None
+    memory_type_hint: str | None = None
+    scope_hint: dict[str, Any] = Field(default_factory=dict)
+    event_ids: list[str] = Field(default_factory=list)
+    topic_key: str | None = None
     turn_idx: int = 0
     text: str
     files: list[str] = Field(default_factory=list)
     confidence: float = 0.5
 
 class Delta(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     layer: Literal["user", "preference", "project", "task"]
     type: str
     relation: Literal["confirm", "refine", "supersede", "new", "conflict"]
+    candidate_id: str | None = None
     anchor_uri: str | None = None
     key: str
     fields: dict[str, Any] = Field(default_factory=dict)
+    evidence_ids: list[str] = Field(default_factory=list)
     strong_signal: bool = False
     confidence_hint: float = 0.5
     rationale: str = ""

@@ -4,7 +4,7 @@
 
 ## 当前阅读入口
 
-- 查看当前实现与验收结论：[S3-1 后端故障恢复](probes/2026-09-05-s3-1-openviking-recovery.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
+- 查看当前实现与验收结论：[真实 Judge 固定回放](probes/2026-09-06-real-judge-replay.md) → [S3-1 后端故障恢复](probes/2026-09-05-s3-1-openviking-recovery.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
 - 复查测试记录：[验收报告索引](probes/README.md) → [S3 原始运行清单](../artifacts/probes/S3-RESULTS.md)。
 - 理解实现约束：[v0.3 总设计](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) → [S1](superpowers/specs/2026-09-05-s1-data-closure-design.md) → [S2](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) → [S3](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md)。
 - 本地部署与操作：[OpenViking 部署记录](ops-openviking-local.md)。
@@ -15,6 +15,7 @@
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
+| 22 | [真实 Judge 固定回放](probes/2026-09-06-real-judge-replay.md) | OpenAI-compatible HTTP Judge、同步门面、错误分类、Delta 转换和六类单候选回放 | **实现完成；本次 6/6 blocked_configuration，待配置 endpoint 后取得语义结果** |
 | 21 | [S3 RecallPolicy、Shadow、G5/G6 验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md) | Ledger 正文复核、预算/省略、实际事件回放、删除/取代、三条真实 Codex 下一会话消费与清理恢复 | **完整合成纵向运行 69/69 通过**；不是生产服务或通用语义抽取验收 |
 | 20 | [S3-1 OpenViking 适配器与真实故障恢复](probes/2026-09-05-s3-1-openviking-recovery.md) | Ledger → outbox → 真实 OpenViking；P1–P6、重复写、检索与临时数据清理 | **首次真实验收 22/22 通过**；后续阶段单独验收 |
 | 19 | [S3-0 / G3 Codex 宿主事件准入](probes/2026-09-05-s3-g3-codex-host-terra.md) | 使用 gpt-5.6-terra 重跑四场景；旧报告和 fixture 保留作历史记录 | **19/19 必需断言通过；G3 passed；仅限合成探针，不授权真实记忆注入** |

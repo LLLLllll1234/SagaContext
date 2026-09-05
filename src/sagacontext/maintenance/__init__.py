@@ -1,4 +1,5 @@
 from .batches import BatchService
+from .judge import OpenAIProposalJudge, JudgeTrace, convert_deltas
 from .journal import EventJournal
 from .reconcile import BatchWorker, ScriptedJudge
 from .review import ReviewService
@@ -12,6 +13,8 @@ from .models import (
     CursorUpdate,
     EventReceipt,
     JournalEvent,
+    JudgeAnchor,
+    JudgeCandidate,
     QuarantineReceipt,
     DeltaProposal,
 )
@@ -23,6 +26,7 @@ __all__ = [
     "BatchRunResult",
     "BatchService",
     "BatchWorker",
+    "convert_deltas",
     "CandidateInput",
     "CandidateReceipt",
     "CursorUpdate",
@@ -30,6 +34,10 @@ __all__ = [
     "EventJournal",
     "EventReceipt",
     "JournalEvent",
+    "JudgeTrace",
+    "JudgeAnchor",
+    "JudgeCandidate",
+    "OpenAIProposalJudge",
     "QuarantineReceipt",
     "ReviewService",
     "ScriptedJudge",

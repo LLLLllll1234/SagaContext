@@ -229,6 +229,9 @@ class JournalAndBatchTests(unittest.TestCase):
         self.assertEqual(frozen.policy_version, "s2-policy-v1")
         self.assertEqual(frozen.maintenance_schema_version, 2)
         self.assertEqual(frozen.judge_version, "scripted-v1")
+        self.assertEqual(frozen.judge_candidates[0].candidate_id, candidate_1.candidate_id)
+        self.assertEqual(frozen.judge_candidates[0].text, "event-1")
+        self.assertEqual(frozen.summary, "event-1")
         self.assertEqual(self.batches.candidate_status(candidate_2.candidate_id), "pending")
 
         self.ledger.db.execute(

@@ -6,6 +6,7 @@
 
 | 范围 | 报告 | 对应结果 |
 |---|---|---|
+| 真实 Judge 固定回放 | [适配器与回放报告](2026-09-06-real-judge-replay.md) | 6 个单候选 case 已冻结；本次无 LLM 配置，6/6 `blocked_configuration`，未伪造语义指标 |
 | S3-1 真实后端 | [OpenViking 适配器与故障恢复](2026-09-05-s3-1-openviking-recovery.md) | 首次 22/22，后续完整运行复验 P1–P6 |
 | S3-2 至 S3-5 | [RecallPolicy、Shadow、G5/G6](2026-09-06-s3-policy-shadow-g5-g6.md) | 完整纵向 69/69；最终后端/策略回归 40/40；本地测试 111 项 |
 | G1 后端准入 | [OpenViking](2026-09-05-s3-g1-openviking.md) | 17/17，固定镜像与真实后端 |

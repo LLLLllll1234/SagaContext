@@ -70,6 +70,24 @@ class CandidateReceipt(FrozenModel):
     candidate_id: str
 
 
+class JudgeCandidate(FrozenModel):
+    candidate_id: str
+    kind: str
+    memory_type_hint: str
+    scope_hint: Scope
+    topic_key: str
+    event_ids: tuple[str, ...] = ()
+    text: str = ""
+
+
+class JudgeAnchor(FrozenModel):
+    memory_id: str
+    revision: int
+    memory_type: str
+    scope: Scope
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
 class BatchReceipt(FrozenModel):
     batch_id: str
     candidate_claim_tokens: tuple[str, ...]
@@ -91,6 +109,9 @@ class BatchInput(FrozenModel):
     event_ids: tuple[str, ...]
     candidate_ids: tuple[str, ...]
     anchor_revisions: tuple[tuple[str, int], ...]
+    judge_candidates: tuple[JudgeCandidate, ...] = ()
+    judge_anchors: tuple[JudgeAnchor, ...] = ()
+    summary: str = ""
 
 
 class DeltaProposal(FrozenModel):

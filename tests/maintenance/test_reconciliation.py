@@ -6,6 +6,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from sagacontext.llm import JudgeError
 from sagacontext.ledger import CommitRequest, EvidenceInput, Ledger, Scope, TaskContext
 from sagacontext.maintenance import (
     BatchService,
@@ -171,6 +172,42 @@ class ReconciliationTests(unittest.TestCase):
                 "SELECT status FROM batches WHERE batch_id=?", (batch.batch_id,)
             ).fetchone()[0],
             "blocked",
+        )
+
+    def test_classified_non_retryable_judge_error_blocks_with_specific_class(self):
+        self._candidate()
+        batch = self.batches.request_batch(self.session_id, self.task_id)
+
+        class AuthenticationJudge(ScriptedJudge):
+            def judge(self, batch_input):
+                raise JudgeError("judge_authentication_error", False, status_code=401)
+
+        result = self._run(AuthenticationJudge())
+
+        self.assertEqual(result.status, "blocked")
+        self.assertEqual(
+            self.ledger.db.execute(
+                "SELECT status,last_error_class FROM batches WHERE batch_id=?", (batch.batch_id,)
+            ).fetchone()["last_error_class"],
+            "judge_authentication_error",
+        )
+
+    def test_classified_retryable_judge_error_uses_specific_class(self):
+        self._candidate()
+        batch = self.batches.request_batch(self.session_id, self.task_id)
+
+        class TimeoutJudge(ScriptedJudge):
+            def judge(self, batch_input):
+                raise JudgeError("judge_timeout", True)
+
+        result = self._run(TimeoutJudge())
+
+        self.assertEqual(result.status, "retry")
+        self.assertEqual(
+            self.ledger.db.execute(
+                "SELECT status,last_error_class FROM batches WHERE batch_id=?", (batch.batch_id,)
+            ).fetchone()["last_error_class"],
+            "judge_timeout",
         )
 
     def test_b5_no_change_is_persisted_and_settled_once(self):

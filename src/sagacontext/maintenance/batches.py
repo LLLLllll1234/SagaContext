@@ -5,13 +5,15 @@ import json
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from ..ledger import Ledger
+from ..ledger import Ledger, Scope
 from .models import (
     BatchClaim,
     BatchInput,
     BatchReceipt,
     CandidateInput,
     CandidateReceipt,
+    JudgeAnchor,
+    JudgeCandidate,
 )
 
 
@@ -258,13 +260,61 @@ class BatchService:
             "SELECT event_id FROM batch_events WHERE batch_id=? ORDER BY rowid", (batch_id,)
         ).fetchall()
         candidates = self.ledger.db.execute(
-            "SELECT candidate_id FROM batch_candidates WHERE batch_id=? ORDER BY rowid",
+            "SELECT c.candidate_id,c.kind,c.memory_type_hint,c.scope_hint_json,c.topic_key,c.event_ids_json "
+            "FROM batch_candidates bc JOIN candidates c ON c.candidate_id=bc.candidate_id "
+            "WHERE bc.batch_id=? ORDER BY bc.rowid",
             (batch_id,),
         ).fetchall()
         anchors = self.ledger.db.execute(
-            "SELECT memory_id,revision FROM batch_anchors WHERE batch_id=? ORDER BY memory_id",
+            "SELECT ba.memory_id,ba.revision,m.memory_type,m.scope_json,r.payload_json "
+            "FROM batch_anchors ba JOIN memories m ON m.memory_id=ba.memory_id "
+            "JOIN revisions r ON r.memory_id=ba.memory_id AND r.revision=ba.revision "
+            "WHERE ba.batch_id=? ORDER BY ba.memory_id",
             (batch_id,),
         ).fetchall()
+        event_rows = self.ledger.db.execute(
+            "SELECT event_id,event_kind,payload_json FROM events "
+            "WHERE event_id IN (SELECT event_id FROM batch_events WHERE batch_id=?) "
+            "ORDER BY ingest_sequence,event_id",
+            (batch_id,),
+        ).fetchall()
+        event_text: dict[str, str] = {}
+        for event in event_rows:
+            payload = json.loads(event["payload_json"])
+            if isinstance(payload, dict):
+                text = next(
+                    (str(payload[key]) for key in ("text", "message", "content", "summary") if payload.get(key)),
+                    "",
+                )
+            else:
+                text = str(payload)
+            event_text[event["event_id"]] = text or json.dumps(payload, ensure_ascii=True, sort_keys=True)
+        judge_candidates = tuple(
+            JudgeCandidate(
+                candidate_id=row["candidate_id"],
+                kind=row["kind"],
+                memory_type_hint=row["memory_type_hint"],
+                scope_hint=Scope.model_validate_json(row["scope_hint_json"]),
+                topic_key=row["topic_key"],
+                event_ids=tuple(json.loads(row["event_ids_json"])),
+                text="\n".join(
+                    event_text[event_id]
+                    for event_id in json.loads(row["event_ids_json"])
+                    if event_id in event_text
+                ),
+            )
+            for row in candidates
+        )
+        judge_anchors = tuple(
+            JudgeAnchor(
+                memory_id=row["memory_id"],
+                revision=row["revision"],
+                memory_type=row["memory_type"],
+                scope=Scope.model_validate_json(row["scope_json"]),
+                payload=json.loads(row["payload_json"]),
+            )
+            for row in anchors
+        )
         return BatchInput(
             batch_id=batch_id,
             input_digest=batch["input_digest"],
@@ -274,6 +324,13 @@ class BatchService:
             event_ids=tuple(row["event_id"] for row in events),
             candidate_ids=tuple(row["candidate_id"] for row in candidates),
             anchor_revisions=tuple((row["memory_id"], row["revision"]) for row in anchors),
+            judge_candidates=judge_candidates,
+            judge_anchors=judge_anchors,
+            summary="\n".join(
+                event_text[row["event_id"]]
+                for row in event_rows
+                if event_text.get(row["event_id"])
+            ),
         )
 
     def candidate_status(self, candidate_id: str) -> str | None:
