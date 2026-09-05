@@ -1,0 +1,111 @@
+{
+  "adapter_version": "g3-probe-v1",
+  "config_fingerprint": "sha256:951f44c678332866b26cea4458394efeeee93c2767ab212dcc44ce6a092eca68",
+  "executable_version": "codex-cli 0.150.0-alpha.8",
+  "host_form": "cli-exec",
+  "host_name": "codex",
+  "injection_modes": [],
+  "official_references": [
+    "https://developers.openai.com/codex/hooks",
+    "https://developers.openai.com/codex/config-file/config-reference",
+    "https://developers.openai.com/codex/cli/reference"
+  ],
+  "payload_shapes": [],
+  "probe_date": "2026-09-05",
+  "probe_result": {
+    "agent_received_injected_context": false,
+    "blocker": "model_authentication_failed",
+    "exit_code": null,
+    "status": "blocked",
+    "stderr_present": true
+  },
+  "runtime_feature_flags": {
+    "hooks": true
+  },
+  "source_declared_events": [
+    "PreToolUse",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreCompact",
+    "PostCompact",
+    "SessionStart",
+    "SessionEnd",
+    "UserPromptSubmit",
+    "SubagentStart",
+    "SubagentStop",
+    "Stop",
+    "Interrupt"
+  ],
+  "source_revision": "728cb12fe5794b0c3a8e776fb4994b1650b973a8",
+  "timeout_behavior": {
+    "long_hook_clamp": "not_probed",
+    "session_end_configured_seconds": 1,
+    "session_end_observed": false
+  },
+  "transcript_support": {
+    "content_saved": false,
+    "path_field_observed": false
+  },
+  "verified_events": [
+    {
+      "event": "PreToolUse",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "PermissionRequest",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "PostToolUse",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "PreCompact",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "PostCompact",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "SessionStart",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "SessionEnd",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "SubagentStart",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "SubagentStop",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "Stop",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "Interrupt",
+      "payload_keys": [],
+      "status": "not_observed"
+    }
+  ]
+}
