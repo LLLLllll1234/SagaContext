@@ -10,7 +10,7 @@ prior `real-judge-v2` runs and do not constitute a full acceptance run.
 
 | Model | Run ID | Latency | Status | HTTP status | Validation/detail | Response digest | Auxiliary trace |
 |---|---|---:|---|---:|---|---|---|
-| `deepseek-v4-pro` | `20260906T094720Z-diag-v3-deepseek-pro-1e35e40c` | 6319 ms | `ok` | 200 | `delta-v3` valid; conversion valid | `8abb0faff8e0cbf27022b5c5a2e6706bcf203168f7bf2c42ade2a47e99637138` | `strong_signal=null`, `confidence_hint=null` |
+| `deepseek-v4-pro` | `20260906T100914Z-diag-v3-deepseek-pro-52fedd81` | 12646 ms | `ok` | 200 | `delta-v3` valid; conversion valid | `8abb0faff8e0cbf27022b5c5a2e6706bcf203168f7bf2c42ade2a47e99637138` | `strong_signal=null`, `confidence_hint=null` |
 | `deepseek-v4-flash` | `20260906T095910Z-diag-v3-deepseek-flash-bc580943` | 5508 ms | `judge_schema_error` | 200 | `invalid delta schema at 0.layer` | `sha256:30084ce3c886f96a04df0d2a6766fca763bad69413d76acf4871e64f91494ff8` | unavailable because validation failed |
 
 ## Interpretation
