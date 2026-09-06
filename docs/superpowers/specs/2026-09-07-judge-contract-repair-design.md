@@ -1,6 +1,7 @@
 # Judge Contract And Semantic Gate Repair
 
-Status: approved by the user on 2026-09-07; implementation in progress.
+Status: approved and implemented on 2026-09-07; local verification passed.
+Fresh provider acceptance and shadow remain pending authorized configuration.
 
 ## Problem
 

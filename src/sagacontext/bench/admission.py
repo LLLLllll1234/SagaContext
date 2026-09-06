@@ -187,6 +187,17 @@ def audit_models(
                 for item in (left, right)
             )
             if valid:
+                for item in (left, right):
+                    try:
+                        proposals = convert_deltas(case.batch, [Delta.model_validate(d) for d in item.actual_deltas])
+                        scores = score_observation(case, item.actual_deltas, proposals)
+                        valid = valid and [_proposal_signature(p) for p in proposals] == item.actual_proposals
+                        valid = valid and all(
+                            value is not False and getattr(item, name) is value for name, value in scores.items()
+                        )
+                    except (JudgeError, ValueError, TypeError, KeyError):
+                        valid = False
+            if valid:
                 compared = []
                 for item in (left, right):
                     proposal = dict(item.actual_proposals[0]) if item.actual_proposals else {}

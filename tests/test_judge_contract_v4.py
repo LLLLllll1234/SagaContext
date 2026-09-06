@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import importlib.util
 import itertools
 import json
@@ -15,7 +14,7 @@ from sagacontext.bench.admission import admission_errors, audit_models, FROZEN_D
 from sagacontext.bench.real_judge import (
     _body_matches, load_replay_dataset, markdown_report, run_replay,
 )
-from sagacontext.llm import JudgeError, OpenAIJudge
+from sagacontext.llm import OpenAIJudge
 from sagacontext.maintenance.judge import OpenAIProposalJudge
 from tests.test_real_judge import (
     _AsyncFakeJudge, _ReplayAdapter, _ResponseClient, _delta_for, _response,
@@ -176,6 +175,11 @@ class AdmissionV4Tests(unittest.TestCase):
         errors = admission_errors([record, *self.records[1:]])
         self.assertIn("memory_body_correct_failure", errors)
         self.assertIn("memory_body_correct_score_mismatch", errors)
+        records = [record, *self.records[1:]]
+        audit = audit_models(records, records)
+        self.assertEqual(audit["aligned_observations"], 42)
+        self.assertEqual(audit["semantic_equivalent_observations"], 41)
+        self.assertTrue(audit["pro_admission_errors"])
 
     def test_audit_distinguishes_raw_difference_from_equivalent_condition(self):
         pro = [record.model_copy(deep=True) for record in self.records]
