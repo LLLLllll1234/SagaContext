@@ -123,6 +123,9 @@ class ReplayResult(BaseModel):
     response_schema_version: str
     converter_version: str
     model: str
+    endpoint_fingerprint: str
+    request_timeout_seconds: float
+    max_attempts: int
     sampling: dict[str, float]
     case_digest: str
     latency_ms: int
@@ -145,6 +148,13 @@ def _digest(value: object) -> str:
     return hashlib.sha256(
         json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+
+
+def _endpoint_fingerprint(base_url: str) -> str:
+    normalized = base_url.rstrip("/")
+    if not normalized:
+        return "unconfigured"
+    return f"sha256:{hashlib.sha256(normalized.encode()).hexdigest()}"
 
 
 def _normalize(value: Any) -> Any:
@@ -457,6 +467,10 @@ def run_replay(
     if repeats < 1:
         raise ValueError("repeats must be positive")
     run_id = run_id or f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid4().hex[:8]}"
+    endpoint_fingerprint = _endpoint_fingerprint(
+        str(getattr(adapter.judge_client, "base_url", ""))
+    )
+    request_timeout_seconds = float(getattr(adapter.judge_client, "timeout", 0.0))
     results: list[ReplayResult] = []
     for repeat_index in range(1, repeats + 1):
         for case in dataset.cases:
@@ -505,6 +519,9 @@ def run_replay(
                     response_schema_version=adapter.judge_client.response_schema_version,
                     converter_version=adapter.converter_version,
                     model=adapter.judge_client.model or "unconfigured",
+                    endpoint_fingerprint=endpoint_fingerprint,
+                    request_timeout_seconds=request_timeout_seconds,
+                    max_attempts=1,
                     sampling={"temperature": float(getattr(adapter.judge_client, "temperature", 0.0))},
                     case_digest=_digest(case.model_dump(mode="json")),
                     latency_ms=round((perf_counter() - started) * 1000),
@@ -589,6 +606,12 @@ def markdown_report(results: list[ReplayResult]) -> str:
         f"- Dataset: {results[0].dataset_id} ({results[0].dataset_digest})",
         f"- Cases: {len(case_ids)}",
         f"- Repeats: {len(repeats)}",
+        f"- Model: {results[0].model}",
+        f"- Endpoint fingerprint: {results[0].endpoint_fingerprint}",
+        f"- Request timeout: {results[0].request_timeout_seconds:g}s",
+        f"- Max attempts per observation: {results[0].max_attempts}",
+        "- Token usage: unavailable",
+        "- Cost: unavailable",
         f"- Judge calls successful: {ok}/{len(results)}",
         f"- Acceptance: {_acceptance_status(results)}",
         "",

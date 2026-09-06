@@ -261,6 +261,8 @@ class _ReplayAdapter:
         prompt_contract_version="openai-judge-prompt-v2",
         response_schema_version="delta-v2",
         model="test-model",
+        base_url="https://judge.example/v1/",
+        timeout=12.5,
         temperature=0.0,
     )
 
@@ -390,6 +392,25 @@ class ReplayRunnerTests(unittest.TestCase):
         self.assertIn("Acceptance: passed", report)
         self.assertIn("| 1 | 14/14 | 8/8 | 8/8 | 14/14 | 6/6 |", report)
 
+    def test_report_records_non_secret_request_configuration(self):
+        dataset = load_replay_dataset(self.v2_path)
+        case = dataset.cases[0]
+        result = run_replay(
+            _subset(dataset, case.id),
+            _ReplayAdapter({case.batch.batch_id: [[_delta_for(case)]]}),
+            repeats=1,
+            run_id="config",
+        )[0]
+        serialized = result.model_dump_json()
+        report = markdown_report([result])
+        self.assertRegex(result.endpoint_fingerprint, r"^sha256:[0-9a-f]{64}$")
+        self.assertEqual((result.request_timeout_seconds, result.max_attempts), (12.5, 1))
+        self.assertNotIn("judge.example", serialized)
+        self.assertIn(f"Endpoint fingerprint: {result.endpoint_fingerprint}", report)
+        self.assertIn("Request timeout: 12.5s", report)
+        self.assertIn("Token usage: unavailable", report)
+        self.assertIn("Cost: unavailable", report)
+
     def test_missing_configuration_is_reported_per_observation(self):
         class BlockedAdapter:
             version = "openai-proposal-v1"
@@ -398,6 +419,8 @@ class ReplayRunnerTests(unittest.TestCase):
                 prompt_contract_version="openai-judge-prompt-v2",
                 response_schema_version="delta-v2",
                 model="",
+                base_url="",
+                timeout=5.0,
                 temperature=0.0,
             )
             last_trace = JudgeTrace(status="not_run", latency_ms=0)
