@@ -248,6 +248,7 @@ class OpenAIJudgeContractTests(unittest.TestCase):
                 event_ids=["event-1"],
                 text="checkpoint",
             )], "summary"))
+        self.assertEqual(judge.last_status_code, 200)
         request = _ResponseClient.request_kwargs["json"]
         user_payload = request["messages"][1]["content"]
         system_prompt = request["messages"][0]["content"]
@@ -265,7 +266,9 @@ class OpenAIJudgeContractTests(unittest.TestCase):
                 "choices": [{"message": {"content": '{"deltas": []}'}}],
             })
             judge = OpenAIJudge("https://llm.example", "key", "model")
-            OpenAIProposalJudge(judge).judge(case.batch)
+            adapter = OpenAIProposalJudge(judge)
+            adapter.judge(case.batch)
+        self.assertEqual(adapter.last_trace.status_code, 200)
 
         request = _ResponseClient.request_kwargs["json"]
         system_prompt = request["messages"][0]["content"]

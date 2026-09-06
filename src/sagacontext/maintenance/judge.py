@@ -208,6 +208,7 @@ class OpenAIProposalJudge:
         self.last_trace = JudgeTrace(
             status="ok",
             latency_ms=round((perf_counter() - started) * 1000),
+            status_code=getattr(self.judge_client, "last_status_code", None),
             auxiliary=tuple(getattr(self.judge_client, "last_auxiliary", ())),
             response_digest=_digest([delta.model_dump(mode="json") for delta in deltas]),
             deltas=tuple(delta.model_dump(mode="json") for delta in deltas),

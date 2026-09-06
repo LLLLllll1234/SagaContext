@@ -96,9 +96,11 @@ class OpenAIJudge:
         self.timeout = timeout
         self.temperature = temperature
         self.last_auxiliary: tuple[dict[str, Any], ...] = ()
+        self.last_status_code: int | None = None
 
     async def judge(self, anchors, candidates, summary):
         self.last_auxiliary = ()
+        self.last_status_code = None
         if not self.base_url or not self.api_key or not self.model:
             raise JudgeError("judge_configuration_error", False, detail="missing llm configuration")
         parsed = urlparse(self.base_url)
@@ -161,6 +163,7 @@ class OpenAIJudge:
                     json=payload,
                 )
                 response.raise_for_status()
+                self.last_status_code = response.status_code
         except httpx.TimeoutException as error:
             phase = next((
                 name for error_type, name in (
