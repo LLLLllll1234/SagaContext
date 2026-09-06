@@ -199,11 +199,15 @@ class OpenAIProposalJudge:
             )
             raise
         except Exception as error:
-            wrapped = JudgeError("judge_error", True, detail=type(error).__name__)
+            detail = type(error).__name__
+            if isinstance(error, (ValueError, KeyError, TypeError)):
+                detail += ": " + " ".join(str(error).split())[:160]
+            wrapped = JudgeError("judge_error", True, detail=detail)
             self.last_trace = JudgeTrace(
                 status="error",
                 latency_ms=round((perf_counter() - started) * 1000),
                 error_class=wrapped.class_name,
+                error_detail=wrapped.detail,
             )
             raise wrapped from error
 
