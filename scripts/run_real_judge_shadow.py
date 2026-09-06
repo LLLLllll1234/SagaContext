@@ -9,7 +9,9 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sagacontext.bench.admission import admission_errors
+from sagacontext.bench.admission import (
+    FROZEN_DATASET_DIGEST, admission_errors, audit_models, load_results, markdown_audit,
+)
 from sagacontext.bench.real_judge import (
     build_adapter,
     load_replay_dataset,
@@ -42,6 +44,8 @@ def run_model(
     attempts: int,
 ) -> dict[str, object]:
     dataset = load_replay_dataset(dataset_path)
+    if dataset.dataset_id != "real-judge-v4" or dataset.dataset_digest != FROZEN_DATASET_DIGEST:
+        raise ValueError("shadow requires the frozen v4 dataset")
     run_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{_slug(model)}"
     model_dir = output_dir / _slug(model)
     model_dir.mkdir(parents=True, exist_ok=False)
@@ -70,6 +74,8 @@ def run_model(
                 "recall_enabled": False,
                 "injection_enabled": False,
                 "dataset_digest": dataset.dataset_digest,
+                "dataset_id": dataset.dataset_id,
+                "body_normalizer_version": dataset.body_normalizer_version,
                 "input_digest": _digest(input_copy.read_bytes().decode("utf-8")),
                 "temporary_namespace": namespace,
                 "temporary_ledger_created": True,
@@ -93,7 +99,7 @@ def run_model(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cases", type=Path, default=Path("bench/cases/real_judge/cases-v3.yaml"))
+    parser.add_argument("--cases", type=Path, default=Path("bench/cases/real_judge/cases-v4.yaml"))
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=300.0)
     parser.add_argument("--attempts", type=int, default=3)
@@ -114,6 +120,12 @@ def main() -> int:
             base_url=base_url, api_key=api_key, model=model,
             timeout=args.timeout, attempts=args.attempts,
         ))
+    if args.models == ["deepseek-v4-pro", "deepseek-v4-flash"]:
+        audit = audit_models(*[
+            load_results(args.output_dir / _slug(model) / "replay.jsonl") for model in args.models
+        ])
+        (args.output_dir / "cross-model-audit.md").write_text(markdown_audit(audit))
+        (args.output_dir / "cross-model-audit.json").write_text(json.dumps(audit, indent=2) + "\n")
     (args.output_dir / "shadow-manifest.json").write_text(
         json.dumps({
             "mode": "isolated_shadow",
@@ -124,7 +136,10 @@ def main() -> int:
         }, ensure_ascii=True, indent=2) + "\n"
     )
     print(args.output_dir)
-    return 0
+    return int(any(
+        manifest["admission_errors"] or manifest["temporary_memory_write_observed"]
+        or not all(manifest["cleanup"].values()) for manifest in manifests
+    ))
 
 
 if __name__ == "__main__":

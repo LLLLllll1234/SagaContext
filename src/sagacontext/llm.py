@@ -95,7 +95,7 @@ def _response_digest(response: httpx.Response | None = None, content: object = N
 class OpenAIJudge:
     """OpenAI-compatible structured-output judge with classified failures."""
 
-    prompt_contract_version = "openai-judge-prompt-v4"
+    prompt_contract_version = "openai-judge-prompt-v5"
     response_schema_version = "delta-v3"
 
     def __init__(
@@ -137,6 +137,12 @@ class OpenAIJudge:
             "candidate_id and use topic_key "
             "as key; set layer "
             "from layer_guess and type from memory_type_hint. Copy anchor_uri and evidence IDs "
+            "exactly. Memory type and relation are independent: valid types are profile, "
+            "taste, convention, decision, project_map, gotcha, task_checkpoint. "
+            "conflict is ONLY a relation, NEVER a memory type. For example, an unresolved "
+            "alternative for a project_map candidate must have type=project_map and "
+            "relation=conflict. Never replace the candidate's type with its relation. "
+            "Copy anchor_uri and evidence IDs "
             "from the input. Use null anchor_uri only for new. "
             "Allowed body fields by type: decision={command}; convention={command}; "
             "gotcha={symptom,fix,applies_when}; taste={format}; project_map={path}. "
@@ -154,7 +160,8 @@ class OpenAIJudge:
             "For free-text fields, use a concise phrase directly supported by the input; "
             "copy unchanged anchor text exactly. Preserve exact commands and paths. "
             "Before returning, check that a refine body contains every existing anchor "
-            "field and that enum values use the canonical spelling. If the candidate "
+            "field, type equals the referenced candidate's memory_type_hint for EVERY "
+            "relation including conflict, and enum values use the canonical spelling. If the candidate "
             "does not support a durable change or confirmation, return an empty deltas array."
         )
         user_payload = {

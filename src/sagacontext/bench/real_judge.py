@@ -21,7 +21,7 @@ from ..maintenance.models import BatchInput, DeltaProposal
 
 Relation = Literal["new", "confirm", "refine", "supersede", "conflict", "no_change"]
 BODY_SCHEMA_VERSION = "body-schema-v1"
-BODY_NORMALIZER_VERSION = "body-normalizer-v1"
+BODY_NORMALIZER_VERSION = "body-normalizer-v2"
 
 BODY_FIELDS: dict[str, frozenset[str]] = {
     "decision": frozenset({"key", "command"}),
@@ -84,6 +84,10 @@ class LegacyReplayCase(FrozenModel):
     expected_proposal: dict[str, Any] = Field(default_factory=dict)
 
 
+class ReplayCaseV4(ReplayCaseV2):
+    field_comparators: dict[str, Literal["condition-clause-v1"]] = Field(default_factory=dict)
+
+
 class ReplayCase(FrozenModel):
     id: str
     group: str
@@ -97,6 +101,7 @@ class ReplayCase(FrozenModel):
     expected_evidence_ids: tuple[str, ...]
     expected_context: ExpectedContext
     field_evidence: dict[str, tuple[FieldEvidence, ...]]
+    field_comparators: dict[str, Literal["condition-clause-v1"]] = Field(default_factory=dict)
 
 
 class ReplayDataset(FrozenModel):
@@ -189,6 +194,31 @@ def _normalize(value: Any) -> Any:
     if isinstance(value, list):
         return [_normalize(item) for item in value]
     return value
+
+
+def case_digest(case: ReplayCase) -> str:
+    payload = case.model_dump(mode="json")
+    if not payload["field_comparators"]:
+        del payload["field_comparators"]
+    return _digest(payload)
+
+
+def _condition_variants(reference: str) -> frozenset[str]:
+    clause = _normalize(reference)
+    if clause.startswith("when "):
+        clause = clause[5:]
+    if clause.startswith("the "):
+        clause = clause[4:]
+    subject, separator, predicate = clause.partition(" is ")
+    if not separator or not subject or not predicate:
+        raise ValueError("condition reference must contain subject is predicate")
+    # Only grammatical wrappers vary; every word of the factual clause survives.
+    return frozenset(
+        f"{when}{article}{subject} {copula}{predicate}"
+        for when in ("", "when ")
+        for article in ("", "the ")
+        for copula in ("", "is ")
+    )
 
 
 def _scope_signature(scope: Any) -> dict[str, Any]:
@@ -306,6 +336,24 @@ def _validate_v3_case(case: ReplayCaseV2) -> None:
             raise ValueError(f"v3 refine case lacks semantic equivalence evidence: {case.id}")
 
 
+def _validate_v4_case(case: ReplayCaseV4) -> None:
+    _validate_v3_case(case)
+    for field in case.field_comparators:
+        if case.expected_context.memory_type != "gotcha" or field != "applies_when":
+            raise ValueError("condition comparator is restricted to gotcha.applies_when")
+        bodies = (case.expected_body, *case.acceptable_bodies)
+        entries = case.field_evidence.get(field, ())
+        for body in bodies:
+            if body is None or field not in body:
+                raise ValueError("condition comparator requires a reference field")
+            variants = _condition_variants(body[field])
+            if not any(entry.kind == "quote" and entry.equivalence and any(
+                re.search(r"(?<!\w)" + re.escape(variant) + r"(?!\w)", _normalize(entry.expected))
+                for variant in variants
+            ) for entry in entries):
+                raise ValueError("condition reference lacks quoted semantic evidence")
+
+
 def _normalize_legacy(case: LegacyReplayCase) -> ReplayCase:
     proposal = case.expected_proposal
     body = proposal.get("payload") if case.expected_relation != "no_change" else None
@@ -341,10 +389,18 @@ def load_replay_dataset(path: Path) -> ReplayDataset:
         raise ValueError("replay dataset is empty")
 
     if payload.get("dataset_id"):
-        raw_cases = [ReplayCaseV2.model_validate(entry) for entry in entries]
         schema_version = str(payload.get("schema_version", ""))
+        case_type = ReplayCaseV4 if schema_version == "real-judge-dataset-v4" else ReplayCaseV2
+        raw_cases = [case_type.model_validate(entry) for entry in entries]
+        validator = {
+            "real-judge-dataset-v2": _validate_v2_case,
+            "real-judge-dataset-v3": _validate_v3_case,
+            "real-judge-dataset-v4": _validate_v4_case,
+        }.get(schema_version)
+        if validator is None:
+            raise ValueError("unsupported replay schema version")
         for case in raw_cases:
-            (_validate_v3_case if schema_version == "real-judge-dataset-v3" else _validate_v2_case)(case)
+            validator(case)
         frozen_digest = _dataset_digest(raw_cases)
         dataset = ReplayDataset(
             dataset_id=str(payload["dataset_id"]),
@@ -354,17 +410,17 @@ def load_replay_dataset(path: Path) -> ReplayDataset:
             dataset_digest=frozen_digest,
             cases=tuple(_normalize_v2(case) for case in raw_cases),
         )
-        if dataset.schema_version not in {"real-judge-dataset-v2", "real-judge-dataset-v3"}:
-            raise ValueError("unsupported replay schema version")
         expected_dataset_id = {
             "real-judge-dataset-v2": "real-judge-v2",
             "real-judge-dataset-v3": "real-judge-v3",
+            "real-judge-dataset-v4": "real-judge-v4",
         }[dataset.schema_version]
         if dataset.dataset_id != expected_dataset_id:
             raise ValueError("dataset id does not match replay schema version")
         if dataset.body_schema_version != BODY_SCHEMA_VERSION:
             raise ValueError("unsupported body schema version")
-        if dataset.body_normalizer_version != BODY_NORMALIZER_VERSION:
+        expected_normalizer = BODY_NORMALIZER_VERSION if case_type is ReplayCaseV4 else "body-normalizer-v1"
+        if dataset.body_normalizer_version != expected_normalizer:
             raise ValueError("unsupported body normalizer version")
     else:
         legacy_cases = [LegacyReplayCase.model_validate(entry) for entry in entries]
@@ -425,7 +481,26 @@ def _body_matches(case: ReplayCase, deltas: list[dict[str, Any]]) -> bool | None
     if not _body_values_valid(case.expected_context.memory_type, actual):
         return False
     expected = (case.expected_body, *case.acceptable_bodies)
-    return any(body is not None and _normalize(actual) == _normalize(body) for body in expected)
+    for body in expected:
+        if body is None:
+            continue
+        compared = _normalize(actual)
+        reference = _normalize(body)
+        for field in case.field_comparators:
+            if field in compared and compared[field] in _condition_variants(reference[field]):
+                compared[field] = reference[field]
+        if compared == reference:
+            return True
+    return False
+
+
+def canonical_body(case: ReplayCase, deltas: list[dict[str, Any]]) -> dict[str, Any]:
+    """Evaluation-only canonical form; never changes the Delta or proposal."""
+    if not deltas:
+        return {}
+    if _body_matches(case, deltas):
+        return _normalize(case.expected_body)
+    return _normalize({"key": deltas[0].get("key"), **dict(deltas[0].get("fields") or {})})
 
 
 def _evidence_matches(case: ReplayCase, deltas: list[dict[str, Any]]) -> bool | None:
@@ -496,6 +571,23 @@ def _context_matches(case: ReplayCase, proposals: tuple[DeltaProposal, ...]) -> 
     )
 
 
+def score_observation(
+    case: ReplayCase, deltas: list[dict[str, Any]], proposals: tuple[DeltaProposal, ...],
+) -> dict[str, bool | None]:
+    relation = _relation(deltas) == case.expected_relation
+    body = _body_matches(case, deltas)
+    evidence = _evidence_matches(case, deltas)
+    return {
+        "relation_correct": relation,
+        "memory_body_correct": body,
+        "evidence_correct": evidence,
+        "conversion_fidelity_correct": _conversion_fidelity(case, deltas, proposals),
+        "ignore_correct": not deltas if case.should_ignore else None,
+        "proposal_semantic_correct": all(item for item in (relation, body, evidence) if item is not None)
+        and _context_matches(case, proposals),
+    }
+
+
 def run_replay(
     dataset: ReplayDataset,
     adapter: OpenAIProposalJudge,
@@ -537,22 +629,7 @@ def run_replay(
                         break
 
             deltas = list(adapter.last_trace.deltas)
-            relation_correct = None
-            body_correct = None
-            evidence_correct = None
-            conversion_correct = None
-            ignore_correct = None
-            proposal_correct = None
-            if status == "ok":
-                relation_correct = _relation(deltas) == case.expected_relation
-                body_correct = _body_matches(case, deltas)
-                evidence_correct = _evidence_matches(case, deltas)
-                conversion_correct = _conversion_fidelity(case, deltas, actual)
-                ignore_correct = not deltas if case.should_ignore else None
-                applicable = [relation_correct, body_correct, evidence_correct]
-                proposal_correct = all(
-                    item for item in applicable if item is not None
-                ) and _context_matches(case, actual)
+            scores = score_observation(case, deltas, actual) if status == "ok" else {}
 
             results.append(
                 ReplayResult(
@@ -577,7 +654,7 @@ def run_replay(
                     attempts_used=attempts_used,
                     attempt_errors=attempt_errors,
                     sampling={"temperature": float(getattr(adapter.judge_client, "temperature", 0.0))},
-                    case_digest=_digest(case.model_dump(mode="json")),
+                    case_digest=case_digest(case),
                     latency_ms=round((perf_counter() - started) * 1000),
                     status=status,
                     error_class=error_class,
@@ -590,12 +667,7 @@ def run_replay(
                     actual_proposals=[_proposal_signature(item) for item in actual],
                     expected_relation=case.expected_relation,
                     should_ignore=case.should_ignore,
-                    relation_correct=relation_correct,
-                    memory_body_correct=body_correct,
-                    evidence_correct=evidence_correct,
-                    conversion_fidelity_correct=conversion_correct,
-                    ignore_correct=ignore_correct,
-                    proposal_semantic_correct=proposal_correct,
+                    **scores,
                 )
             )
     return results
@@ -616,6 +688,9 @@ def _score(results: list[ReplayResult], field: str) -> str:
 
 
 def _acceptance_status(results: list[ReplayResult]) -> str:
+    if any(result.dataset_id == "real-judge-v4" for result in results):
+        from .admission import admission_errors
+        return "blocked" if admission_errors(results) else "passed"
     if not results or any(result.status != "ok" for result in results):
         return "blocked"
     by_case: dict[str, list[ReplayResult]] = defaultdict(list)
@@ -668,6 +743,7 @@ def markdown_report(results: list[ReplayResult]) -> str:
         f"- Prompt contract: {results[0].prompt_contract_version}",
         f"- Response schema: {results[0].response_schema_version}",
         f"- Converter: {results[0].converter_version}",
+        f"- Body normalizer: {results[0].body_normalizer_version}",
         f"- Endpoint fingerprint: {results[0].endpoint_fingerprint}",
         f"- Request timeout: {results[0].request_timeout_seconds:g}s",
         f"- Max attempts per observation: {results[0].max_attempts}",

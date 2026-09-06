@@ -12,6 +12,7 @@ from sagacontext.bench.real_judge import (
     write_results,
 )
 from sagacontext.config import Config
+from sagacontext.bench.admission import admission_errors
 
 
 def main() -> int:
@@ -19,12 +20,12 @@ def main() -> int:
     parser.add_argument(
         "--cases",
         type=Path,
-        default=Path("bench/cases/real_judge/cases-v2.yaml"),
+        default=Path("bench/cases/real_judge/cases-v4.yaml"),
     )
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--jsonl", type=Path)
     parser.add_argument("--report", type=Path)
-    parser.add_argument("--timeout", type=float, default=120.0)
+    parser.add_argument("--timeout", type=float, default=300.0)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--attempts", type=int, default=3)
     args = parser.parse_args()
@@ -32,6 +33,8 @@ def main() -> int:
     for explicit_path in (args.jsonl, args.report):
         if explicit_path is not None and explicit_path.exists():
             parser.error(f"refusing to overwrite existing artifact: {explicit_path}")
+    if args.output_dir is not None and args.output_dir.exists() and any(args.output_dir.iterdir()):
+        parser.error("refusing to write into non-empty output directory")
 
     dataset = load_replay_dataset(args.cases)
     config = Config.load()
@@ -52,7 +55,7 @@ def main() -> int:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(markdown_report(results))
     print(report_path)
-    return 0
+    return int(bool(admission_errors(results))) if dataset.dataset_id == "real-judge-v4" else 0
 
 
 if __name__ == "__main__":
