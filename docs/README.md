@@ -4,7 +4,7 @@
 
 ## 当前阅读入口
 
-- 查看当前实现与验收结论：[Judge Pro/Flash 双模型与隔离 Shadow](probes/2026-09-06-dual-model-acceptance.md) → [Judge schema-v3 / dataset-v3 审计](probes/2026-09-06-real-judge-v3-audit.md) → [Judge timeout 对比与正式通过](probes/2026-09-06-real-judge-timeout-comparison.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
+- 查看当前实现与验收结论：[v6 Judge 基线与 S3-3/S3-4 隔离验收](probes/2026-09-07-v6-judge-baseline.md) → [Judge Pro/Flash 双模型与隔离 Shadow](probes/2026-09-06-dual-model-acceptance.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
 - 复查测试记录：[验收报告索引](probes/README.md) → [S3 原始运行清单](../artifacts/probes/S3-RESULTS.md)。
 - 理解实现约束：[v0.3 总设计](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) → [S1](superpowers/specs/2026-09-05-s1-data-closure-design.md) → [S2](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) → [S3](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md)。
 - 本地部署与操作：[OpenViking 部署记录](ops-openviking-local.md)。
@@ -15,6 +15,7 @@
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
+| 31 | [v6 Judge 基线与 S3-3/S3-4 隔离验收](probes/2026-09-07-v6-judge-baseline.md) | v6 contract、Pro/Flash 独立 42/42、跨模型审计、Codex Host shadow、G5 删除/取代与清理 | **v6 已冻结；S3-3/S3-4 fresh run 40/40；S3-5/G6 等待单独真实注入授权** |
 | 30 | [Judge Pro/Flash 双模型与隔离 Shadow](probes/2026-09-06-dual-model-acceptance.md) | 双模型冻结版本、独立 42/42 artifact、跨模型语义审计、实际隔离 shadow 与准入边界 | **正式 Pro/Flash 均通过；本轮真实 shadow 因缺少 LLM 配置阻断，未启用正常会话** |
 | 29 | [Judge schema-v3 / dataset-v3 审计](probes/2026-09-06-real-judge-v3-audit.md) | 独立 wire schema、v2 digest 兼容和 refine 双人语义审计 | **定向测试 28/28；v3 digest 已冻结，待 DeepSeek 单请求诊断** |
 | 28 | [Judge timeout 独立运行对比](probes/2026-09-06-real-judge-timeout-comparison.md) | sol 单 case 诊断及 60/90/120 秒各 42 observation 的独立对比 | **120 秒 run 42/42 且全部语义指标满分；正式 Judge 验收 passed，运行时自动化仍关闭** |

@@ -1,6 +1,6 @@
 # S3 测试结果清单
 
-发布分支：`codex/s3-acceptance-2026-09-06`。人读报告见 [S3-1](../../docs/probes/2026-09-05-s3-1-openviking-recovery.md) 和 [S3-2 至 S3-5](../../docs/probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
+发布分支：`codex/s3-acceptance-2026-09-06`。人读报告见 [S3-1](../../docs/probes/2026-09-05-s3-1-openviking-recovery.md)、[v6 S3-3/S3-4](../../docs/probes/2026-09-07-v6-judge-baseline.md) 和 [历史 S3-2 至 S3-5](../../docs/probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
 
 ## 原始运行
 
@@ -12,12 +12,13 @@
 | s3-1-20260905T160452Z-1685e03f | 首次三条 G6 | passed，63 项 | [记录](s3-1-20260905T160452Z-1685e03f/s3-1.json) |
 | s3-1-20260905T160955Z-941808e7 | 完整纵向，含逐条删除/重开 | passed，69 项 | [记录](s3-1-20260905T160955Z-941808e7/s3-1.json) |
 | s3-1-20260905T161222Z-9482aa6f | 最终后端与策略回归 | passed，40 项 | [记录](s3-1-20260905T161222Z-9482aa6f/s3-1.json) |
+| s3-1-20260906T173109Z-4d29eaf4 | v6 S3-3 Host Shadow + S3-4/G5 | passed，40 项 | [记录](s3-1-20260906T173109Z-4d29eaf4/s3-1.json) |
 
 这些是不同运行，不相加为一个测试通过数。所有运行均保留各自状态和清理结果。JSON 中的 base code revision 是运行时尚未提交变更所基于的提交；`source_digests` 标识当时实际执行文件，不能把 base revision 当成包含本次实现的提交。
 
 ## 本地回归
 
-[提交前 unittest 日志](s3-release-unittest.log)：111 项测试。复验命令：
+[提交前 unittest 日志](s3-release-unittest.log)记录历史 111 项测试；本轮最新测试结果见提交说明。复验命令：
 
 ```sh
 PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v

@@ -6,6 +6,7 @@
 
 | 范围 | 报告 | 对应结果 |
 |---|---|---|
+| v6 Judge 基线、S3-3 Host Shadow 与 S3-4/G5 | [v6 基线与 S3-3/S3-4 隔离验收](2026-09-07-v6-judge-baseline.md) | v6 Pro/Flash 正式 artifact 各 `42/42`；跨模型 `42/42` 语义等价；新鲜 S3-3/S3-4 运行 `40/40`；S3-5/G6 未运行 |
 | Judge Pro/Flash 双模型与隔离 Shadow | [双模型验收与 shadow](2026-09-06-dual-model-acceptance.md) | 正式 artifact 均 `42/42 passed`；授权 shadow 中 Flash `42/42 passed`、Pro `41/42` 且含 conversion/body 阻断；无正式写入/召回/注入 |
 | Judge schema-v3 / dataset-v3 | [schema 与双人 refine 审计](2026-09-06-real-judge-v3-audit.md) | `WireDeltaV3` 定向测试 28/28；v2 digest 保持不变；v3 digest 固定并待 DeepSeek 单请求诊断 |
 | Judge timeout 对比 | [sol 60/90/120 秒独立运行](2026-09-06-real-judge-timeout-comparison.md) | 120 秒 run 为 42/42 且全部语义指标满分，正式 Judge 验收 `passed`；运行时自动化仍关闭 |
@@ -15,7 +16,7 @@
 | Judge 新失败诊断 | [三组云端 run 根因与诊断修复](2026-09-06-real-judge-failure-diagnosis.md) | sol 40/42 read timeout；DeepSeek Pro provider/schema 失败；Flash schema 与严格正文差异 |
 | 真实 Judge v2 语义验收 | [v2 数据、评分与阻断记录](2026-09-06-real-judge-semantic-acceptance.md) | sol 调用 41/42，body 15/23；一次超时且正文未达标，`blocked` |
 | S3-1 真实后端 | [OpenViking 适配器与故障恢复](2026-09-05-s3-1-openviking-recovery.md) | 首次 22/22，后续完整运行复验 P1–P6 |
-| S3-2 至 S3-5 | [RecallPolicy、Shadow、G5/G6](2026-09-06-s3-policy-shadow-g5-g6.md) | 完整纵向 69/69；最终后端/策略回归 40/40；本地测试 111 项 |
+| S3-2 至 S3-5（历史合成纵向） | [RecallPolicy、Shadow、G5/G6](2026-09-06-s3-policy-shadow-g5-g6.md) | 历史完整纵向 69/69；当前 S3-3/S3-4 fresh evidence 见上方 v6 报告；本地测试数字以最新运行日志为准 |
 | G1 后端准入 | [OpenViking](2026-09-05-s3-g1-openviking.md) | 17/17，固定镜像与真实后端 |
 | G3 宿主准入 | [Codex CLI terra](2026-09-05-s3-g3-codex-host-terra.md) | 19/19，固定 CLI 版本与合成事件 |
 
