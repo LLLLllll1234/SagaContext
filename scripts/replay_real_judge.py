@@ -24,8 +24,9 @@ def main() -> int:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--jsonl", type=Path)
     parser.add_argument("--report", type=Path)
-    parser.add_argument("--timeout", type=float, default=5.0)
+    parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--attempts", type=int, default=3)
     args = parser.parse_args()
 
     for explicit_path in (args.jsonl, args.report):
@@ -40,7 +41,7 @@ def main() -> int:
         os.environ.get("SAGACONTEXT_LLM_MODEL", config.llm_model),
         timeout=args.timeout,
     )
-    results = run_replay(dataset, adapter, repeats=args.repeats)
+    results = run_replay(dataset, adapter, repeats=args.repeats, max_attempts=args.attempts)
     output_dir = args.output_dir or Path("artifacts/real-judge") / results[0].run_id
     jsonl_path = args.jsonl or output_dir / "replay.jsonl"
     report_path = args.report or output_dir / "report.md"

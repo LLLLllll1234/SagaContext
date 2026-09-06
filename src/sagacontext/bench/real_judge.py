@@ -499,10 +499,13 @@ def run_replay(
     adapter: OpenAIProposalJudge,
     *,
     repeats: int = 3,
+    max_attempts: int = 1,
     run_id: str | None = None,
 ) -> list[ReplayResult]:
     if repeats < 1:
         raise ValueError("repeats must be positive")
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be positive")
     run_id = run_id or f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid4().hex[:8]}"
     endpoint_fingerprint = _endpoint_fingerprint(
         str(getattr(adapter.judge_client, "base_url", ""))
@@ -515,11 +518,15 @@ def run_replay(
             actual: tuple[DeltaProposal, ...] = ()
             error_class: str | None = None
             status: Literal["ok", "error", "blocked_configuration"] = "ok"
-            try:
-                actual = adapter.judge(case.batch)
-            except JudgeError as error:
-                error_class = error.class_name
-                status = "blocked_configuration" if error.class_name == "judge_configuration_error" else "error"
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    actual = adapter.judge(case.batch)
+                    break
+                except JudgeError as error:
+                    error_class = error.class_name
+                    status = "blocked_configuration" if error.class_name == "judge_configuration_error" else "error"
+                    if not error.retryable or attempt == max_attempts:
+                        break
 
             deltas = list(adapter.last_trace.deltas)
             relation_correct = None
@@ -558,7 +565,7 @@ def run_replay(
                     model=adapter.judge_client.model or "unconfigured",
                     endpoint_fingerprint=endpoint_fingerprint,
                     request_timeout_seconds=request_timeout_seconds,
-                    max_attempts=1,
+                    max_attempts=max_attempts,
                     sampling={"temperature": float(getattr(adapter.judge_client, "temperature", 0.0))},
                     case_digest=_digest(case.model_dump(mode="json")),
                     latency_ms=round((perf_counter() - started) * 1000),
