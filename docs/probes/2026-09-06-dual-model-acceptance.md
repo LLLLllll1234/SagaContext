@@ -39,6 +39,24 @@ proposal conversion。42 个对齐 observation 中 41 个四项完全一致；1 
 
 完整审计：[20260906T-dual-model-cross-audit.md](../../artifacts/real-judge/20260906T-dual-model-cross-audit.md)。
 
+## 授权 Shadow 运行
+
+使用授权的 DeepSeek endpoint 对同一冻结输入实际运行：[20260906T154914Z-deepseek-authorized-shadow](../../artifacts/real-judge/20260906T154914Z-deepseek-authorized-shadow/)。本次仍为隔离 shadow，未调用正式写入、RecallPolicy 或自动注入路径。
+
+| 模型 | 成功调用 | Relation | Body | Evidence | Conversion | Acceptance |
+|---|---:|---:|---:|---:|---:|---|
+| `deepseek-v4-pro` | 41/42 | 41/41 | 21/23 | 23/23 | 41/41 | `blocked` |
+| `deepseek-v4-flash` | 42/42 | 42/42 | 42/42 | 42/42 | 42/42 | `passed` |
+
+Pro 的阻断项为：
+
+- `v3-smoke-conflict-project-map` repeat 3：`judge_conversion_error`，模型将候选类型输出为 `conflict`，转换器拒绝了不符合候选 hint 的 memory type；该错误没有降级为 `no_change`。
+- `v3-smoke-refine-gotcha` repeat 1/3：输出 `when async task is already closing`；repeat 3：输出 `async task already closing`。这两种表达未命中冻结 acceptable body 集合，因此严格判定 body 失败。
+
+Flash 通过完整 42/42，但双模型不能据此合并准入。按 `repeat_index + case_id` 对齐后，39/42 observation 的四类 digest 完全一致；3 个差异为上述两个 refine body 差异和一次 conflict conversion 差异。完整本次审计见 [cross-model-audit.md](../../artifacts/real-judge/20260906T154914Z-deepseek-authorized-shadow/cross-model-audit.md)。
+
+两模型 manifest 均记录 `formal_memory_write=false`、`recall_enabled=false`、`injection_enabled=false`；临时 Ledger memory 均为 `0 -> 0`，临时目录和 Ledger 均清理成功。
+
 ## 实际隔离 Shadow
 
 Runner 为每个模型分别创建临时目录、临时 SQLite Ledger、临时 workspace 标识和独立
@@ -74,5 +92,5 @@ PYTHONPATH=src .venv/bin/python -m compileall -q src scripts
 git diff --check
 ```
 
-结果：`147` 项测试通过，`compileall` 通过，`git diff --check` 通过。固定单测覆盖 `l0`
+结果：`148` 项测试通过，`compileall` 通过，`git diff --check` 通过。固定单测覆盖 `l0`
 转换、重复 `fields.key`、敏感诊断不泄露和 42/42 独立准入形状校验。
