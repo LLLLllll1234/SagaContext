@@ -32,6 +32,22 @@ class WireDeltaV3(BaseModel):
     confidence_hint: float | None = Field(default=None, ge=0.0, le=1.0)
     rationale: str = ""
 
+    @field_validator("layer", mode="before")
+    @classmethod
+    def normalize_layer(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+        aliases = {
+            "users": "user",
+            "preferences": "preference",
+            "projects": "project",
+            "tasks": "task",
+            "project_fact": "project",
+            "one_off_preference": "preference",
+        }
+        return aliases.get(normalized, normalized)
+
     @field_validator("strong_signal", mode="before")
     @classmethod
     def validate_strong_signal(cls, value: Any) -> Any:
@@ -232,9 +248,13 @@ class OpenAIJudge:
             if isinstance(error, ValidationError):
                 locations = [
                     ".".join(str(part) for part in item.get("loc", ())) or "response"
-                    for item in error.errors(include_input=False)
+                    for item in error.errors(include_input=True)
                 ]
                 detail = "invalid delta schema at " + ",".join(locations[:8])
+                layer_error = next((item for item in error.errors(include_input=True)
+                                    if item.get("loc") == (0, "layer")), None)
+                if layer_error is not None:
+                    detail += f" (layer={layer_error.get('input')!r})"
             else:
                 detail = "invalid delta schema"
             raise JudgeError(
