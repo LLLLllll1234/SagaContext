@@ -114,7 +114,11 @@ def convert_deltas(batch: BatchInput, deltas: list[Delta]) -> tuple[DeltaProposa
         if not isinstance(delta.fields, dict):
             raise _conversion_error("delta fields must be an object")
         if "key" in delta.fields:
-            raise _conversion_error("delta fields cannot overwrite key")
+            if delta.fields["key"] != delta.key:
+                raise _conversion_error("delta fields cannot overwrite key")
+            delta = delta.model_copy(update={
+                "fields": {name: value for name, value in delta.fields.items() if name != "key"}
+            })
         try:
             json.dumps(delta.fields, ensure_ascii=True)
         except (TypeError, ValueError) as error:

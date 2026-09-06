@@ -124,6 +124,19 @@ class ProposalConversionTests(unittest.TestCase):
             convert_deltas(_batch(), [self._delta("refine", anchor="unknown")])
         self.assertEqual((caught.exception.class_name, caught.exception.retryable), ("judge_conversion_error", False))
 
+    def test_duplicate_key_in_fields_is_removed_when_equal(self):
+        delta = self._delta("new")
+        delta = delta.model_copy(update={"fields": {"key": "checkpoint", "next": "new"}})
+        proposal, = convert_deltas(_batch(with_anchor=False), [delta])
+        self.assertEqual(proposal.payload, {"key": "checkpoint", "next": "new"})
+
+    def test_conflicting_key_in_fields_is_rejected(self):
+        delta = self._delta("new")
+        delta = delta.model_copy(update={"fields": {"key": "other", "next": "new"}})
+        with self.assertRaises(JudgeError) as caught:
+            convert_deltas(_batch(with_anchor=False), [delta])
+        self.assertEqual(caught.exception.detail, "delta fields cannot overwrite key")
+
     def test_sync_facade_rejects_running_event_loop(self):
         adapter = OpenAIProposalJudge(_AsyncFakeJudge([]))
 
