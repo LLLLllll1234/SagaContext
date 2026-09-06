@@ -238,7 +238,9 @@ class OpenAIJudge:
             else:
                 detail = "invalid delta schema"
             raise JudgeError(
-                "judge_schema_error", False, detail=detail,
+                # Some providers intermittently violate enum constraints; callers
+                # may retry a bounded observation without accepting invalid data.
+                "judge_schema_error", True, detail=detail,
                 status_code=response.status_code,
                 response_digest=_response_digest(content=content)
             ) from error
