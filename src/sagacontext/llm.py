@@ -28,11 +28,22 @@ class JudgeError(RuntimeError):
 class OpenAIJudge:
     """OpenAI-compatible structured-output judge with classified failures."""
 
-    prompt_contract_version = "openai-judge-prompt-v1"
+    prompt_contract_version = "openai-judge-prompt-v2"
     response_schema_version = "delta-v2"
 
-    def __init__(self, base_url: str, api_key: str, model: str, timeout: float = 5.0):
-        self.base_url, self.api_key, self.model, self.timeout = base_url.rstrip("/"), api_key, model, timeout
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        timeout: float = 5.0,
+        temperature: float = 0.0,
+    ):
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.model = model
+        self.timeout = timeout
+        self.temperature = temperature
 
     async def judge(self, anchors, candidates, summary):
         if not self.base_url or not self.api_key or not self.model:
@@ -40,15 +51,35 @@ class OpenAIJudge:
         parsed = urlparse(self.base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise JudgeError("judge_configuration_error", False, detail="invalid llm base url")
-        payload = {"model": self.model, "temperature": 0.1, "messages": [
-            {"role": "system", "content": (
-                "You are a conservative memory reconciler. Return only a JSON object "
-                "with a deltas array. Each delta must include candidate_id, relation, "
-                "anchor_uri, key, fields, evidence_ids, and rationale. "
-                "Do not invent candidates, anchors, revisions, scopes, or evidence."
-            )},
-            {"role": "user", "content": json.dumps({"anchors": anchors, "candidates": [c.model_dump() for c in candidates], "summary": summary}, ensure_ascii=True)},
-        ], "response_format": {"type": "json_object"}}
+        system_prompt = (
+            "You are a conservative durable-memory reconciler. Return only a JSON object "
+            "with a deltas array. Return an empty deltas array for one-off requests, chatter, "
+            "irrelevant content, insufficient evidence, or temporary preferences. Relations: "
+            "new has no matching anchor; confirm repeats an anchor; refine adds supported detail; "
+            "supersede explicitly replaces an anchor; conflict is a plausible but unresolved "
+            "disagreement. Never invent a fact to complete a body. Each delta must include "
+            "candidate_id, layer, type, relation, anchor_uri, key, fields, evidence_ids, "
+            "strong_signal, confidence_hint, and rationale. Copy candidate_id and key; set layer "
+            "from layer_guess and type from memory_type_hint. Copy anchor_uri and evidence IDs "
+            "from the input. Use null anchor_uri only for new. "
+            "Allowed body fields by type: decision={command}; convention={command}; "
+            "gotcha={symptom,fix,applies_when}; taste={format}; project_map={path}. "
+            "Put key outside fields. Preserve exact commands, paths, and enum values."
+        )
+        user_payload = {
+            "anchors": anchors,
+            "candidates": [candidate.model_dump() for candidate in candidates],
+            "summary": summary,
+        }
+        payload = {
+            "model": self.model,
+            "temperature": self.temperature,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(user_payload, ensure_ascii=True)},
+            ],
+            "response_format": {"type": "json_object"},
+        }
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(
