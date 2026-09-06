@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import tempfile
 import unittest
 from collections import defaultdict
@@ -13,6 +14,7 @@ import yaml
 
 from sagacontext.bench.real_judge import (
     ReplayDataset,
+    _body_matches,
     load_replay_cases,
     load_replay_dataset,
     markdown_report,
@@ -132,6 +134,33 @@ class ProposalConversionTests(unittest.TestCase):
             asyncio.run(call_inside_loop())
         self.assertEqual(caught.exception.class_name, "judge_event_loop_error")
 
+    def test_refine_patch_is_rejected_and_raw_output_is_retained(self):
+        dataset = load_replay_dataset(Path("bench/cases/real_judge/cases-v2.yaml"))
+        case = next(case for case in dataset.cases if case.id == "v2-smoke-refine-gotcha")
+        partial = _delta_for(case, fields={"applies_when": "async task is already closing"})
+        adapter = OpenAIProposalJudge(_AsyncFakeJudge([partial]))
+        original_batch = case.batch.model_dump(mode="json")
+
+        with self.assertRaises(JudgeError) as caught:
+            adapter.judge(case.batch)
+
+        self.assertEqual(caught.exception.class_name, "judge_conversion_error")
+        self.assertFalse(caught.exception.retryable)
+        self.assertEqual(adapter.last_trace.status, "error")
+        self.assertEqual(adapter.last_trace.deltas, (partial.model_dump(mode="json"),))
+        self.assertIsNotNone(adapter.last_trace.response_digest)
+        self.assertEqual(case.batch.model_dump(mode="json"), original_batch)
+
+    def test_complete_refine_and_reversed_preference_are_transferred_unchanged(self):
+        dataset = load_replay_dataset(Path("bench/cases/real_judge/cases-v2.yaml"))
+        for case_id in ("v2-smoke-refine-gotcha", "v2-reversal-explicit"):
+            with self.subTest(case=case_id):
+                case = next(case for case in dataset.cases if case.id == case_id)
+                delta = _delta_for(case)
+                proposal, = convert_deltas(case.batch, [delta])
+                self.assertEqual(proposal.payload, {"key": delta.key, **delta.fields})
+                self.assertEqual(proposal.expected_revision, case.expected_context.expected_revision)
+
 
 class _ResponseClient:
     response = None
@@ -207,6 +236,49 @@ class OpenAIJudgeContractTests(unittest.TestCase):
         self.assertIn("empty deltas array", system_prompt)
         self.assertIn("Never invent a fact", system_prompt)
 
+    def test_request_exposes_full_body_and_enum_contract_without_annotations(self):
+        dataset = load_replay_dataset(Path("bench/cases/real_judge/cases-v2.yaml"))
+        case = next(case for case in dataset.cases if case.id == "v2-smoke-refine-gotcha")
+        with patch("sagacontext.llm.httpx.AsyncClient", _ResponseClient):
+            _ResponseClient.response = _response(200, {
+                "choices": [{"message": {"content": '{"deltas": []}'}}],
+            })
+            judge = OpenAIJudge("https://llm.example", "key", "model")
+            OpenAIProposalJudge(judge).judge(case.batch)
+
+        request = _ResponseClient.request_kwargs["json"]
+        system_prompt = request["messages"][0]["content"]
+        user_payload = json.loads(request["messages"][1]["content"])
+        self.assertEqual(judge.prompt_contract_version, "openai-judge-prompt-v3")
+        self.assertEqual(request["response_format"], {"type": "json_object"})
+        self.assertIn("COMPLETE replacement body, never a patch", system_prompt)
+        self.assertIn("only the lowercase strings json and prose", system_prompt)
+        self.assertEqual(set(user_payload), {"anchors", "candidates", "summary"})
+        self.assertEqual(user_payload["anchors"][0]["payload"], case.batch.judge_anchors[0].payload)
+
+    def test_timeout_phase_is_reported_without_retry_or_exception_text(self):
+        for error_type, phase in (
+            (httpx.ConnectTimeout, "connect"),
+            (httpx.ReadTimeout, "read"),
+            (httpx.WriteTimeout, "write"),
+            (httpx.PoolTimeout, "pool"),
+            (httpx.TimeoutException, "unknown"),
+        ):
+            with self.subTest(phase=phase), patch("sagacontext.llm.httpx.AsyncClient") as client:
+                post = client.return_value.__aenter__.return_value.post
+                post.side_effect = error_type("sensitive-request-context")
+                judge = OpenAIJudge("https://llm.example", "key", "model", timeout=60)
+                adapter = OpenAIProposalJudge(judge)
+                with self.assertRaises(JudgeError) as caught:
+                    adapter.judge(_batch())
+                self.assertEqual(caught.exception.class_name, "judge_timeout")
+                self.assertTrue(caught.exception.retryable)
+                self.assertEqual(caught.exception.attempts, 1)
+                self.assertEqual(adapter.last_trace.timeout_phase, phase)
+                self.assertIsNone(adapter.last_trace.status_code)
+                self.assertNotIn("sensitive-request-context", repr(adapter.last_trace))
+                post.assert_awaited_once()
+
     def test_schema_error_is_not_empty_result(self):
         with patch("sagacontext.llm.httpx.AsyncClient", _ResponseClient):
             with self.assertRaises(JudgeError) as caught:
@@ -214,6 +286,23 @@ class OpenAIJudgeContractTests(unittest.TestCase):
                     "choices": [{"message": {"content": '{"deltas": [{"relation": "new"}]}'}}]
                 }))
             self.assertEqual(caught.exception.class_name, "judge_schema_error")
+
+    def test_schema_and_http_failures_keep_safe_diagnostics(self):
+        with patch("sagacontext.llm.httpx.AsyncClient", _ResponseClient):
+            with self.assertRaises(JudgeError) as caught:
+                self._call(_response(200, {
+                    "choices": [{"message": {"content": '{"deltas": [{"relation": "new"}]}'}}]
+                }))
+        self.assertIn("invalid delta schema at", caught.exception.detail)
+        self.assertNotIn("input", caught.exception.detail)
+        self.assertRegex(caught.exception.response_digest or "", r"^sha256:[0-9a-f]{64}$")
+
+        with patch("sagacontext.llm.httpx.AsyncClient", _ResponseClient):
+            with self.assertRaises(JudgeError) as caught:
+                self._call(_response(503, {"error": "provider-private-detail"}))
+        self.assertEqual((caught.exception.status_code, caught.exception.detail), (503, "HTTP 503"))
+        self.assertNotIn("provider-private-detail", repr(caught.exception))
+        self.assertRegex(caught.exception.response_digest or "", r"^sha256:[0-9a-f]{64}$")
 
     def test_missing_configuration_is_blocking(self):
         judge = OpenAIJudge("", "", "")
@@ -359,6 +448,36 @@ class ReplayRunnerTests(unittest.TestCase):
         self.assertIsNone(result.evidence_correct)
         self.assertTrue(result.ignore_correct)
         self.assertEqual(result.actual_proposals[0]["evidence_ids"], ["event-no-change"])
+
+    def test_enum_expansions_and_refine_patches_still_fail_frozen_body_scoring(self):
+        dataset = load_replay_dataset(self.v2_path)
+        for case_id, fields in (
+            ("v2-smoke-refine-gotcha", {"applies_when": "async task is already closing"}),
+            ("v2-smoke-supersede-taste", {"format": "JSON"}),
+            ("v2-smoke-supersede-taste", {"format": "concise JSON results"}),
+            ("v2-reversal-explicit", {"format": "prose summaries"}),
+        ):
+            with self.subTest(case=case_id, fields=fields):
+                case = next(case for case in dataset.cases if case.id == case_id)
+                # Replay the recorded Delta to score it independently of conversion guards.
+                self.assertFalse(_body_matches(case, [_delta_for(case, fields=fields).model_dump()]))
+
+    def test_timeout_metadata_reaches_artifact_and_report(self):
+        dataset = load_replay_dataset(self.v2_path)
+        case = dataset.cases[0]
+        judge = OpenAIJudge("https://llm.example", "key", "model", timeout=60)
+        adapter = OpenAIProposalJudge(judge)
+        with patch("sagacontext.llm.httpx.AsyncClient", _ResponseClient):
+            _ResponseClient.response = httpx.ReadTimeout("sensitive-request-context")
+            result, = run_replay(_subset(dataset, case.id), adapter, repeats=1, run_id="timeout")
+        self.assertEqual(result.timeout_phase, "read")
+        self.assertIsNone(result.memory_body_correct)
+        report = markdown_report([result])
+        self.assertIn("Acceptance: blocked", report)
+        self.assertIn("Prompt contract: openai-judge-prompt-v3", report)
+        self.assertIn("Converter: delta-to-proposal-v2", report)
+        self.assertIn("| judge_timeout | - | ReadTimeout | read |", report)
+        self.assertNotIn("sensitive-request-context", report + result.model_dump_json())
 
     def test_case_first_aggregation_rejects_pooled_four_of_six(self):
         dataset = load_replay_dataset(self.v2_path)

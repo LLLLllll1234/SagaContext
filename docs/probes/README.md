@@ -6,7 +6,12 @@
 
 | 范围 | 报告 | 对应结果 |
 |---|---|---|
-| 真实 Judge v2 语义验收 | [v2 数据、评分与阻断记录](2026-09-06-real-judge-semantic-acceptance.md) | 14 case x 3 轮已实现；本次无 LLM 配置，42/42 `blocked_configuration`，语义指标 N/A |
+| Judge timeout 对比 | [sol 60/90/120 秒独立运行](2026-09-06-real-judge-timeout-comparison.md) | 120 秒 run 为 42/42 且全部语义指标满分，正式 Judge 验收 `passed`；运行时自动化仍关闭 |
+| Judge DeepSeek 独立运行 | [Pro/Flash provider、schema 与正文记录](2026-09-06-real-judge-deepseek-runs.md) | pro 11/42、flash 40/42；两个模型均 `blocked`，不与 sol 合并 |
+| Judge prompt v3 独立复验 | [三轮复验与 read timeout 记录](2026-09-06-real-judge-prompt-v3-rerun.md) | sol 调用 40/42；成功响应 body 23/23，两个 read timeout，正式验收仍为 `blocked` |
+| Judge 正文修复 | [失败诊断与本地修复](2026-09-06-real-judge-body-repair.md) | prompt v3、refine 保护与超时阶段；137 项回归通过，后续云端结果见上方独立复验 |
+| Judge 新失败诊断 | [三组云端 run 根因与诊断修复](2026-09-06-real-judge-failure-diagnosis.md) | sol 40/42 read timeout；DeepSeek Pro provider/schema 失败；Flash schema 与严格正文差异 |
+| 真实 Judge v2 语义验收 | [v2 数据、评分与阻断记录](2026-09-06-real-judge-semantic-acceptance.md) | sol 调用 41/42，body 15/23；一次超时且正文未达标，`blocked` |
 | S3-1 真实后端 | [OpenViking 适配器与故障恢复](2026-09-05-s3-1-openviking-recovery.md) | 首次 22/22，后续完整运行复验 P1–P6 |
 | S3-2 至 S3-5 | [RecallPolicy、Shadow、G5/G6](2026-09-06-s3-policy-shadow-g5-g6.md) | 完整纵向 69/69；最终后端/策略回归 40/40；本地测试 111 项 |
 | G1 后端准入 | [OpenViking](2026-09-05-s3-g1-openviking.md) | 17/17，固定镜像与真实后端 |

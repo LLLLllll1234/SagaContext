@@ -131,6 +131,9 @@ class ReplayResult(BaseModel):
     latency_ms: int
     status: Literal["ok", "error", "blocked_configuration"]
     error_class: str | None = None
+    timeout_phase: Literal["connect", "read", "write", "pool", "unknown"] | None = None
+    status_code: int | None = None
+    error_detail: str | None = None
     response_digest: str | None = None
     actual_deltas: list[dict[str, Any]] = Field(default_factory=list)
     actual_proposals: list[dict[str, Any]] = Field(default_factory=list)
@@ -527,6 +530,9 @@ def run_replay(
                     latency_ms=round((perf_counter() - started) * 1000),
                     status=status,
                     error_class=error_class,
+                    timeout_phase=adapter.last_trace.timeout_phase,
+                    status_code=adapter.last_trace.status_code,
+                    error_detail=adapter.last_trace.error_detail,
                     response_digest=adapter.last_trace.response_digest,
                     actual_deltas=deltas,
                     actual_proposals=[_proposal_signature(item) for item in actual],
@@ -607,6 +613,9 @@ def markdown_report(results: list[ReplayResult]) -> str:
         f"- Cases: {len(case_ids)}",
         f"- Repeats: {len(repeats)}",
         f"- Model: {results[0].model}",
+        f"- Prompt contract: {results[0].prompt_contract_version}",
+        f"- Response schema: {results[0].response_schema_version}",
+        f"- Converter: {results[0].converter_version}",
         f"- Endpoint fingerprint: {results[0].endpoint_fingerprint}",
         f"- Request timeout: {results[0].request_timeout_seconds:g}s",
         f"- Max attempts per observation: {results[0].max_attempts}",
@@ -648,6 +657,19 @@ def markdown_report(results: list[ReplayResult]) -> str:
             f"{_score(selected, 'evidence_correct')} | {_score(selected, 'conversion_fidelity_correct')} | "
             f"{_score(selected, 'ignore_correct')} | {_score(selected, 'proposal_semantic_correct')} |"
         )
+    failures = [result for result in results if result.status != "ok"]
+    if failures:
+        lines.extend([
+            "", "## Call failures", "",
+            "| Repeat | Case | Error | HTTP status | Detail | Timeout phase | Latency (ms) |",
+            "|---:|---|---|---:|---|---|---:|",
+        ])
+        for result in failures:
+            lines.append(
+                f"| {result.repeat_index} | {result.case_id} | {result.error_class} | "
+                f"{result.status_code or '-'} | {result.error_detail or 'unavailable'} | "
+                f"{result.timeout_phase or 'unavailable'} | {result.latency_ms} |"
+            )
     return "\n".join(lines) + "\n"
 
 

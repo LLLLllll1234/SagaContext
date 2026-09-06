@@ -12,7 +12,7 @@ from ..models import Candidate, Delta
 from .models import BatchInput, DeltaProposal, JudgeCandidate
 
 
-CONVERTER_VERSION = "delta-to-proposal-v1"
+CONVERTER_VERSION = "delta-to-proposal-v2"
 ALLOWED_MEMORY_TYPES = {
     "profile",
     "taste",
@@ -39,6 +39,9 @@ class JudgeTrace:
     latency_ms: int
     response_digest: str | None = None
     error_class: str | None = None
+    timeout_phase: str | None = None
+    status_code: int | None = None
+    error_detail: str | None = None
     deltas: tuple[dict[str, Any], ...] = ()
 
 
@@ -123,6 +126,9 @@ def convert_deltas(batch: BatchInput, deltas: list[Delta]) -> tuple[DeltaProposa
             anchor = anchors[delta.anchor_uri]
             target_id = anchor.memory_id
             expected_revision = anchor.revision
+            # Ledger stores a replacement revision, so a patch would drop old facts.
+            if delta.relation == "refine" and not set(anchor.payload).issubset({"key", *delta.fields}):
+                raise _conversion_error("refine body omits anchor fields")
 
         evidence_ids = tuple(delta.evidence_ids)
         if len(evidence_ids) != len(set(evidence_ids)):
@@ -169,6 +175,7 @@ class OpenAIProposalJudge:
             raise error
 
         started = perf_counter()
+        deltas: list[Delta] | None = None
         try:
             deltas = asyncio.run(self._call(batch))
             proposals = convert_deltas(batch, deltas)
@@ -177,6 +184,13 @@ class OpenAIProposalJudge:
                 status="error",
                 latency_ms=round((perf_counter() - started) * 1000),
                 error_class=error.class_name,
+                timeout_phase=error.timeout_phase,
+                status_code=error.status_code,
+                error_detail=error.detail,
+                response_digest=error.response_digest or (None if deltas is None else _digest(
+                    [delta.model_dump(mode="json") for delta in deltas]
+                )),
+                deltas=tuple(delta.model_dump(mode="json") for delta in deltas or []),
             )
             raise
         except Exception as error:

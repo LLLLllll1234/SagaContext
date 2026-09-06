@@ -4,7 +4,7 @@
 
 ## 当前阅读入口
 
-- 查看当前实现与验收结论：[真实 Judge v2 语义验收](probes/2026-09-06-real-judge-semantic-acceptance.md) → [S3-1 后端故障恢复](probes/2026-09-05-s3-1-openviking-recovery.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
+- 查看当前实现与验收结论：[Judge timeout 对比与正式通过](probes/2026-09-06-real-judge-timeout-comparison.md) → [Judge 新失败诊断](probes/2026-09-06-real-judge-failure-diagnosis.md) → [Judge DeepSeek 独立运行](probes/2026-09-06-real-judge-deepseek-runs.md) → [Judge prompt v3 sol 复验](probes/2026-09-06-real-judge-prompt-v3-rerun.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
 - 复查测试记录：[验收报告索引](probes/README.md) → [S3 原始运行清单](../artifacts/probes/S3-RESULTS.md)。
 - 理解实现约束：[v0.3 总设计](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) → [S1](superpowers/specs/2026-09-05-s1-data-closure-design.md) → [S2](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) → [S3](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md)。
 - 本地部署与操作：[OpenViking 部署记录](ops-openviking-local.md)。
@@ -15,7 +15,12 @@
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
-| 23 | [真实 Judge v2 语义验收](probes/2026-09-06-real-judge-semantic-acceptance.md) | 14 个审计样本、五项独立评分、三轮聚合与不可覆盖 artifact | **实现与 130 项回归通过；本次 42/42 blocked_configuration，待真实模型语义验收** |
+| 28 | [Judge timeout 独立运行对比](probes/2026-09-06-real-judge-timeout-comparison.md) | sol 单 case 诊断及 60/90/120 秒各 42 observation 的独立对比 | **120 秒 run 42/42 且全部语义指标满分；正式 Judge 验收 passed，运行时自动化仍关闭** |
+| 26 | [Judge DeepSeek 独立运行](probes/2026-09-06-real-judge-deepseek-runs.md) | Pro/Flash 各 42 observation 的独立 provider、schema 与正文结果 | **pro 11/42、flash 40/42；两个模型均 blocked** |
+| 25 | [Judge prompt v3 独立复验](probes/2026-09-06-real-judge-prompt-v3-rerun.md) | 同模型、同数据集、同 60 秒 timeout 的 42 observation 三轮复验 | **sol 调用 40/42；成功响应 body 23/23；两个 read timeout，blocked** |
+| 24 | [Judge 正文失败诊断与修复](probes/2026-09-06-real-judge-body-repair.md) | prompt v3、refine 字段保护、超时阶段、离线回放与后续方向 | **137 项回归通过；后续云端结果见 #25，正式验收仍未通过** |
+| 27 | [Judge 新失败诊断](probes/2026-09-06-real-judge-failure-diagnosis.md) | sol/DeepSeek 三组失败根因、脱敏错误诊断和下一次实验 | **本地诊断修复完成；三组云端 run 均 blocked** |
+| 23 | [真实 Judge v2 语义验收](probes/2026-09-06-real-judge-semantic-acceptance.md) | 14 个审计样本、五项独立评分、三轮聚合与不可覆盖 artifact | **sol 调用 41/42，body 15/23；一次超时且正文未达标，blocked；该阶段 131 项回归通过** |
 | 22 | [真实 Judge 固定回放](probes/2026-09-06-real-judge-replay.md) | OpenAI-compatible HTTP Judge、同步门面、错误分类、Delta 转换和六类单候选回放 | **实现完成；本次 6/6 blocked_configuration，待配置 endpoint 后取得语义结果** |
 | 21 | [S3 RecallPolicy、Shadow、G5/G6 验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md) | Ledger 正文复核、预算/省略、实际事件回放、删除/取代、三条真实 Codex 下一会话消费与清理恢复 | **完整合成纵向运行 69/69 通过**；不是生产服务或通用语义抽取验收 |
 | 20 | [S3-1 OpenViking 适配器与真实故障恢复](probes/2026-09-05-s3-1-openviking-recovery.md) | Ledger → outbox → 真实 OpenViking；P1–P6、重复写、检索与临时数据清理 | **首次真实验收 22/22 通过**；后续阶段单独验收 |
