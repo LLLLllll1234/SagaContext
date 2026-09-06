@@ -42,6 +42,7 @@ class JudgeTrace:
     timeout_phase: str | None = None
     status_code: int | None = None
     error_detail: str | None = None
+    auxiliary: tuple[dict[str, Any], ...] = ()
     deltas: tuple[dict[str, Any], ...] = ()
 
 
@@ -180,6 +181,7 @@ class OpenAIProposalJudge:
             deltas = asyncio.run(self._call(batch))
             proposals = convert_deltas(batch, deltas)
         except JudgeError as error:
+            auxiliary = tuple(getattr(self.judge_client, "last_auxiliary", ()))
             self.last_trace = JudgeTrace(
                 status="error",
                 latency_ms=round((perf_counter() - started) * 1000),
@@ -187,6 +189,7 @@ class OpenAIProposalJudge:
                 timeout_phase=error.timeout_phase,
                 status_code=error.status_code,
                 error_detail=error.detail,
+                auxiliary=auxiliary,
                 response_digest=error.response_digest or (None if deltas is None else _digest(
                     [delta.model_dump(mode="json") for delta in deltas]
                 )),
@@ -205,6 +208,7 @@ class OpenAIProposalJudge:
         self.last_trace = JudgeTrace(
             status="ok",
             latency_ms=round((perf_counter() - started) * 1000),
+            auxiliary=tuple(getattr(self.judge_client, "last_auxiliary", ())),
             response_digest=_digest([delta.model_dump(mode="json") for delta in deltas]),
             deltas=tuple(delta.model_dump(mode="json") for delta in deltas),
         )

@@ -4,7 +4,7 @@
 
 ## 当前阅读入口
 
-- 查看当前实现与验收结论：[Judge timeout 对比与正式通过](probes/2026-09-06-real-judge-timeout-comparison.md) → [Judge 新失败诊断](probes/2026-09-06-real-judge-failure-diagnosis.md) → [Judge DeepSeek 独立运行](probes/2026-09-06-real-judge-deepseek-runs.md) → [Judge prompt v3 sol 复验](probes/2026-09-06-real-judge-prompt-v3-rerun.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
+- 查看当前实现与验收结论：[Judge schema-v3 / dataset-v3 审计](probes/2026-09-06-real-judge-v3-audit.md) → [Judge timeout 对比与正式通过](probes/2026-09-06-real-judge-timeout-comparison.md) → [Judge 新失败诊断](probes/2026-09-06-real-judge-failure-diagnosis.md) → [Judge DeepSeek 独立运行](probes/2026-09-06-real-judge-deepseek-runs.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
 - 复查测试记录：[验收报告索引](probes/README.md) → [S3 原始运行清单](../artifacts/probes/S3-RESULTS.md)。
 - 理解实现约束：[v0.3 总设计](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) → [S1](superpowers/specs/2026-09-05-s1-data-closure-design.md) → [S2](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) → [S3](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md)。
 - 本地部署与操作：[OpenViking 部署记录](ops-openviking-local.md)。
@@ -15,6 +15,7 @@
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
+| 29 | [Judge schema-v3 / dataset-v3 审计](probes/2026-09-06-real-judge-v3-audit.md) | 独立 wire schema、v2 digest 兼容和 refine 双人语义审计 | **定向测试 28/28；v3 digest 已冻结，待 DeepSeek 单请求诊断** |
 | 28 | [Judge timeout 独立运行对比](probes/2026-09-06-real-judge-timeout-comparison.md) | sol 单 case 诊断及 60/90/120 秒各 42 observation 的独立对比 | **120 秒 run 42/42 且全部语义指标满分；正式 Judge 验收 passed，运行时自动化仍关闭** |
 | 26 | [Judge DeepSeek 独立运行](probes/2026-09-06-real-judge-deepseek-runs.md) | Pro/Flash 各 42 observation 的独立 provider、schema 与正文结果 | **pro 11/42、flash 40/42；两个模型均 blocked** |
 | 25 | [Judge prompt v3 独立复验](probes/2026-09-06-real-judge-prompt-v3-rerun.md) | 同模型、同数据集、同 60 秒 timeout 的 42 observation 三轮复验 | **sol 调用 40/42；成功响应 body 23/23；两个 read timeout，blocked** |

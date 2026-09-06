@@ -40,6 +40,7 @@ class FieldEvidence(FrozenModel):
     source: str
     kind: Literal["quote", "value"]
     expected: Any
+    equivalence: str | None = None
 
 
 class CaseBodySchema(FrozenModel):
@@ -134,6 +135,7 @@ class ReplayResult(BaseModel):
     timeout_phase: Literal["connect", "read", "write", "pool", "unknown"] | None = None
     status_code: int | None = None
     error_detail: str | None = None
+    auxiliary: list[dict[str, Any]] = Field(default_factory=list)
     response_digest: str | None = None
     actual_deltas: list[dict[str, Any]] = Field(default_factory=list)
     actual_proposals: list[dict[str, Any]] = Field(default_factory=list)
@@ -151,6 +153,23 @@ def _digest(value: object) -> str:
     return hashlib.sha256(
         json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+
+
+def _dataset_digest(cases: list[BaseModel]) -> str:
+    def strip_compatibility_metadata(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: strip_compatibility_metadata(item)
+                for key, item in value.items()
+                if not (key == "equivalence" and item is None)
+            }
+        if isinstance(value, list):
+            return [strip_compatibility_metadata(item) for item in value]
+        return value
+
+    return _digest(strip_compatibility_metadata([
+        case.model_dump(mode="json") for case in cases
+    ]))
 
 
 def _endpoint_fingerprint(base_url: str) -> str:
@@ -277,6 +296,14 @@ def _normalize_v2(case: ReplayCaseV2) -> ReplayCase:
     return ReplayCase(**case.model_dump(mode="python"))
 
 
+def _validate_v3_case(case: ReplayCaseV2) -> None:
+    _validate_v2_case(case)
+    if case.category == "refine":
+        entries = case.field_evidence.get("applies_when", ())
+        if not any(entry.equivalence for entry in entries):
+            raise ValueError(f"v3 refine case lacks semantic equivalence evidence: {case.id}")
+
+
 def _normalize_legacy(case: LegacyReplayCase) -> ReplayCase:
     proposal = case.expected_proposal
     body = proposal.get("payload") if case.expected_relation != "no_change" else None
@@ -313,9 +340,10 @@ def load_replay_dataset(path: Path) -> ReplayDataset:
 
     if payload.get("dataset_id"):
         raw_cases = [ReplayCaseV2.model_validate(entry) for entry in entries]
+        schema_version = str(payload.get("schema_version", ""))
         for case in raw_cases:
-            _validate_v2_case(case)
-        frozen_digest = _digest([case.model_dump(mode="json") for case in raw_cases])
+            (_validate_v3_case if schema_version == "real-judge-dataset-v3" else _validate_v2_case)(case)
+        frozen_digest = _dataset_digest(raw_cases)
         dataset = ReplayDataset(
             dataset_id=str(payload["dataset_id"]),
             schema_version=str(payload.get("schema_version", "")),
@@ -324,15 +352,21 @@ def load_replay_dataset(path: Path) -> ReplayDataset:
             dataset_digest=frozen_digest,
             cases=tuple(_normalize_v2(case) for case in raw_cases),
         )
-        if dataset.schema_version != "real-judge-dataset-v2":
-            raise ValueError("unsupported v2 replay schema version")
+        if dataset.schema_version not in {"real-judge-dataset-v2", "real-judge-dataset-v3"}:
+            raise ValueError("unsupported replay schema version")
+        expected_dataset_id = {
+            "real-judge-dataset-v2": "real-judge-v2",
+            "real-judge-dataset-v3": "real-judge-v3",
+        }[dataset.schema_version]
+        if dataset.dataset_id != expected_dataset_id:
+            raise ValueError("dataset id does not match replay schema version")
         if dataset.body_schema_version != BODY_SCHEMA_VERSION:
             raise ValueError("unsupported body schema version")
         if dataset.body_normalizer_version != BODY_NORMALIZER_VERSION:
             raise ValueError("unsupported body normalizer version")
     else:
         legacy_cases = [LegacyReplayCase.model_validate(entry) for entry in entries]
-        frozen_digest = _digest([case.model_dump(mode="json") for case in legacy_cases])
+        frozen_digest = _dataset_digest(legacy_cases)
         dataset = ReplayDataset(
             dataset_id="real-judge-v1",
             schema_version="real-judge-dataset-v1",
@@ -533,6 +567,7 @@ def run_replay(
                     timeout_phase=adapter.last_trace.timeout_phase,
                     status_code=adapter.last_trace.status_code,
                     error_detail=adapter.last_trace.error_detail,
+                    auxiliary=list(adapter.last_trace.auxiliary),
                     response_digest=adapter.last_trace.response_digest,
                     actual_deltas=deltas,
                     actual_proposals=[_proposal_signature(item) for item in actual],

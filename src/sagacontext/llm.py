@@ -4,14 +4,52 @@ from dataclasses import dataclass
 from urllib.parse import urlparse
 import json
 import hashlib
+import math
 from typing import Any, Literal, Protocol
 
 import httpx
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator
 from .models import Candidate, Delta
 
 class Judge(Protocol):
     async def judge(self, anchors: list[dict[str, Any]], candidates: list[Candidate], summary: str) -> list[Delta]: ...
+
+
+class WireDeltaV3(BaseModel):
+    """Provider-facing Delta contract; helper scores are optional trace metadata."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    layer: Literal["user", "preference", "project", "task"]
+    type: str
+    relation: Literal["confirm", "refine", "supersede", "new", "conflict"]
+    candidate_id: str | None = None
+    anchor_uri: str | None = None
+    key: str
+    fields: dict[str, Any] = Field(default_factory=dict)
+    evidence_ids: list[str] = Field(default_factory=list)
+    strong_signal: bool | None = None
+    confidence_hint: float | None = Field(default=None, ge=0.0, le=1.0)
+    rationale: str = ""
+
+    @field_validator("strong_signal", mode="before")
+    @classmethod
+    def validate_strong_signal(cls, value: Any) -> Any:
+        if value is not None and not isinstance(value, bool):
+            raise ValueError("strong_signal must be a boolean or null")
+        return value
+
+    @field_validator("confidence_hint", mode="before")
+    @classmethod
+    def validate_confidence_hint(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("confidence_hint must be numeric or null")
+        normalized = float(value)
+        if not math.isfinite(normalized):
+            raise ValueError("confidence_hint must be finite")
+        return normalized
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,8 +79,8 @@ def _response_digest(response: httpx.Response | None = None, content: object = N
 class OpenAIJudge:
     """OpenAI-compatible structured-output judge with classified failures."""
 
-    prompt_contract_version = "openai-judge-prompt-v3"
-    response_schema_version = "delta-v2"
+    prompt_contract_version = "openai-judge-prompt-v4"
+    response_schema_version = "delta-v3"
 
     def __init__(
         self,
@@ -57,8 +95,10 @@ class OpenAIJudge:
         self.model = model
         self.timeout = timeout
         self.temperature = temperature
+        self.last_auxiliary: tuple[dict[str, Any], ...] = ()
 
     async def judge(self, anchors, candidates, summary):
+        self.last_auxiliary = ()
         if not self.base_url or not self.api_key or not self.model:
             raise JudgeError("judge_configuration_error", False, detail="missing llm configuration")
         parsed = urlparse(self.base_url)
@@ -72,7 +112,11 @@ class OpenAIJudge:
             "supersede explicitly replaces an anchor; conflict is a plausible but unresolved "
             "disagreement. Never invent a fact to complete a body. Each delta must include "
             "candidate_id, layer, type, relation, anchor_uri, key, fields, evidence_ids, "
-            "strong_signal, confidence_hint, and rationale. Copy candidate_id and use topic_key "
+            "rationale. strong_signal and confidence_hint are optional helper fields: omit or "
+            "return null when uncertain; if present, strong_signal must be boolean and "
+            "confidence_hint must be a finite number from 0 to 1. These helper fields are "
+            "recorded only in trace metadata and do not determine semantic acceptance. Copy "
+            "candidate_id and use topic_key "
             "as key; set layer "
             "from layer_guess and type from memory_type_hint. Copy anchor_uri and evidence IDs "
             "from the input. Use null anchor_uri only for new. "
@@ -176,7 +220,7 @@ class OpenAIJudge:
                 response_digest=_response_digest(content=content)
             )
         try:
-            return TypeAdapter(list[Delta]).validate_python(data["deltas"])
+            wire_deltas = TypeAdapter(list[WireDeltaV3]).validate_python(data["deltas"])
         except (ValidationError, TypeError) as error:
             if isinstance(error, ValidationError):
                 locations = [
@@ -190,3 +234,26 @@ class OpenAIJudge:
                 "judge_schema_error", False, detail=detail,
                 response_digest=_response_digest(content=content)
             ) from error
+        self.last_auxiliary = tuple(
+            {
+                "strong_signal": delta.strong_signal,
+                "confidence_hint": delta.confidence_hint,
+            }
+            for delta in wire_deltas
+        )
+        return [
+            Delta(
+                layer=delta.layer,
+                type=delta.type,
+                relation=delta.relation,
+                candidate_id=delta.candidate_id,
+                anchor_uri=delta.anchor_uri,
+                key=delta.key,
+                fields=delta.fields,
+                evidence_ids=delta.evidence_ids,
+                strong_signal=delta.strong_signal if delta.strong_signal is not None else False,
+                confidence_hint=delta.confidence_hint if delta.confidence_hint is not None else 0.5,
+                rationale=delta.rationale,
+            )
+            for delta in wire_deltas
+        ]

@@ -215,6 +215,27 @@ class OpenAIJudgeContractTests(unittest.TestCase):
                 self._call(_response(200, {"choices": [{"message": {"content": ""}}]}))
             self.assertEqual(caught.exception.class_name, "judge_response_error")
 
+    def test_v3_helper_fields_are_optional_trace_only_and_defaulted(self):
+        content = '{"deltas": [{"layer": "project", "type": "decision", "relation": "new", "key": "k", "fields": {"command": "pytest"}, "evidence_ids": ["e"]}]}'
+        with patch("sagacontext.llm.httpx.AsyncClient", _ResponseClient):
+            _ResponseClient.response = _response(200, {"choices": [{"message": {"content": content}}]})
+            judge = OpenAIJudge("https://llm.example", "key", "model")
+            deltas = asyncio.run(judge.judge([], [], "summary"))
+        self.assertEqual((deltas[0].strong_signal, deltas[0].confidence_hint), (False, 0.5))
+        self.assertEqual(judge.last_auxiliary, ({"strong_signal": None, "confidence_hint": None},))
+
+    def test_v3_helper_fields_reject_wrong_types_and_bounds(self):
+        for field, value in (("strong_signal", "false"), ("confidence_hint", 1.1), ("confidence_hint", "0.5")):
+            with self.subTest(field=field, value=value), patch("sagacontext.llm.httpx.AsyncClient", _ResponseClient):
+                content = json.dumps({"deltas": [{
+                    "layer": "project", "type": "decision", "relation": "new", "key": "k",
+                    "fields": {"command": "pytest"}, "evidence_ids": ["e"], field: value,
+                }]})
+                with self.assertRaises(JudgeError) as caught:
+                    self._call(_response(200, {"choices": [{"message": {"content": content}}]}))
+                self.assertEqual(caught.exception.class_name, "judge_schema_error")
+                self.assertIn("0." + field, caught.exception.detail)
+
     def test_request_preserves_context_and_uses_frozen_sampling(self):
         with patch("sagacontext.llm.httpx.AsyncClient", _ResponseClient):
             _ResponseClient.response = _response(200, {"choices": [{"message": {"content": '{"deltas": []}'}}]})
@@ -249,7 +270,8 @@ class OpenAIJudgeContractTests(unittest.TestCase):
         request = _ResponseClient.request_kwargs["json"]
         system_prompt = request["messages"][0]["content"]
         user_payload = json.loads(request["messages"][1]["content"])
-        self.assertEqual(judge.prompt_contract_version, "openai-judge-prompt-v3")
+        self.assertEqual(judge.prompt_contract_version, "openai-judge-prompt-v4")
+        self.assertEqual(judge.response_schema_version, "delta-v3")
         self.assertEqual(request["response_format"], {"type": "json_object"})
         self.assertIn("COMPLETE replacement body, never a patch", system_prompt)
         self.assertIn("only the lowercase strings json and prose", system_prompt)
@@ -382,6 +404,7 @@ def _subset(dataset: ReplayDataset, *case_ids: str) -> ReplayDataset:
 class ReplayRunnerTests(unittest.TestCase):
     v1_path = Path("bench/cases/real_judge/cases.yaml")
     v2_path = Path("bench/cases/real_judge/cases-v2.yaml")
+    v3_path = Path("bench/cases/real_judge/cases-v3.yaml")
 
     def test_v1_is_preserved_and_v2_has_audited_matrix(self):
         legacy = load_replay_dataset(self.v1_path)
@@ -393,6 +416,24 @@ class ReplayRunnerTests(unittest.TestCase):
             {"smoke", "duplicate_expression", "preference_reversal", "insufficient_information", "irrelevant_content"},
         )
         self.assertEqual(len(load_replay_cases(self.v1_path)), 6)
+
+    def test_v3_has_new_digest_and_audited_refine_variants(self):
+        v2 = load_replay_dataset(self.v2_path)
+        v3 = load_replay_dataset(self.v3_path)
+        self.assertEqual((v2.dataset_id, v2.dataset_digest), (
+            "real-judge-v2",
+            "254c47f4554c3d506e419200203e96f1f6c7e05386c370d7cab7e614e9b6cfce",
+        ))
+        self.assertEqual((v3.dataset_id, v3.schema_version, len(v3.cases)), (
+            "real-judge-v3", "real-judge-dataset-v3", 14,
+        ))
+        self.assertNotEqual(v2.dataset_digest, v3.dataset_digest)
+        refine = next(case for case in v3.cases if case.category == "refine")
+        self.assertEqual(
+            {body["applies_when"] for body in refine.acceptable_bodies},
+            {"async task is already closing", "the async task is already closing", "when the async task is already closing"},
+        )
+        self.assertTrue(refine.field_evidence["applies_when"][0].equivalence)
 
     def test_v2_rejects_missing_field_evidence_pointer(self):
         payload = yaml.safe_load(self.v2_path.read_text())
@@ -474,7 +515,8 @@ class ReplayRunnerTests(unittest.TestCase):
         self.assertIsNone(result.memory_body_correct)
         report = markdown_report([result])
         self.assertIn("Acceptance: blocked", report)
-        self.assertIn("Prompt contract: openai-judge-prompt-v3", report)
+        self.assertIn("Prompt contract: openai-judge-prompt-v4", report)
+        self.assertIn("Response schema: delta-v3", report)
         self.assertIn("Converter: delta-to-proposal-v2", report)
         self.assertIn("| judge_timeout | - | ReadTimeout | read |", report)
         self.assertNotIn("sensitive-request-context", report + result.model_dump_json())
