@@ -52,7 +52,7 @@ class Candidate(BaseModel):
 class Delta(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    layer: Literal["user", "preference", "project", "task"]
+    layer: Literal["user", "preference", "project", "task", "l0"]
     type: str
     relation: Literal["confirm", "refine", "supersede", "new", "conflict"]
     candidate_id: str | None = None

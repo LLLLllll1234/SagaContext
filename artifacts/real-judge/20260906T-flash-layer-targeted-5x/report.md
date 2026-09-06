@@ -1,0 +1,46 @@
+# Real Judge Semantic Acceptance Report
+
+> This report measures a frozen synthetic/de-identified replay set. It is not an arbitrary-session quality metric.
+
+- Run ID: 20260906T105520Z-10847e93
+- Dataset: real-judge-v3 (8ebf785c8c579140236521e0b8e93164741d75f9356bd18b26924e7732dc8565)
+- Cases: 4
+- Repeats: 5
+- Model: deepseek-v4-flash
+- Prompt contract: openai-judge-prompt-v4
+- Response schema: delta-v3
+- Converter: delta-to-proposal-v2
+- Endpoint fingerprint: sha256:a34e2a4708ed1c61008a151688838dcf1c44d4e7f08054633e72ba7c0b16cfc1
+- Request timeout: 60s
+- Max attempts per observation: 1
+- Token usage: unavailable
+- Cost: unavailable
+- Judge calls successful: 17/20
+- Acceptance: blocked
+
+## Per-repeat metrics
+
+| Repeat | Relation | Body | Evidence | Conversion fidelity | Ignore |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 4/4 | 4/4 | 4/4 | 4/4 | n/a |
+| 2 | 4/4 | 4/4 | 4/4 | 4/4 | n/a |
+| 3 | 2/2 | 2/2 | 2/2 | 2/2 | n/a |
+| 4 | 4/4 | 4/4 | 4/4 | 4/4 | n/a |
+| 5 | 3/3 | 3/3 | 3/3 | 3/3 | n/a |
+
+## Per-case stability
+
+| Case | Group | Status | Relation | Body | Evidence | Conversion fidelity | Ignore | Proposal semantic |
+|---|---|---|---:|---:|---:|---:|---:|---:|
+| v3-smoke-new-decision | smoke | judge_conversion_error | 4/4 | 4/4 | 4/4 | 4/4 | n/a | 4/4 |
+| v3-smoke-confirm-convention | smoke | judge_schema_error | 3/3 | 3/3 | 3/3 | 3/3 | n/a | 3/3 |
+| v3-smoke-refine-gotcha | smoke | ok | 5/5 | 5/5 | 5/5 | 5/5 | n/a | 5/5 |
+| v3-smoke-supersede-taste | smoke | ok | 5/5 | 5/5 | 5/5 | 5/5 | n/a | 5/5 |
+
+## Call failures
+
+| Repeat | Case | Error | HTTP status | Detail | Timeout phase | Latency (ms) |
+|---:|---|---|---:|---|---|---:|
+| 3 | v3-smoke-new-decision | judge_conversion_error | - | delta evidence is outside candidate events | unavailable | 3996 |
+| 3 | v3-smoke-confirm-convention | judge_schema_error | 200 | invalid delta schema at 0.layer (layer='l0') | unavailable | 4062 |
+| 5 | v3-smoke-confirm-convention | judge_schema_error | 200 | invalid delta schema at 0.layer (layer='l0') | unavailable | 5180 |

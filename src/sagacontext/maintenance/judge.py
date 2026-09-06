@@ -103,6 +103,8 @@ def convert_deltas(batch: BatchInput, deltas: list[Delta]) -> tuple[DeltaProposa
             raise _conversion_error("candidate has duplicate deltas")
         seen.add(candidate_id)
         candidate = candidates[candidate_id]
+        if delta.layer == "l0":
+            delta = delta.model_copy(update={"layer": candidate.layer_guess})
         if delta.type not in ALLOWED_MEMORY_TYPES or delta.type != candidate.memory_type_hint:
             raise _conversion_error("delta memory type is outside candidate hint")
         if not delta.key.strip():
