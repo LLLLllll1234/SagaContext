@@ -317,6 +317,7 @@ class OpenAIJudgeContractTests(unittest.TestCase):
                 }))
         self.assertIn("invalid delta schema at", caught.exception.detail)
         self.assertNotIn("input", caught.exception.detail)
+        self.assertEqual(caught.exception.status_code, 200)
         self.assertRegex(caught.exception.response_digest or "", r"^sha256:[0-9a-f]{64}$")
 
         with patch("sagacontext.llm.httpx.AsyncClient", _ResponseClient):

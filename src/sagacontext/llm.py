@@ -199,11 +199,13 @@ class OpenAIJudge:
         except (ValueError, KeyError, IndexError, TypeError) as error:
             raise JudgeError(
                 "judge_response_error", False, detail="missing structured content",
+                status_code=response.status_code,
                 response_digest=_response_digest(response)
             ) from error
         if not content:
             raise JudgeError(
                 "judge_response_error", False, detail="empty structured content",
+                status_code=response.status_code,
                 response_digest=_response_digest(response)
             )
 
@@ -212,11 +214,13 @@ class OpenAIJudge:
         except (json.JSONDecodeError, TypeError) as error:
             raise JudgeError(
                 "judge_response_error", False, detail="content is not valid JSON",
+                status_code=response.status_code,
                 response_digest=_response_digest(content=content)
             ) from error
         if not isinstance(data, dict) or "deltas" not in data:
             raise JudgeError(
                 "judge_response_error", False, detail="response must contain deltas",
+                status_code=response.status_code,
                 response_digest=_response_digest(content=content)
             )
         try:
@@ -232,6 +236,7 @@ class OpenAIJudge:
                 detail = "invalid delta schema"
             raise JudgeError(
                 "judge_schema_error", False, detail=detail,
+                status_code=response.status_code,
                 response_digest=_response_digest(content=content)
             ) from error
         self.last_auxiliary = tuple(
