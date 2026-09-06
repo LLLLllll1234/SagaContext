@@ -104,7 +104,9 @@ def convert_deltas(batch: BatchInput, deltas: list[Delta]) -> tuple[DeltaProposa
         seen.add(candidate_id)
         candidate = candidates[candidate_id]
         if delta.layer == "l0":
-            delta = delta.model_copy(update={"layer": candidate.layer_guess})
+            delta = delta.model_copy(update={
+                "layer": LAYER_BY_MEMORY_TYPE.get(candidate.memory_type_hint, "project")
+            })
         if delta.type not in ALLOWED_MEMORY_TYPES or delta.type != candidate.memory_type_hint:
             raise _conversion_error("delta memory type is outside candidate hint")
         if not delta.key.strip():
@@ -200,7 +202,7 @@ class OpenAIProposalJudge:
             raise
         except Exception as error:
             detail = type(error).__name__
-            if isinstance(error, (ValueError, KeyError, TypeError)):
+            if isinstance(error, (AttributeError, ValueError, KeyError, TypeError)):
                 detail += ": " + " ".join(str(error).split())[:160]
             wrapped = JudgeError("judge_error", True, detail=detail)
             self.last_trace = JudgeTrace(
