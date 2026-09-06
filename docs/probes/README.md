@@ -6,7 +6,7 @@
 
 | 范围 | 报告 | 对应结果 |
 |---|---|---|
-| 真实 Judge 固定回放 | [适配器与回放报告](2026-09-06-real-judge-replay.md) | 6 个单候选 case 已冻结；本次无 LLM 配置，6/6 `blocked_configuration`，未伪造语义指标 |
+| 真实 Judge v2 语义验收 | [v2 数据、评分与阻断记录](2026-09-06-real-judge-semantic-acceptance.md) | 14 case x 3 轮已实现；本次无 LLM 配置，42/42 `blocked_configuration`，语义指标 N/A |
 | S3-1 真实后端 | [OpenViking 适配器与故障恢复](2026-09-05-s3-1-openviking-recovery.md) | 首次 22/22，后续完整运行复验 P1–P6 |
 | S3-2 至 S3-5 | [RecallPolicy、Shadow、G5/G6](2026-09-06-s3-policy-shadow-g5-g6.md) | 完整纵向 69/69；最终后端/策略回归 40/40；本地测试 111 项 |
 | G1 后端准入 | [OpenViking](2026-09-05-s3-g1-openviking.md) | 17/17，固定镜像与真实后端 |
@@ -22,6 +22,7 @@
 
 ## 历史探针
 
+- [真实 Judge v1 六例回放](2026-09-06-real-judge-replay.md)：仅链路冒烟，存在一个无依据标注和一个答案泄露样本；v2 已修正且保留旧 digest。
 - [G3 初次记录](2026-09-05-s3-g3-codex-host.md)：blocked_environment，保留认证阻断证据。
 - [G3 sol 记录](2026-09-05-s3-g3-codex-host-sol.md)：failed_contract，5/19；不覆盖 terra 通过结论。
 
