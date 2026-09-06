@@ -20,6 +20,7 @@ from sagacontext.bench.real_judge import (
     markdown_report,
     run_replay,
 )
+from sagacontext.bench.admission import admission_errors, audit_models, load_results
 from sagacontext.ledger import Scope
 from sagacontext.llm import JudgeError, OpenAIJudge
 from sagacontext.maintenance import (
@@ -118,6 +119,18 @@ class ProposalConversionTests(unittest.TestCase):
             evidence_ids=("event-1",),
             rationale="validated_empty_delta",
         ),))
+
+    def test_l0_delta_converts_to_memory_type_layer(self):
+        batch = _batch()
+        delta = self._delta("new").model_copy(update={"layer": "l0"})
+        proposal, = convert_deltas(batch, [delta])
+        self.assertEqual(proposal.memory_type, "task_checkpoint")
+
+    def test_duplicate_key_in_fields_equal_to_top_level_is_removed(self):
+        batch = _batch()
+        delta = self._delta("new").model_copy(update={"fields": {"key": "checkpoint", "next": "new"}})
+        proposal, = convert_deltas(batch, [delta])
+        self.assertEqual(proposal.payload, {"key": "checkpoint", "next": "new"})
 
     def test_invalid_delta_is_not_no_change(self):
         with self.assertRaises(JudgeError) as caught:
@@ -588,6 +601,41 @@ class ReplayRunnerTests(unittest.TestCase):
         self.assertIn("Request timeout: 12.5s", report)
         self.assertIn("Token usage: unavailable", report)
         self.assertIn("Cost: unavailable", report)
+
+    def test_admission_requires_independent_frozen_42_observations(self):
+        dataset = load_replay_dataset(self.v3_path)
+        case = dataset.cases[0]
+        results = run_replay(
+            _subset(dataset, case.id),
+            _ReplayAdapter({case.batch.batch_id: [[_delta_for(case)]]}),
+            repeats=1,
+            max_attempts=3,
+            run_id="admission",
+        )
+        errors = admission_errors(results, model="test")
+        self.assertIn("observation_count=1 expected=42", errors)
+        self.assertIn("repeat_set_mismatch", errors)
+        self.assertIn("case_count_per_repeat_mismatch", errors)
+        self.assertIn("timeout_mismatch", errors)
+
+    def test_frozen_pro_and_flash_artifacts_pass_independent_admission(self):
+        for model, artifact in (
+            ("deepseek-v4-pro", Path("artifacts/real-judge/20260906T-pro-v3-retry-final/replay.jsonl")),
+            ("deepseek-v4-flash", Path("artifacts/real-judge/20260906T-flash-v3-key-fixed-final/replay.jsonl")),
+        ):
+            with self.subTest(model=model):
+                self.assertEqual(admission_errors(load_results(artifact), model=model), [])
+
+    def test_cross_model_audit_marks_semantic_difference_without_merging(self):
+        dataset = load_replay_dataset(self.v3_path)
+        case = dataset.cases[0]
+        pro = run_replay(_subset(dataset, case.id), _ReplayAdapter({case.batch.batch_id: [[_delta_for(case)]]}), repeats=1, run_id="pro")
+        altered = _delta_for(case).model_copy(update={"fields": {"command": "nox"}})
+        flash = run_replay(_subset(dataset, case.id), _ReplayAdapter({case.batch.batch_id: [[altered]]}), repeats=1, run_id="flash")
+        audit = audit_models(pro, flash)
+        self.assertEqual(audit["pro_observations"], audit["flash_observations"])
+        self.assertEqual(audit["different_semantics"], 1)
+        self.assertIn("body", audit["difference_dimensions"])
 
     def test_missing_configuration_is_reported_per_observation(self):
         class BlockedAdapter:

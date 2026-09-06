@@ -127,6 +127,8 @@ class ReplayResult(BaseModel):
     endpoint_fingerprint: str
     request_timeout_seconds: float
     max_attempts: int
+    attempts_used: int = 1
+    attempt_errors: list[str] = Field(default_factory=list)
     sampling: dict[str, float]
     case_digest: str
     latency_ms: int
@@ -518,13 +520,19 @@ def run_replay(
             actual: tuple[DeltaProposal, ...] = ()
             error_class: str | None = None
             status: Literal["ok", "error", "blocked_configuration"] = "ok"
+            attempt_errors: list[str] = []
+            attempts_used = 0
             for attempt in range(1, max_attempts + 1):
+                attempts_used = attempt
                 try:
                     actual = adapter.judge(case.batch)
+                    status = "ok"
+                    error_class = None
                     break
                 except JudgeError as error:
                     error_class = error.class_name
                     status = "blocked_configuration" if error.class_name == "judge_configuration_error" else "error"
+                    attempt_errors.append(error.class_name)
                     if not error.retryable or attempt == max_attempts:
                         break
 
@@ -566,6 +574,8 @@ def run_replay(
                     endpoint_fingerprint=endpoint_fingerprint,
                     request_timeout_seconds=request_timeout_seconds,
                     max_attempts=max_attempts,
+                    attempts_used=attempts_used,
+                    attempt_errors=attempt_errors,
                     sampling={"temperature": float(getattr(adapter.judge_client, "temperature", 0.0))},
                     case_digest=_digest(case.model_dump(mode="json")),
                     latency_ms=round((perf_counter() - started) * 1000),
@@ -661,6 +671,7 @@ def markdown_report(results: list[ReplayResult]) -> str:
         f"- Endpoint fingerprint: {results[0].endpoint_fingerprint}",
         f"- Request timeout: {results[0].request_timeout_seconds:g}s",
         f"- Max attempts per observation: {results[0].max_attempts}",
+        f"- Attempts used: {sum(result.attempts_used for result in results)}/{len(results)} observations recorded",
         "- Token usage: unavailable",
         "- Cost: unavailable",
         f"- Judge calls successful: {ok}/{len(results)}",

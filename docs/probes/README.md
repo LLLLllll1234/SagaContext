@@ -6,6 +6,7 @@
 
 | 范围 | 报告 | 对应结果 |
 |---|---|---|
+| Judge Pro/Flash 双模型与隔离 Shadow | [双模型验收与 shadow](2026-09-06-dual-model-acceptance.md) | Pro/Flash 独立正式 artifact 均 `42/42 passed`；跨模型 41/42 完全一致，1 个 refine 字面差异但均在 acceptable set；实际隔离 shadow 因当前环境缺少 LLM 配置而 `0/42 + 0/42 blocked_configuration`，无正式写入/召回/注入 |
 | Judge schema-v3 / dataset-v3 | [schema 与双人 refine 审计](2026-09-06-real-judge-v3-audit.md) | `WireDeltaV3` 定向测试 28/28；v2 digest 保持不变；v3 digest 固定并待 DeepSeek 单请求诊断 |
 | Judge timeout 对比 | [sol 60/90/120 秒独立运行](2026-09-06-real-judge-timeout-comparison.md) | 120 秒 run 为 42/42 且全部语义指标满分，正式 Judge 验收 `passed`；运行时自动化仍关闭 |
 | Judge DeepSeek 独立运行 | [Pro/Flash provider、schema 与正文记录](2026-09-06-real-judge-deepseek-runs.md) | pro 11/42、flash 40/42；两个模型均 `blocked`，不与 sol 合并 |
