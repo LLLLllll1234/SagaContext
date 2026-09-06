@@ -56,6 +56,10 @@ namespace 标识，只调用 Judge 与 converter。运行配置明确记录：`s
 语义 shadow 通过。后续需在具备已授权 endpoint/configuration 的环境中重新运行同一 runner，
 才能取得真实 shadow 成功率、重试率、延迟和提案分布。
 
+## 最新复跑
+
+在 2026-09-06 15:41 UTC 使用同一 runner 再次执行：[20260906T154145Z-isolated-shadow-rerun](../../artifacts/real-judge/20260906T154145Z-isolated-shadow-rerun/)。Pro/Flash 各生成 42 条 observation，均为首次尝试的 `judge_configuration_error`，成功调用均为 `0/42`，准入继续阻断。临时 Ledger 均保持 `0 -> 0`，资源 cleanup 全部通过；两模型对齐审计为 42/42 digest 相同，未产生可比较的模型语义输出。
+
 ## 准入边界
 
 Pro 与 Flash 各自达到冻结的 `42/42` 后，才允许进入 shadow/admission 阶段；这不授权正常
