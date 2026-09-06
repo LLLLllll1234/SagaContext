@@ -15,7 +15,7 @@ from .real_judge import (
 )
 
 
-FROZEN_PROMPT = "openai-judge-prompt-v5"
+FROZEN_PROMPT = "openai-judge-prompt-v6"
 FROZEN_SCHEMA = "delta-v3"
 FROZEN_CONVERTER = "delta-to-proposal-v2"
 FROZEN_DATASET = "real-judge-v4"

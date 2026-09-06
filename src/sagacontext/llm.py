@@ -95,7 +95,7 @@ def _response_digest(response: httpx.Response | None = None, content: object = N
 class OpenAIJudge:
     """OpenAI-compatible structured-output judge with classified failures."""
 
-    prompt_contract_version = "openai-judge-prompt-v5"
+    prompt_contract_version = "openai-judge-prompt-v6"
     response_schema_version = "delta-v3"
 
     def __init__(
@@ -158,7 +158,10 @@ class OpenAIJudge:
             "are valid. Map requests for JSON output to json and prose output to prose; "
             "do not put adjectives, explanations, or the word summaries/results in format. "
             "For free-text fields, use a concise phrase directly supported by the input; "
-            "copy unchanged anchor text exactly. Preserve exact commands and paths. "
+            "copy unchanged anchor text exactly. For decision/convention command fields, "
+            "output only the exact command token or command text stated by the candidate "
+            "(for example pytest), never an explanatory sentence or wrapper such as "
+            "use ... for verification. Preserve exact commands and paths. "
             "Before returning, check that a refine body contains every existing anchor "
             "field, type equals the referenced candidate's memory_type_hint for EVERY "
             "relation including conflict, and enum values use the canonical spelling. If the candidate "

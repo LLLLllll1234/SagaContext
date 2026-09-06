@@ -13,7 +13,7 @@ the 42-observation admission gate.
 
 ## Frozen Contract
 
-- Prompt: `openai-judge-prompt-v5`; response schema remains `delta-v3`.
+- Prompt: `openai-judge-prompt-v6`; response schema remains `delta-v3`.
 - Converter remains `delta-to-proposal-v2`: wrong types remain non-retryable errors.
 - Dataset: `real-judge-v4`; body normalizer: `body-normalizer-v2`.
 - Retain all v2/v3 datasets and historical artifacts without modification.

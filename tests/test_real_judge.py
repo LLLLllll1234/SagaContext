@@ -299,7 +299,7 @@ class OpenAIJudgeContractTests(unittest.TestCase):
         request = _ResponseClient.request_kwargs["json"]
         system_prompt = request["messages"][0]["content"]
         user_payload = json.loads(request["messages"][1]["content"])
-        self.assertEqual(judge.prompt_contract_version, "openai-judge-prompt-v5")
+        self.assertEqual(judge.prompt_contract_version, "openai-judge-prompt-v6")
         self.assertEqual(judge.response_schema_version, "delta-v3")
         self.assertEqual(request["response_format"], {"type": "json_object"})
         self.assertIn("COMPLETE replacement body, never a patch", system_prompt)
@@ -545,7 +545,7 @@ class ReplayRunnerTests(unittest.TestCase):
         self.assertIsNone(result.memory_body_correct)
         report = markdown_report([result])
         self.assertIn("Acceptance: blocked", report)
-        self.assertIn("Prompt contract: openai-judge-prompt-v5", report)
+        self.assertIn("Prompt contract: openai-judge-prompt-v6", report)
         self.assertIn("Response schema: delta-v3", report)
         self.assertIn("Converter: delta-to-proposal-v2", report)
         self.assertIn("| judge_timeout | - | ReadTimeout | read |", report)

@@ -31,7 +31,7 @@ def passing_results():
         case.batch.batch_id: [([] if case.should_ignore else [_delta_for(case)])] * 3
         for case in dataset.cases
     })
-    adapter.judge_client.prompt_contract_version = "openai-judge-prompt-v5"
+    adapter.judge_client.prompt_contract_version = "openai-judge-prompt-v6"
     adapter.judge_client.response_schema_version = "delta-v3"
     adapter.judge_client.timeout = 300.0
     adapter.converter_version = "delta-to-proposal-v2"
@@ -119,7 +119,7 @@ class TypeContractTests(unittest.TestCase):
         wrong = _delta_for(case).model_copy(update={"type": "conflict"})
         client = _AsyncFakeJudge([wrong])
         client.model, client.base_url, client.timeout = "test", "", 300.0
-        client.prompt_contract_version, client.response_schema_version = "openai-judge-prompt-v5", "delta-v3"
+        client.prompt_contract_version, client.response_schema_version = "openai-judge-prompt-v6", "delta-v3"
         adapter = OpenAIProposalJudge(client)
         record, = run_replay(dataset.model_copy(update={"cases": (case,)}), adapter, repeats=1, max_attempts=3)
         self.assertEqual(record.error_class, "judge_conversion_error")
@@ -136,6 +136,7 @@ class TypeContractTests(unittest.TestCase):
             OpenAIProposalJudge(OpenAIJudge("https://llm.example", "key", "model")).judge(case.batch)
         messages = _ResponseClient.request_kwargs["json"]["messages"]
         self.assertIn("conflict is ONLY a relation, NEVER a memory type", messages[0]["content"])
+        self.assertIn("only the exact command token", messages[0]["content"])
         payload = json.loads(messages[1]["content"])
         self.assertEqual(set(payload), {"anchors", "candidates", "summary"})
         self.assertNotIn("field_comparators", messages[1]["content"])
