@@ -341,6 +341,14 @@ class BatchWorker:
                         expected_revision=row["expected_revision"],
                     )
                 )
+                if row["operation"] == "supersede":
+                    # Ledger supersede retires an identity; Judge supersede also
+                    # supplies its successor. Commit both under this proposal.
+                    memory_operations.append(BatchMemoryOperation(
+                        proposal_id=row["proposal_id"], operation="new",
+                        memory_type=row["memory_type"], scope=Scope.model_validate_json(row["scope_json"]),
+                        payload_json=row["payload_patch_json"],
+                    ))
                 if row["target_id"]:
                     expected_heads.append(
                         ExpectedHead(

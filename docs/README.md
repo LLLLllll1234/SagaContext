@@ -8,6 +8,7 @@
 - 复查测试记录：[验收报告索引](probes/README.md) → [S3 原始运行清单](../artifacts/probes/S3-RESULTS.md)。
 - 理解实现约束：[v0.3 总设计](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) → [S1](superpowers/specs/2026-09-05-s1-data-closure-design.md) → [S2](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) → [S3](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md)。
 - 本地部署与操作：[OpenViking 部署记录](ops-openviking-local.md)。
+- 下一阶段：[S3-5/G6 三链路执行准备](probes/2026-09-07-g6-lifecycle-preparation.md)，runner 与配置清单已准备；真实注入未执行。
 
 ## 全量文档目录
 

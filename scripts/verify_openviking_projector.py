@@ -59,8 +59,31 @@ def main():
     parser.add_argument("--output-dir", type=Path, default=Path("artifacts/probes"))
     parser.add_argument("--policy-stages", action="store_true")
     parser.add_argument("--longitudinal", action="store_true")
+    parser.add_argument("--g6-plan", type=Path)
+    parser.add_argument("--execute-plan-digest")
     args = parser.parse_args()
+    plan = None
+    if args.g6_plan is not None or args.execute_plan_digest is not None:
+        if args.g6_plan is None or args.execute_plan_digest is None or args.longitudinal:
+            parser.error("G6 lifecycle requires --g6-plan and --execute-plan-digest; cannot combine with --longitudinal")
+        from g6_lifecycle import load_plan, ensure_running, isolated_runtime
+        try:
+            plan = load_plan(args.g6_plan, args.execute_plan_digest)
+            stop_file = args.g6_plan.resolve().parent / "STOP"
+            ensure_running(stop_file)
+            if Path(plan["runtime_root"]).exists():
+                raise ValueError("g6_runtime_already_exists")
+            from sagacontext.config import Config
+            llm_config = Config.load()
+            if not llm_config.llm_base_url or not llm_config.llm_api_key:
+                raise ValueError("g6_judge_configuration_missing")
+            if subprocess.check_output(["codex", "--version"], text=True).strip() != plan["host_version"]:
+                raise ValueError("g6_host_version_changed")
+        except (ValueError, RuntimeError, KeyError, OSError, subprocess.SubprocessError):
+            parser.error("G6 preflight blocked: verify plan, runtime, STOP and local Judge configuration")
     run_id = "s3-1-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+    if plan:
+        run_id = plan["run_id"]
     output = args.output_dir / run_id
     output.mkdir(parents=True)
     report = {"run_id": run_id, "started_at": datetime.now(timezone.utc).isoformat(),
@@ -68,6 +91,10 @@ def main():
     config = json.loads(args.config.read_text())
     admin = RecordingClient(args.base_url, config["server"]["root_api_key"])
     user = "sagas31-" + uuid.uuid4().hex[:12]
+    if plan:
+        user = plan["backend_user"]
+        report["g6_plan"] = {"digest": plan["digest"], "workspace": plan["workspace"], "events": plan["events"],
+                             "allowed_effects": plan["allowed_effects"]}
     user_created = False
     backend = None
     ledger = None
@@ -75,6 +102,8 @@ def main():
     locators = []
 
     def check(name, value, evidence=None):
+        if plan and not name.startswith("cleanup_"):
+            ensure_running(stop_file)
         report["assertions"].append({"name": name, "status": "pass" if value else "fail", "evidence": evidence})
         if not value:
             raise AssertionError(name)
@@ -97,6 +126,8 @@ def main():
         key = response["result"]["user_key"]
         user_client = RecordingClient(args.base_url, key)
         namespace = f"viking://user/{user}/memories/sagacontext/{run_id}"
+        if plan:
+            check("G6_planned_namespace", namespace == plan["namespace"])
 
         def connect():
             transport = FaultTransport(report["exchanges"])
@@ -104,7 +135,8 @@ def main():
                                            owner_id="synthetic-owner", timeout=3, transport=transport), transport
 
         backend, transport = connect()
-        with tempfile.TemporaryDirectory(prefix="sagacontext-s31-") as directory:
+        runtime = isolated_runtime(plan, report["cleanup"]) if plan else tempfile.TemporaryDirectory(prefix="sagacontext-s31-")
+        with runtime as directory:
             db_path = Path(directory) / "ledger.db"
             ledger = Ledger(db_path, owner_id="synthetic-owner")
             ledger.register_backend_generation("openviking", "g1")
@@ -219,12 +251,15 @@ def main():
             listing = user_client.request("GET", "/api/v1/fs/ls", params={"uri": namespace, "recursive": True, "simple": True})
             locators = [uri for uri in _collect_uris(listing["result"]) if uri.endswith(".json")]
             check("managed_area_enumerable", len(locators) == 6, {"projection_count": len(locators)})
-            if args.policy_stages or args.longitudinal:
+            if args.policy_stages or args.longitudinal or plan:
                 from s3_policy_acceptance import verify_policy_stages
                 verify_policy_stages(ledger, backend, check, report, directory)
                 if args.longitudinal:
                     from s3_longitudinal_acceptance import verify_longitudinal
                     verify_longitudinal(ledger, backend, check, report, directory)
+                if plan:
+                    from g6_lifecycle import verify_lifecycle
+                    verify_lifecycle(ledger, backend, check, report, directory, plan, stop_file)
                 listing = user_client.request("GET", "/api/v1/fs/ls", params={"uri": namespace, "recursive": True, "simple": True})
                 locators = [uri for uri in _collect_uris(listing["result"]) if uri.endswith(".json")]
                 trace("S3_final")
@@ -244,7 +279,7 @@ def main():
                 remaining = backend.search(run_id, "g1", 50)
                 check("cleanup_search_absent", not remaining)
         except Exception as exc:
-            report["cleanup"] = {"status": "failed", "error_class": type(exc).__name__}
+            report["cleanup"].update(status="failed", error_class=type(exc).__name__)
         try:
             if user_created:
                 admin.request("DELETE", f"/api/v1/admin/accounts/default/users/{user}")
@@ -252,7 +287,7 @@ def main():
                 check("cleanup_user_revoked", all(item["user_id"] != user for item in users))
             report["cleanup"].setdefault("status", "passed")
         except Exception as exc:
-            report["cleanup"] = {"status": "failed", "error_class": type(exc).__name__}
+            report["cleanup"].update(status="failed", error_class=type(exc).__name__)
         if backend:
             backend.close()
         report["finished_at"] = datetime.now(timezone.utc).isoformat()
