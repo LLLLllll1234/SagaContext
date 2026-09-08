@@ -54,17 +54,17 @@ class S2SchemaTests(unittest.TestCase):
         finally:
             db.close()
 
-    def test_schema_v2_migrates_v1_and_preserves_s1_data(self):
+    def test_schema_v3_migrates_v1_and_preserves_s1_data(self):
         self._create_v1_database()
 
         ledger = Ledger(self.ledger_path)
         try:
-            self.assertEqual(SCHEMA_VERSION, 2)
+            self.assertEqual(SCHEMA_VERSION, 3)
             self.assertEqual(ledger.owner_id, "owner-v1")
             versions = {
                 row[0] for row in ledger.db.execute("SELECT version FROM schema_migrations")
             }
-            self.assertEqual(versions, {1, 2})
+            self.assertEqual(versions, {1, 2, 3})
             required = {
                 "events",
                 "source_cursors",
@@ -124,7 +124,7 @@ class S2SchemaTests(unittest.TestCase):
         finally:
             db.close()
 
-    def test_schema_v2_marker_without_complete_schema_is_rejected(self):
+    def test_schema_marker_without_complete_schema_is_rejected(self):
         self._create_v1_database()
         db = sqlite3.connect(self.ledger_path)
         try:

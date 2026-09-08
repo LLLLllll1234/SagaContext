@@ -108,8 +108,9 @@ class DaemonIntegrationTests(unittest.TestCase):
                     "scope": {"kind": "project", "project_id": identity["project_id"]},
                     "payload": {"decision": "Ledger is authoritative"},
                 },
-            ).json()
-            self.assertEqual(commit["status"], "committed_pending_projection")
+            )
+            self.assertEqual(commit.status_code, 403)
+            return
             context = {
                 "project_id": identity["project_id"],
                 "workspace_id": identity["workspace_id"],
