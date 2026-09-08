@@ -19,10 +19,10 @@
 
 运行模式是显式配置，默认值为 `off`：
 
-| 模式 | 事件采集 | Judge/候选 | 正式 Ledger 写入 | SessionStart 注入 |
+| 模式 | 隔离事件/审计 | Judge/候选 | 正式 memory 写入 | Projection / SessionStart 注入 |
 |---|---|---|---|---|
 | `off` | 关闭 | 关闭 | 关闭 | 关闭 |
-| `shadow` | 允许 | 允许 | 关闭 | 关闭 |
+| `shadow` | 允许，绑定 `rollout_id` | 允许，绑定 `rollout_id` | 关闭 | 关闭 |
 | `guarded` | 允许 | 允许 | 仅 `pending_review` 后审核提交 | 仅审核通过的当前记忆 |
 | `active` | 首轮不可启用 | 首轮不可启用 | 首轮不可启用 | 首轮不可启用 |
 
@@ -41,20 +41,54 @@ workspace identity、配置中的批准主体、不可重放 `approval_receipt`�
 和相同请求返回原结果，相同 receipt 和不同请求返回冲突。workspace、owner、deadline、
 quota 或 generation 的任何变化都必须新建 rollout，不能原地扩大现有 rollout。
 
-### 2.1 Ledger 控制面
+### 2.1 控制 API 认证协议
+
+非 `off` 启用请求固定使用以下认证载体；认证信息不得出现在 query、JSON body、receipt
+payload 或普通日志中：
+
+- `Authorization: Bearer <operator-token>`：token 从权限受限的本地 secret file 或进程
+  环境加载，daemon 配置只关联 token digest、approver subject 和 `key_id`。
+- `X-SagaContext-Approver`：必须与该 token 配置的批准主体完全一致。
+- `X-SagaContext-Key-Id`：选择当前 key，或仍在轮换宽限期内的 previous key。
+- `X-SagaContext-Approval-Receipt`：调用方生成的不可重放标识。
+- `X-SagaContext-Issued-At` 和 `X-SagaContext-Expires-At`：UTC 时间；有效期最长 5 分钟，
+  允许最多 60 秒时钟偏差，验证时必须尚未过期。
+
+认证使用 constant-time token digest 比较。approval request digest 是以下规范化字段的
+SHA-256：`action`、`approver`、`key_id`、`approval_receipt`、owner、规范化 workspace
+identity、mode、deadline、session/candidate quota、generation、reason、issued/expires
+时间。review 操作使用同一规则，另绑定 `rollout_id`、batch、decision 和 reviewer。数据库
+通过全局 `rollout_action_receipts` 对 `(owner_id, receipt)` 建唯一约束，防止 receipt 跨
+启用、review、stop 和 rollback 接口重放：首次成功请求原子保存 action、request digest
+和结果；重复且 action/digest 均相同返回原结果，否则返回 `receipt_conflict`。过期 receipt
+即使此前从未使用也拒绝。
+
+轮换时配置同时保留 current key 和一个带明确 `accept_until` 的 previous key；宽限期只允许
+完成已签发且未过期的请求，不能延长 deadline 或 quota。宽限期结束后 previous key 立即
+失效；已经落盘的幂等结果仍可按 receipt 查询，但不能据此创建新 rollout。降级到 `off`、
+STOP 和 rollback start 不要求启用凭据，以保证 fail-safe；这些操作仍必须写调用来源摘要和
+receipt，且不能扩大权限。
+
+### 2.2 Ledger 控制面
 
 Schema migration 新增以下持久化关系，禁止在 `Ledger.__init__` 中临时建表：
 
 - `rollout_runs`：`rollout_id`、owner/workspace、mode/status、批准主体、approval receipt
   digest、started/deadline/stopped 时间、停止原因、quota、generation 和单调 `control_epoch`。
+- `rollout_action_receipts`：所有控制面写操作共享的不可重放 receipt、action、request
+  digest、稳定结果和时间；activation/review/stop/rollback 表通过 receipt 外键关联。
 - `rollout_sessions`：每个 rollout 的 session reservation；以 host session identity 唯一。
 - `rollout_candidate_reservations`：每个 rollout 的 candidate slot；与 event/candidate 关联。
+- `rollout_events` 和 `rollout_candidates`：把 EventJournal/candidate 行显式归属到 rollout，
+  用于隔离查询、配额核对和定向回收。
 - `rollout_review_receipts`：receipt、请求 digest、batch、decision、reviewer 和稳定结果。
 - `rollout_commits`：本 rollout 实际创建或修改的 memory/revision、projection operation。
 - `rollout_rollback_receipts`：回滚阶段、目标资源、结果和验证摘要。
 
-同一 owner 同一时刻最多一个 `running` rollout。所有非 `off` gate 都必须读取同一条
-`running` 记录，并同时校验 mode、workspace、deadline、control epoch 和 generation。
+同一 owner 同一时刻最多一个未终结 rollout；状态为 `running`、`draining`、`stopping`、
+`stopped` 或 `cleanup_required`。所有非 `off` gate 都必须读取同一条有效记录，并同时校验
+mode、workspace、deadline、control epoch 和 generation。`draining` 只允许已 reservation
+的 session 完成事件、候选、review/commit，不允许新 session。
 STOP 文件一旦被观察到，观察者须在事务中递增 `control_epoch` 并转入停止状态；工作单元
 捕获的旧 epoch 此后不能提交或确认结果。
 
@@ -94,6 +128,18 @@ flowchart LR
 `UserPromptSubmit`、`Stop` 和 `SessionEnd` 负责事件记录、候选维护和对账触发，不直接
 向宿主注入正文。只有 `SessionStart` 可以产生 context injection，而且每次都要重新
 从 Ledger 和后端 hit 组装 bundle。
+
+这里的 Ledger 分为两个数据域：EventJournal、rollout reservation 和 audit receipt 属于
+隔离控制面/审计数据；`memories/revisions/evidence` 和 projection outbox 属于正式 memory
+数据。`shadow` 允许写入前一类，并允许生成绑定 `rollout_id` 的 candidate、batch 和
+proposal 供观察，但禁止调用 proposal commit、创建或修改正式 memory/evidence、创建
+projection outbox、执行 backend projection 或向宿主注入正文。
+
+所有 shadow event、candidate、batch 和 proposal 都必须能通过关联表按 `rollout_id` 完整
+枚举。rollout 结束后，rollback runner 导出脱敏 digest/计数 artifact，再定向删除或墓碑化
+这些 shadow 行及 reservation；长期只保留 mode、拒绝、清理和汇总 audit receipt。任何已
+被其他 rollout 或正式 memory 引用的行都不得直接删除，而应进入 `cleanup_required` 并阻断
+“已回收”结论。不得按时间窗口或 owner 全表清理。
 
 ## 5. 候选、Judge 与写入
 
@@ -156,10 +202,12 @@ generation、revision 或 digest 任一变化都返回空 hook 输出和 blocked
 这些限制是 persisted hard limits，不是滑动窗口统计。新 session 和 candidate 必须在
 `BEGIN IMMEDIATE` 事务中先插入 reservation，依靠唯一约束和事务内计数决定是否放行；
 后续处理失败可以保留或显式释放 reservation，但绝不能超配。第 10 个不同 session 的
-首个事件可以作为边界证据原子落盘，但不得再创建候选；同一事务把 rollout 改为
-`stopping`。第 11 个 session 不得获得 reservation。deadline 到达或触发立即停用条件时，
-首次观察者同样在事务中转为 `stopping/stopped` 并写 mode receipt，后续调用只执行拒绝
-或回滚路径。
+reservation 正常成功，并在同一事务把 rollout 转为 `draining`。这 10 个已 reservation 的
+session 可以完整处理事件、候选、Judge、review 和 commit；第 11 个及之后的新 session
+不得获得 reservation。10 个 session 全部收到 `SessionEnd`，且该 rollout 的 candidate、
+batch 和 review 全部进入终态后，才从 `draining` 转为 `stopping/stopped`；若任一 session
+或处理链未正常结束，deadline 到达时强制停止。deadline 到达或触发立即停用条件时，首次
+观察者在事务中写 mode receipt，后续调用只执行拒绝或回滚路径。
 
 带自动候选的事件必须把 event 持久化和 candidate reservation/创建放在同一事务。达到
 candidate 上限时，事件仍可作为审计证据保留，但必须同时写明确的 quarantine 结果并返回
