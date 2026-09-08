@@ -33,13 +33,15 @@
 `off`。运行中的权威状态保存在 Ledger，不能通过修改进程内 `Config` 绕过。每次非
 `off` 启用必须创建新的 `rollout_id`，并在一个事务内绑定：唯一 owner、规范化后的固定
 workspace identity、配置中的批准主体、不可重放 `approval_receipt`、`started_at`、明确
-`deadline`、session/candidate 上限和后端 generation。`deadline` 不得晚于 `started_at +
+`deadline`、session/candidate 上限、后端 generation，以及冻结的 rollback plan 正文和
+`rollback_plan_digest`。`deadline` 不得晚于 `started_at +
 24h`。降级到 `off` 和 STOP 可以无条件 fail-safe；启用或扩大权限必须认证。
 
 控制 API 不信任请求体中的 `operator`。批准主体来自 daemon 配置，调用方必须提供与该
 主体绑定的认证凭据和 approval receipt；数据库只保存凭据摘要，不保存明文。相同 receipt
 和相同请求返回原结果，相同 receipt 和不同请求返回冲突。workspace、owner、deadline、
-quota 或 generation 的任何变化都必须新建 rollout，不能原地扩大现有 rollout。
+quota、generation 或 rollback plan 的任何变化都必须重新授权并新建 rollout，不能原地
+扩大现有 rollout。
 
 ### 2.1 控制 API 认证协议
 
@@ -55,11 +57,32 @@ payload 或普通日志中：
 - `X-SagaContext-Issued-At` 和 `X-SagaContext-Expires-At`：UTC 时间；有效期最长 5 分钟，
   允许最多 60 秒时钟偏差，验证时必须尚未过期。
 
-认证使用 constant-time token digest 比较。approval request digest 是以下规范化字段的
-SHA-256：`action`、`approver`、`key_id`、`approval_receipt`、owner、规范化 workspace
-identity、mode、deadline、session/candidate quota、generation、reason、issued/expires
-时间。review 操作使用同一规则，另绑定 `rollout_id`、batch、decision 和 reviewer。数据库
-通过全局 `rollout_action_receipts` 对 `(owner_id, receipt)` 建唯一约束，防止 receipt 跨
+认证使用 constant-time token digest 比较。request digest 使用规范化 JSON 计算 SHA-256：
+键排序、无无意义空白、UTF-8、UTC 时间固定为含六位小数的 RFC 3339 `Z` 格式、quota
+使用整数。摘要对象必须包含 `digest_schema_version=rollout-action-v1`；缺失的必填字段和
+未知字段均拒绝，不得先丢弃字段再计算摘要。其余公共字段为 `action`、
+`approver`、`key_id`、`approval_receipt`、owner、规范化 workspace identity、reason 和
+issued/expires 时间；无鉴权 stop/freeze/off 的认证字段固定为 JSON null，不从调用方
+声明推断主体。
+各 action 还必须绑定以下字段，路径参数与请求字段必须一致：
+
+| action | 摘要额外绑定字段 |
+|---|---|
+| activation | mode、deadline、session/candidate quota、generation、`rollback_plan_digest` |
+| review | `rollout_id`、batch、decision、reviewer |
+| stop / freeze / off | 目标 `rollout_id` |
+| rollback | 目标 `rollout_id`、`rollback_plan_digest`、执行阶段 |
+| grant-registration | 目标 action、目标 receipt、目标完整 request digest、grant 到期时间 |
+
+activation 的 `rollout_id` 由服务端创建并保存在稳定结果中；对已有 rollout 的操作，其
+owner/workspace 必须与目标记录一致。grant-registration 使用独立的操作 receipt，不能
+占用目标 action 的 receipt。服务端按第 8 节规范化完整 rollback plan 并重新计算 digest；
+请求中的 digest 必须匹配，服务端固定模板也必须把模板版本及其完整内容纳入该 digest。
+activation grant 因而绑定确切的计划，不能只绑定模板名称。rollback 必须同时匹配请求
+摘要中的目标和该目标已冻结的 plan digest；每个阶段使用独立 receipt，相同阶段重试保持
+原 receipt。服务端不得接受调用方追加清理目标或替换已冻结计划。
+
+数据库通过全局 `rollout_action_receipts` 对 `(owner_id, receipt)` 建唯一约束，防止 receipt 跨
 启用、review、stop 和 rollback 接口重放：首次成功请求原子保存 action、request digest
 和结果；重复且 action/digest 均相同返回原结果，否则返回 `receipt_conflict`。过期 receipt
 即使此前从未使用也拒绝。
@@ -75,15 +98,18 @@ request digest、key id、服务端 `registered_at`、`expires_at` 和 `unused` 
 
 降级到 `off`、STOP 和 freeze 不要求启用凭据，以保证 fail-safe；无鉴权调用只能递增
 `control_epoch`、阻止新工作和冻结关联资源，不能处理 proposal、修改正式 memory 或删除
-projection。执行 rollback 的任何数据变更必须使用 current key 重新认证，并绑定启用时已
-批准且不可修改的 `rollback_plan_digest`；previous key 和无鉴权调用均不得执行数据回滚。
+projection。rollback runner 的每个数据变更阶段必须使用 current key 认证，并绑定启用时
+已批准且不可修改的 `rollback_plan_digest`；previous key 和无鉴权调用均不得执行数据
+回滚。已授权 Projector 操作的在途补偿按第 8 节独立执行，其授权来自原操作及冻结计划，
+不来自 stop/freeze 请求，也不能借补偿执行整批回滚。
 
 ### 2.2 Ledger 控制面
 
 Schema migration 新增以下持久化关系，禁止在 `Ledger.__init__` 中临时建表：
 
 - `rollout_runs`：`rollout_id`、owner/workspace、mode/status、批准主体、approval receipt
-  digest、started/deadline/stopped 时间、停止原因、quota、generation 和单调 `control_epoch`。
+  digest、started/deadline/stopped 时间、停止原因、quota、generation、单调 `control_epoch`，
+  以及冻结的完整 rollback plan、plan schema version 和 `rollback_plan_digest`。
 - `rollout_action_receipts`：所有控制面写操作共享的不可重放 receipt、action、request
   digest、稳定结果和时间；activation/review/stop/rollback 表通过 receipt 外键关联。
 - `rollout_approval_grants`：轮换前由服务端登记的 receipt/request digest、key、登记/过期/
@@ -94,6 +120,8 @@ Schema migration 新增以下持久化关系，禁止在 `Ledger.__init__` 中�
   用于隔离查询、配额核对和定向回收。
 - `rollout_review_receipts`：receipt、请求 digest、batch、decision、reviewer 和稳定结果。
 - `rollout_commits`：本 rollout 实际创建或修改的 memory/revision、projection operation。
+- projection operation/claim 持久化关联：原 review/commit receipt、`rollout_id`、operation ID、
+  claim ID、claim epoch、generation、精确 locator 和补偿 receipt；外部调用前必须落盘。
 - `rollout_rollback_receipts`：回滚阶段、目标资源、结果和验证摘要。
 
 同一 owner 同一时刻最多一个未终结 rollout；状态为 `running`、`draining`、`stopping`、
@@ -102,7 +130,8 @@ mode、workspace、deadline、control epoch 和 generation。`draining` 只允�
 的 session 及其关联 candidate/batch 完成事件、Judge、review/commit 和 projection，不允许
 新 session、无归属工作或扩大 scope。
 STOP 文件一旦被观察到，观察者须在事务中递增 `control_epoch` 并转入停止状态；工作单元
-捕获的旧 epoch 此后不能提交或确认结果。
+捕获的旧 epoch 此后不能提交或确认正常处理结果；第 8 节允许的补偿只记独立的终态
+receipt，不得把旧 epoch 的 projection 确认为成功。
 
 ## 3. 启用范围
 
@@ -148,10 +177,12 @@ proposal 供观察，但禁止调用 proposal commit、创建或修改正式 mem
 projection outbox、执行 backend projection 或向宿主注入正文。
 
 所有 shadow event、candidate、batch 和 proposal 都必须能通过关联表按 `rollout_id` 完整
-枚举。rollout 结束后，rollback runner 导出脱敏 digest/计数 artifact，再定向删除或墓碑化
-这些 shadow 行及 reservation；长期只保留 mode、拒绝、清理和汇总 audit receipt。任何已
-被其他 rollout 或正式 memory 引用的行都不得直接删除，而应进入 `cleanup_required` 并阻断
-“已回收”结论。不得按时间窗口或 owner 全表清理。
+枚举。rollout 结束后，通过 current key 和冻结计划校验的 rollback runner 导出脱敏
+digest/计数 artifact，再按第 8 节的隔离数据来源定向删除或墓碑化这些 shadow 行及
+reservation。长期保留授权、归属和幂等校验所需的控制记录，以及 mode、拒绝、清理和
+汇总 audit receipt，不保留已回收临时行的正文。任何已被其他 rollout 或正式 memory
+引用的行都不得直接删除，而应进入 `cleanup_required` 并阻断“已回收”结论。不得按时间
+窗口或 owner 全表清理。
 
 ## 5. 候选、Judge 与写入
 
@@ -221,7 +252,8 @@ session 可以完整处理事件、候选、Judge、review、commit 和 projecti
 batch 和 review 全部进入终态，关联 outbox 全部 `confirmed/compensated`，且没有在途
 projection claim 后，才从 `draining` 转为 `stopping/stopped`。若任一 session、处理链或
 projection 未正常结束，deadline 到达时强制停止并进入补偿/清理。deadline 到达或触发立即
-停用条件时，首次观察者在事务中写 mode receipt，后续调用只执行拒绝或回滚路径。
+停用条件时，首次观察者在事务中写 mode receipt，后续调用只执行拒绝、第 8 节限定的
+在途补偿或经认证的回滚路径。
 
 带自动候选的事件必须把 event 持久化和 candidate reservation/创建放在同一事务。达到
 candidate 上限时，事件仍可作为审计证据保留，但必须同时写明确的 quarantine 结果并返回
@@ -250,36 +282,62 @@ SAGACONTEXT_MODE=off
 ```
 
 检测到任一开关后，hook fail-closed：停止新候选、写入和注入；维护 worker 停止领取
-新 batch。正在执行的宿主进程组按超时策略终止，随后进入清理。开关触发和终止原因写
-入审计，不删除历史证据。
+新 batch。正在执行且由 runner 拥有的宿主进程组按超时策略终止；在途操作按下述规则
+补偿，其余数据清理等待经认证的 rollback 阶段。开关触发和终止原因写入审计，不删除
+历史证据。模式表描述正常处理权限，不禁止这里明确授权的补偿或回滚维护操作。
 
 STOP/off/deadline 检查覆盖：event/candidate transaction、Judge 前后、reviewed commit
 事务开始和提交前、Projector claim 前、外部 materialize/remove 前后、bundle assemble
 前和 HTTP 返回前。Projector 可领取状态为 `running` 或 `draining` 且属于已 reservation
 session/commit 的关联 outbox；`draining` 不接收无关联或新建工作。外部调用返回后若 rollout
 已进入 `stopping/stopped/cleanup_required` 或 control epoch 已变化，不能确认 projection。
-若远端 upsert 已发生，立即按已知 locator 执行幂等 remove 补偿，记录 `compensated` 或
-`cleanup_required`，并保持 outbox 不可召回。runner
-只能终止自己登记和拥有的 worker/宿主进程组；对外部 Codex 进程只停止 hook 交互，不宣称
-拥有其生命周期。
+若远端 upsert 已发生，按原操作的预授权执行幂等 remove 补偿；必须同时满足：冻结计划
+允许该补偿，原 review/commit 已授权，operation/claim 在停止前已登记且尚未确认，目标
+generation/locator 与登记值完全一致，且能证明 locator 由该操作独占、未被后续版本接管。
+登记必须先于外部调用，不能接受 stop/freeze 调用方提供的 locator 或临时补造 claim。
+无法证明归属时禁止盲删，记录 `cleanup_required` 并保持不可召回。
 
-启用事务必须冻结 rollback plan：允许的阶段、只能从 `rollout_commits` 派生目标、memory
-使用 forget 或受控 revision 回退、projection 使用精确 locator 幂等删除，以及最终验证项；
-规范化 plan 的 digest 写入 `rollout_runs`，后续不得修改。已提交记忆通过显式 `forget`、
-审核回退或受控 revision 回滚处理，不直接删除 SQLite 记录。认证通过的 rollback runner
-先校验请求中的 plan digest，再凭 `rollout_id` 冻结该 rollout 和关联 projection，并只读取
-`rollout_commits` 所列资源；不得扫描或清理其他 rollout、历史 memory 或共享 namespace。
+补偿是原操作的受限收尾，允许在 STOP/off/deadline 后由 worker 或恢复 worker 执行，
+不要求 stop/freeze 调用方提供 current key；只能处理原 operation 的远端副作用及对应
+outbox/claim 补偿状态，不得修改 memory、创建 forget job、清理候选或删除已确认的其他
+projection。补偿 receipt 绑定原授权 receipt、rollout、operation/claim、原 epoch、停止
+epoch、generation、locator 和结果；重复执行幂等返回原结果。成功记 `compensated`，
+失败记 `cleanup_required`，均不得确认正常 projection。回滚 runner 与补偿 worker 必须
+通过同一 operation 的原子 claim 协调删除和结果落盘，避免并发回滚重复接管在途操作。
+runner 只能终止自己登记和拥有的 worker/宿主进程组；对外部 Codex 进程只停止 hook
+交互，不宣称拥有其生命周期。
+
+启用事务必须冻结完整 rollback plan：schema version、允许的阶段、每阶段的资源来源和
+处理方式、上述在途补偿权限，以及最终验证项。plan 使用与第 2.1 节相同的 JSON 编码
+规则，按其完整内容计算 SHA-256；正文和 digest 一同写入 `rollout_runs`，后续不得修改。
+清理目标按两个数据域分别派生：
+
+| 数据域 | 唯一允许的目标来源 | 允许的处理 |
+|---|---|---|
+| 正式 memory / projection | 本 `rollout_id` 的 `rollout_commits` 及其关联 operation/locator | 已提交 memory 的 forget 或受控 revision 回退、精确 locator 幂等删除、关联 outbox 收尾 |
+| 隔离事件 / 候选 | 本 `rollout_id` 的 `rollout_events`、`rollout_candidates`、session/candidate reservation，以及显式关联的 batch/proposal | 导出脱敏 digest/计数，未完成项终态化，再按依赖顺序删除或墓碑化 |
+
+shadow 的正式资源集合必须为空，但隔离数据集合可以非空，不得因为没有 commit 跳过
+清理。guarded 未提交或被拒绝的候选也从隔离数据关联获取。隔离数据被其他 rollout 或
+正式 memory 引用时按第 4 节阻断删除；用于授权、归属和幂等校验的控制记录与 receipt
+必须保留，不得随临时行删除。正式 memory 仍通过 forget 或受控 revision 回退处理，
+不直接删除 SQLite 记录。
+
+认证通过的 rollback runner 先校验目标 `rollout_id`、owner/workspace 和冻结 plan digest，
+再冻结该 rollout 和关联 projection，只从上表来源获取目标；不得扫描其他 rollout、
+无关联的历史 memory 或共享 namespace，也不得接受调用方指定任意资源清单。
 回滚顺序为：停用 hooks、停止本 runner 拥有的 worker/进程组、冻结新 projection、把该
 rollout 的 pending proposal/candidate 转成可解释终态、forget/回退关联 memory、幂等清理
-关联 OpenViking locator、验证关联 outbox 无可领取项、运行一次空注入验证、最后写完整
-rollback receipt。每一步可重试并返回原 receipt；部分失败保持 `cleanup_required`，不能
-把 rollout 标成已清理。
+关联 OpenViking locator、导出并回收隔离数据、验证关联 outbox 无可领取项且无未结算的
+在途操作、运行一次空注入验证、最后写完整 rollback receipt。空资源阶段显式记录零目标。
+每一步可重试并返回原 receipt；部分失败保持 `cleanup_required`，不能把 rollout 标成已清理。
 
 ## 9. 审计与隐私
 
 审计最少包含：mode receipt、event receipt、candidate/batch digest、Judge status/error
 class、proposal/review receipt、Ledger sequence/revision、projection receipt、RecallPolicy
-bundle digest、injection receipt、task consumption result 和 rollback receipt。
+bundle digest、injection receipt、task consumption result、独立 compensation receipt 和
+rollback receipt。stop/freeze receipt 不作为补偿或 rollback 的数据变更授权证据。
 
 artifact 不得包含 API key、Authorization header、明文 endpoint、完整 provider response、
 私人 transcript 路径或未脱敏正文。需要诊断时只保留安全错误分类、位置、digest 和固定
@@ -293,23 +351,23 @@ artifact 不得包含 API key、Authorization header、明文 endpoint、完整 
 4. Reviewed Commit：direct commit gate、原子 CAS/STOP/deadline/state、幂等 review。
 5. Projector Gate：领取和外部调用前后 fencing、远端补偿和 cleanup 状态。
 6. Injection Gate：fresh recall、`verify_bundle()`、响应 schema 与消费 receipt 分离。
-7. Rollback Runner：只处理 `rollout_commits` 关联资源并逐阶段记录 receipt。
+7. Rollback Runner：按冻结计划处理正式提交与隔离数据两类关联资源，并逐阶段记录 receipt。
 8. Acceptance：并发、stale/conflict/STOP、补偿、回滚隔离和真实 Codex probe。
 
 ## 11. 验收矩阵
 
 | 层级 | 必须证明 | 失败处理 |
 |---|---|---|
-| Control/Auth | current key、服务端 grant、跨接口 receipt 防重放 | previous key 越权或无 grant 一律拒绝 |
+| Control/Auth | current key、服务端 grant、目标/plan 摘要绑定、跨接口 receipt 防重放 | previous key 越权、无 grant 或字段变化一律拒绝 |
 | Hook | 四类事件、workspace/owner/session 校验、去重 | 拒绝并审计，不进候选 |
 | Candidate | 新事件来源、scope、topic、digest 完整 | quarantine |
 | Judge | v6 schema、type/relation、evidence、完整 body | blocked 或 retryable transport retry |
 | Review | guarded 人工批准、receipt 幂等、stale/conflict 恢复 | 原事务回滚并保持 pending |
 | Ledger | direct commit 被拒、CAS/STOP/deadline 原子、quota 不超配 | 回滚并停用 |
-| Projection | running/draining 可完成、调用前后 fencing、补偿 | 停用，补偿或 cleanup_required |
+| Projection | running/draining 可完成、调用前后 fencing、原 operation 预授权补偿 | 停用，仅补偿原操作或 cleanup_required |
 | Recall | 权限、scope、revision、budget、正文来源 | omission 或阻断注入 |
 | Injection | fresh bundle、返回前复验、实际消费分离 | 空输出、blocked receipt 并停用 |
-| Rollback | current key + 冻结 plan、仅关联资源、步骤幂等 | 未认证只冻结；失败为 cleanup_required |
+| Rollback | current key + 目标/冻结 plan、两类关联资源、步骤幂等 | 未认证只冻结；失败为 cleanup_required |
 
 并发验收必须使用 barrier 同时发起超过 10 个新 session、20 个 candidate 和重复 review，
 证明数据库最终计数不超限且没有 500/坏状态。故障注入至少覆盖：Judge 期间 STOP、review
@@ -320,8 +378,24 @@ artifact 不得包含 API key、Authorization header、明文 endpoint、完整 
 状态/授权反例必须单独测试：第 10 个 session 进入 `draining` 后，其既有 review 可以提交且
 关联 projection 可以确认；存在未完成 outbox 或在途 claim 时不能转 `stopped`。previous key
 提交未登记 receipt、登记后篡改 request、轮换后登记或过期 grant 都必须拒绝且状态不变。
-无鉴权 rollback 请求只能产生 stop/freeze receipt，任何 memory revision、forget job、outbox
-或远端 locator 均不得改变；current key 请求若 plan digest 不匹配也必须在数据变更前拒绝。
+
+授权摘要验收必须覆盖：保持 activation receipt 不变而替换 rollback plan 或模板版本，
+原 action receipt 必须返回冲突；previous key 使用原 grant 提交修改后的计划必须拒绝且
+grant 不被消费。保持 rollback receipt 不变而替换目标 rollout、plan digest 或阶段，同样
+返回冲突；即使持有 current key，目标不匹配或 plan digest 不等于冻结值，也必须在数据
+变更前拒绝。精确重试只返回原结果，不重复执行。
+
+清理验收必须包含零 commit、非零 event/candidate/batch/proposal 的 shadow rollout，
+证明经认证的 runner 能导出并定向回收隔离数据，正式 memory/projection 始终不变；同时
+覆盖 guarded 的未提交候选、跨 rollout/正式 memory 引用阻断、其他 rollout 数据不变、
+重复清理幂等，以及授权、归属和幂等记录在临时数据回收后仍可核验。
+
+无鉴权冻结与补偿分别验收：无在途操作时，无鉴权 rollback 请求只能产生 stop/freeze
+控制变更及 receipt，不能改变 memory revision、forget job、outbox 或远端 locator；存在
+已授权且已登记的在途 upsert 时，在 barrier 处触发同一请求，只允许原 worker/恢复 worker
+按冻结计划补偿原 operation，记录独立 receipt，不得改变其他 locator 或 memory。
+补偿缺少原授权/claim、locator 被替换或共享、操作已经确认时必须拒绝删除并留下拒绝或
+cleanup receipt；另测补偿失败、重启恢复、重复补偿及与认证 rollback 并发的幂等协调。
 
 ## 12. 发布顺序
 
