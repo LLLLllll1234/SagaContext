@@ -1,7 +1,8 @@
 # Normal Workspace Guarded Rollout Design
 
 **日期：** 2026-09-08
-**状态：** 设计文档，未授权生产启用
+**状态：** 方案 B 修订稿，未授权生产启用
+**修订依据：** 2026-09-08 安全审查不通过；用户已批准 Ledger 持久化控制面方向
 **前置证据：** v6 Judge 基线、S3-3/S3-4 通过、S3-5/G6 隔离纵向 `103/103` 通过
 
 ## 1. 目标与边界
@@ -23,10 +24,39 @@
 | `off` | 关闭 | 关闭 | 关闭 | 关闭 |
 | `shadow` | 允许 | 允许 | 关闭 | 关闭 |
 | `guarded` | 允许 | 允许 | 仅 `pending_review` 后审核提交 | 仅审核通过的当前记忆 |
-| `active` | 允许 | 允许 | 自动提交 | 自动注入 |
+| `active` | 首轮不可启用 | 首轮不可启用 | 首轮不可启用 | 首轮不可启用 |
 
-首次正常 workspace 灰度只允许 `guarded`。`active` 不是本设计的默认或自动后续状态。
-切换模式必须写入配置变更 receipt，记录操作者、时间、workspace、旧值、新值和原因。
+首次正常 workspace 灰度只允许 `shadow` 和 `guarded`。`active` 在首轮实现中是不可达
+状态：配置解析、控制 API 和状态转换都必须拒绝它，而不是依赖操作约定。
+
+环境配置只提供 fail-closed 上限：缺失、非法或显式 `SAGACONTEXT_MODE=off` 都视为
+`off`。运行中的权威状态保存在 Ledger，不能通过修改进程内 `Config` 绕过。每次非
+`off` 启用必须创建新的 `rollout_id`，并在一个事务内绑定：唯一 owner、规范化后的固定
+workspace identity、配置中的批准主体、不可重放 `approval_receipt`、`started_at`、明确
+`deadline`、session/candidate 上限和后端 generation。`deadline` 不得晚于 `started_at +
+24h`。降级到 `off` 和 STOP 可以无条件 fail-safe；启用或扩大权限必须认证。
+
+控制 API 不信任请求体中的 `operator`。批准主体来自 daemon 配置，调用方必须提供与该
+主体绑定的认证凭据和 approval receipt；数据库只保存凭据摘要，不保存明文。相同 receipt
+和相同请求返回原结果，相同 receipt 和不同请求返回冲突。workspace、owner、deadline、
+quota 或 generation 的任何变化都必须新建 rollout，不能原地扩大现有 rollout。
+
+### 2.1 Ledger 控制面
+
+Schema migration 新增以下持久化关系，禁止在 `Ledger.__init__` 中临时建表：
+
+- `rollout_runs`：`rollout_id`、owner/workspace、mode/status、批准主体、approval receipt
+  digest、started/deadline/stopped 时间、停止原因、quota、generation 和单调 `control_epoch`。
+- `rollout_sessions`：每个 rollout 的 session reservation；以 host session identity 唯一。
+- `rollout_candidate_reservations`：每个 rollout 的 candidate slot；与 event/candidate 关联。
+- `rollout_review_receipts`：receipt、请求 digest、batch、decision、reviewer 和稳定结果。
+- `rollout_commits`：本 rollout 实际创建或修改的 memory/revision、projection operation。
+- `rollout_rollback_receipts`：回滚阶段、目标资源、结果和验证摘要。
+
+同一 owner 同一时刻最多一个 `running` rollout。所有非 `off` gate 都必须读取同一条
+`running` 记录，并同时校验 mode、workspace、deadline、control epoch 和 generation。
+STOP 文件一旦被观察到，观察者须在事务中递增 `control_epoch` 并转入停止状态；工作单元
+捕获的旧 epoch 此后不能提交或确认结果。
 
 ## 3. 启用范围
 
@@ -54,8 +84,8 @@ flowchart LR
     E --> F[Schema/type/anchor/evidence conversion]
     F -->|error| G[Blocked or review_required]
     F -->|valid| H[pending_review proposal]
-    H --> I[Human review]
-    I -->|approve| J[Ledger commit_batch]
+    H --> I[Human review receipt]
+    I -->|approve| J[Ledger transactional reviewed commit]
     J --> K[Projector]
     K --> L[RecallPolicy at SessionStart]
     L --> M[Bundle digest and injection receipt]
@@ -79,7 +109,23 @@ Judge 输出先经过以下不可绕过的检查：
 5. converter 失败为 non-retryable blocked，不转成 `no_change`。
 
 合法 proposal 的默认状态是 `pending_review`。审核前不进入正式 memory，不进入可注入
-bundle。审核批准调用现有 `BatchWorker -> Ledger.commit_batch -> Projector` 路径。
+bundle。daemon 的 `/memories/commit` direct commit 入口在所有模式下关闭，不允许通过先
+切回 `off` 绕过审核。底层 `Ledger.commit` 仅保留为受控内部维护原语，不暴露为本地 HTTP
+写接口。首轮灰度的唯一正式写入入口是带审核 receipt 的 batch commit。底层
+`Ledger.commit_batch` 不能仅凭 lease 提交 guarded batch，还必须验证同一事务中的 rollout
+和 review authorization。
+
+审核批准由一个 Ledger 事务完成：先按 receipt 做幂等查询，再校验 rollout 仍为
+`running/guarded`、deadline、control epoch、batch 状态、proposal/candidate claim、expected
+head 和 reviewer authorization；随后完成 proposal/candidate/batch 状态转换、CAS commit、
+`rollout_commits` 关联和 review receipt 落盘。事务提交前再次执行 STOP/deadline guard。
+任一检查失败则整个事务回滚，batch/proposal/candidate 保持 `awaiting_review`，另写失败
+审计；不得留下 `review_committing/proposed/processing` 中间状态。
+
+相同 review receipt 与相同请求重试时返回第一次的稳定结果，不重复 commit；相同 receipt
+对应不同 decision、batch 或 reviewer 时返回 `receipt_conflict`。`reject` 也遵守同样的
+事务和幂等语义。
+
 `supersede` 必须在同一事务内退役旧记忆并创建后继；任一操作失败都回滚。
 `conflict` 进入人工处理，不自动替换当前记忆。
 
@@ -94,11 +140,30 @@ conflict、scope、duplicate、budget。所有省略原因写入 bundle receipt�
 item memory IDs/revisions、omissions 和 mode。宿主消费结果另行记录，不能用 hook 输出
 证明任务实际使用了记忆。任何 bundle digest 不匹配都阻断注入并触发告警。
 
+`verify_bundle()` 必须在即将构造 HTTP 响应前重新读取 rollout 状态和所有 memory head，
+重新计算规范化 bundle digest，并与 injection receipt 比较。STOP、deadline、mode、owner、
+generation、revision 或 digest 任一变化都返回空 hook 输出和 blocked receipt。daemon 不在
+真实 Codex schema probe 通过前添加未经验证的顶层响应字段；内部 receipt 通过独立审计
+接口读取。宿主实际消费由独立 endpoint/adapter 写 `consumption` receipt，并绑定
+`rollout_id + session_digest + bundle_digest`，不得从 hook 已返回推断消费成功。
+
 ## 7. 灰度限制与退出条件
 
 首轮 `guarded` 灰度限制：最多 10 个真实 session 或 24 小时，以先达到者为准；最多
 20 条自动候选；Judge 每个 batch 最多 3 次尝试，单请求 timeout 300 秒；注入 bundle
 沿用 2000 单位预算。只允许该 workspace 的新事件。
+
+这些限制是 persisted hard limits，不是滑动窗口统计。新 session 和 candidate 必须在
+`BEGIN IMMEDIATE` 事务中先插入 reservation，依靠唯一约束和事务内计数决定是否放行；
+后续处理失败可以保留或显式释放 reservation，但绝不能超配。第 10 个不同 session 的
+首个事件可以作为边界证据原子落盘，但不得再创建候选；同一事务把 rollout 改为
+`stopping`。第 11 个 session 不得获得 reservation。deadline 到达或触发立即停用条件时，
+首次观察者同样在事务中转为 `stopping/stopped` 并写 mode receipt，后续调用只执行拒绝
+或回滚路径。
+
+带自动候选的事件必须把 event 持久化和 candidate reservation/创建放在同一事务。达到
+candidate 上限时，事件仍可作为审计证据保留，但必须同时写明确的 quarantine 结果并返回
+成功的受限状态，不得在 event 已落盘后抛出 500。
 
 立即停用条件：
 
@@ -126,10 +191,22 @@ SAGACONTEXT_MODE=off
 新 batch。正在执行的宿主进程组按超时策略终止，随后进入清理。开关触发和终止原因写
 入审计，不删除历史证据。
 
+STOP/off/deadline 检查覆盖：event/candidate transaction、Judge 前后、reviewed commit
+事务开始和提交前、Projector claim 前、外部 materialize/remove 前后、bundle assemble
+前和 HTTP 返回前。Projector 只能领取 `running` rollout 的关联 outbox；外部调用返回后若
+rollout 已停止，不能确认 projection。若远端 upsert 已发生，立即按已知 locator 执行幂等
+remove 补偿，记录 `compensated` 或 `cleanup_required`，并保持 outbox 不可召回。runner
+只能终止自己登记和拥有的 worker/宿主进程组；对外部 Codex 进程只停止 hook 交互，不宣称
+拥有其生命周期。
+
 已提交记忆通过显式 `forget`、审核回退或受控 revision 回滚处理，不直接删除 SQLite
-记录。回滚顺序为：停用 hooks、停止 worker、冻结新 projection、处理 pending/active
-proposal、删除或回退 memory、清理 OpenViking projection、验证新会话 bundle 为空或只
-含允许版本、最后检查 owner 和 namespace 清理。
+记录。rollback runner 先凭 `rollout_id` 冻结该 rollout 和关联 projection，再只读取
+`rollout_commits` 所列资源；不得扫描或清理其他 rollout、历史 memory 或共享 namespace。
+回滚顺序为：停用 hooks、停止本 runner 拥有的 worker/进程组、冻结新 projection、把该
+rollout 的 pending proposal/candidate 转成可解释终态、forget/回退关联 memory、幂等清理
+关联 OpenViking locator、验证关联 outbox 无可领取项、运行一次空注入验证、最后写完整
+rollback receipt。每一步可重试并返回原 receipt；部分失败保持 `cleanup_required`，不能
+把 rollout 标成已清理。
 
 ## 9. 审计与隐私
 
@@ -143,14 +220,14 @@ artifact 不得包含 API key、Authorization header、明文 endpoint、完整 
 
 ## 10. 实现拆分
 
-1. `RuntimeMode`、workspace allowlist、配置变更 receipt 和 fail-closed 默认值。
-2. Normal Host Adapter：复用已验证事件 receipt，拒绝未知 host/version/workspace。
-3. Candidate Scheduler：事件到 candidate/batch 的边界、去重和数量限制。
-4. Review Gate：默认 `pending_review`，禁止 guarded 模式绕过审核提交。
-5. Injection Gate：SessionStart fresh recall、bundle digest、receipt 和消费结果分离。
-6. Kill Switch：环境变量、STOP 文件、worker/host 进程终止与清理。
-7. Audit/Report：按 session、candidate、proposal、revision、bundle 和 rollback 关联。
-8. Gray Runner：10 session/24h/20 candidate 上限、停止条件和最终清理。
+1. Schema migration：控制面、reservation、review/commit/rollback receipts 和约束。
+2. Rollout Controller：认证启用、固定 workspace、hard deadline、首轮禁用 `active`。
+3. Atomic Ingest：session/candidate reservation、event 和 quarantine 结果。
+4. Reviewed Commit：direct commit gate、原子 CAS/STOP/deadline/state、幂等 review。
+5. Projector Gate：领取和外部调用前后 fencing、远端补偿和 cleanup 状态。
+6. Injection Gate：fresh recall、`verify_bundle()`、响应 schema 与消费 receipt 分离。
+7. Rollback Runner：只处理 `rollout_commits` 关联资源并逐阶段记录 receipt。
+8. Acceptance：并发、stale/conflict/STOP、补偿、回滚隔离和真实 Codex probe。
 
 ## 11. 验收矩阵
 
@@ -159,21 +236,28 @@ artifact 不得包含 API key、Authorization header、明文 endpoint、完整 
 | Hook | 四类事件、workspace/owner/session 校验、去重 | 拒绝并审计，不进候选 |
 | Candidate | 新事件来源、scope、topic、digest 完整 | quarantine |
 | Judge | v6 schema、type/relation、evidence、完整 body | blocked 或 retryable transport retry |
-| Review | guarded 模式必须人工批准 | 保持 pending |
-| Ledger | CAS、revision、原子 supersede、forget receipt | 回滚并停用 |
-| Projection | generation、locator、删除和恢复 | 停用，执行清理 |
+| Review | guarded 人工批准、receipt 幂等、stale/conflict 恢复 | 原事务回滚并保持 pending |
+| Ledger | direct commit 被拒、CAS/STOP/deadline 原子、quota 不超配 | 回滚并停用 |
+| Projection | 调用前后 fencing、generation/locator、补偿 | 停用，补偿或 cleanup_required |
 | Recall | 权限、scope、revision、budget、正文来源 | omission 或阻断注入 |
-| Injection | fresh bundle、digest、实际消费分离 | 不注入并停用 |
-| Rollback | STOP/off 生效，资源和状态可验证 | 保留 artifact，人工处理 |
+| Injection | fresh bundle、返回前复验、实际消费分离 | 空输出、blocked receipt 并停用 |
+| Rollback | 仅关联资源、步骤幂等、下一会话为空 | cleanup_required，不越界清理 |
+
+并发验收必须使用 barrier 同时发起超过 10 个新 session、20 个 candidate 和重复 review，
+证明数据库最终计数不超限且没有 500/坏状态。故障注入至少覆盖：Judge 期间 STOP、review
+状态转换时 STOP、CAS stale、conflict、Projector 远端成功后 STOP、补偿失败、deadline
+到达、daemon 重启和 rollback 重试。真实 Codex schema/消费 probe 是独立准入项，本地
+测试数量或通过率不能替代。
 
 ## 12. 发布顺序
 
 1. 只安装配置和 `off` 模式，运行静态检查与本地回归。
 2. 在同一 workspace 开启 `shadow`，观察事件、候选和 bundle，不写入、不注入。
 3. 复核审计和拒绝样本，确认没有历史私人数据进入。
-4. 开启 `guarded`，允许 pending proposal 和人工批准写入；只给审核通过内容注入。
-5. 完成 10 session/24h 灰度并运行回滚演练。
-6. 依据灰度报告另行决定是否申请 `active`；本设计不自动进入 active。
+4. 单独完成真实 Codex schema/消费 probe 并固定 host version；未通过则继续 `off`。
+5. 开启 `guarded`，允许 pending proposal 和人工批准写入；只给审核通过内容注入。
+6. 在 10 session/24h 先到边界自动停止，并运行 rollback 隔离与幂等演练。
+7. 生成关联 artifact 后结束首轮；`active` 仍不可启用，后续必须另立设计和审批。
 
 ## 13. 前置与后续
 
