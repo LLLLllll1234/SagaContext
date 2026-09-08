@@ -8,6 +8,7 @@
 
 | 范围 | 报告 | 对应结果 |
 |---|---|---|
+| S3-5/G6 真实隔离纵向生命周期 | [G6 lifecycle 真实验收](2026-09-08-g6-lifecycle-acceptance.md) | 新增/取代/删除三条真实跨会话链路 `103/103` 通过；清理通过；正常自动化仍关闭 |
 | v6 Judge 基线、S3-3 Host Shadow 与 S3-4/G5 | [v6 基线与 S3-3/S3-4 隔离验收](2026-09-07-v6-judge-baseline.md) | v6 Pro/Flash 正式 artifact 各 `42/42`；跨模型 `42/42` 语义等价；新鲜 S3-3/S3-4 运行 `40/40`；S3-5/G6 未运行 |
 | Judge Pro/Flash 双模型与隔离 Shadow | [双模型验收与 shadow](2026-09-06-dual-model-acceptance.md) | 正式 artifact 均 `42/42 passed`；授权 shadow 中 Flash `42/42 passed`、Pro `41/42` 且含 conversion/body 阻断；无正式写入/召回/注入 |
 | Judge schema-v3 / dataset-v3 | [schema 与双人 refine 审计](2026-09-06-real-judge-v3-audit.md) | `WireDeltaV3` 定向测试 28/28；v2 digest 保持不变；v3 digest 固定并待 DeepSeek 单请求诊断 |

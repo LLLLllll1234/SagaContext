@@ -8,7 +8,7 @@
 - 复查测试记录：[验收报告索引](probes/README.md) → [S3 原始运行清单](../artifacts/probes/S3-RESULTS.md)。
 - 理解实现约束：[v0.3 总设计](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) → [S1](superpowers/specs/2026-09-05-s1-data-closure-design.md) → [S2](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) → [S3](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md)。
 - 本地部署与操作：[OpenViking 部署记录](ops-openviking-local.md)。
-- 下一阶段：[S3-5/G6 三链路执行准备](probes/2026-09-07-g6-lifecycle-preparation.md)，runner 与配置清单已准备；真实注入未执行。
+ - 当前阶段：[S3-5/G6 真实隔离纵向验收](probes/2026-09-08-g6-lifecycle-acceptance.md) 已通过；正常 workspace 自动化仍关闭。
 
 ## 全量文档目录
 
@@ -16,6 +16,7 @@
 
 | # | 文档 | 内容 | 状态 |
 |---|---|---|---|
+| 32 | [S3-5/G6 真实隔离纵向验收](probes/2026-09-08-g6-lifecycle-acceptance.md) | 新增/取代/删除三条真实跨会话链路、实际 SessionStart 注入、删除与重开恢复 | **103/103 通过；隔离清理通过；正常自动化仍关闭** |
 | 31 | [v6 Judge 基线与 S3-3/S3-4 隔离验收](probes/2026-09-07-v6-judge-baseline.md) | v6 contract、Pro/Flash 独立 42/42、跨模型审计、Codex Host shadow、G5 删除/取代与清理 | **v6 已冻结；S3-3/S3-4 fresh run 40/40；S3-5/G6 等待单独真实注入授权** |
 | 30 | [Judge Pro/Flash 双模型与隔离 Shadow](probes/2026-09-06-dual-model-acceptance.md) | 双模型冻结版本、独立 42/42 artifact、跨模型语义审计、实际隔离 shadow 与准入边界 | **正式 Pro/Flash 均通过；本轮真实 shadow 因缺少 LLM 配置阻断，未启用正常会话** |
 | 29 | [Judge schema-v3 / dataset-v3 审计](probes/2026-09-06-real-judge-v3-audit.md) | 独立 wire schema、v2 digest 兼容和 refine 双人语义审计 | **定向测试 28/28；v3 digest 已冻结，待 DeepSeek 单请求诊断** |
