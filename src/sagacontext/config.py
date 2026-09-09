@@ -58,6 +58,10 @@ class Config:
         llm_base_url = os.environ.get("SAGACONTEXT_LLM_BASE_URL", llm.get("base_url", defaults.llm_base_url))
         llm_api_key = os.environ.get("SAGACONTEXT_LLM_API_KEY", llm.get("api_key", defaults.llm_api_key))
         llm_model = os.environ.get("SAGACONTEXT_LLM_MODEL", llm.get("model", defaults.llm_model))
+        ov_key_file = os.environ.get("SAGACONTEXT_OV_API_KEY_FILE", openviking.get("api_key_file", ""))
+        ov_key = os.environ.get("SAGACONTEXT_OV_API_KEY", openviking.get("api_key", defaults.ov_api_key))
+        if not ov_key and ov_key_file:
+            ov_key = Path(str(ov_key_file)).expanduser().read_text(encoding="utf-8").strip()
         requested_mode = str(
             os.environ.get("SAGACONTEXT_MODE", rollout.get("mode", defaults.rollout_mode))
         )
@@ -95,7 +99,7 @@ class Config:
             prompt_budget_tokens=int(recall.get("prompt_budget_tokens", defaults.prompt_budget_tokens)),
             dev_root=str(openviking.get("dev_root", defaults.dev_root)),
             ov_base_url=str(openviking.get("base_url", defaults.ov_base_url)),
-            ov_api_key=str(openviking.get("api_key", defaults.ov_api_key)),
+            ov_api_key=str(ov_key),
             llm_base_url=str(llm_base_url),
             llm_api_key=str(llm_api_key),
             llm_model=str(llm_model),
