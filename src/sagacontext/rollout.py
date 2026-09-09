@@ -167,6 +167,49 @@ class RolloutRuntime:
         self.host, self.auth = NormalHostAdapter(ledger, config), ControlAuth(config)
         self.batches, self.worker, self.policy = BatchService(ledger, judge_version="openai-judge-prompt-v6"), BatchWorker(ledger), RecallPolicy(ledger)
 
+    def _registered_grant(self, receipt: str, request_digest: str) -> dict[str, Any] | None:
+        row = self.ledger.db.execute(
+            "SELECT receipt,request_digest,key_id,registered_at,expires_at,consumed_at "
+            "FROM rollout_approval_grants WHERE owner_id=? AND receipt=?",
+            (self.ledger.owner_id, receipt),
+        ).fetchone()
+        if not row or row["request_digest"] != request_digest or row["consumed_at"]:
+            return None
+        if self.config.rollout_previous_rotated_at and _utc(row["registered_at"]) >= _utc(self.config.rollout_previous_rotated_at):
+            return None
+        if _utc(row["expires_at"]) <= datetime.now(timezone.utc):
+            return None
+        return dict(row)
+
+    def _consume_grant(self, grant: dict[str, Any] | None) -> None:
+        if not grant:
+            return
+        changed = self.ledger.db.execute(
+            "UPDATE rollout_approval_grants SET consumed_at=? "
+            "WHERE owner_id=? AND receipt=? AND consumed_at IS NULL",
+            (datetime.now(timezone.utc).isoformat(), self.ledger.owner_id, grant["receipt"]),
+        )
+        if changed.rowcount != 1:
+            raise ValueError("grant_already_consumed")
+
+    def _authorize(self, *, action: str, fields: dict[str, Any], token: str | None,
+                   approver: str | None, key_id: str | None, receipt: str,
+                   issued_at: str | None, expires_at: str | None) -> tuple[str, dict[str, Any] | None]:
+        if issued_at and expires_at:
+            start, end = _utc(issued_at), _utc(expires_at)
+            digest_fields = {**fields, "approver": approver, "key_id": key_id,
+                             "approval_receipt": receipt,
+                             "issued_at": start.isoformat(timespec="microseconds").replace("+00:00", "Z"),
+                             "expires_at": end.isoformat(timespec="microseconds").replace("+00:00", "Z")}
+            expected_digest = self.auth.request_digest(action, digest_fields)
+        else:
+            expected_digest = ""
+        grant = self._registered_grant(receipt, expected_digest)
+        digest = self.auth.verify(action=action, fields=fields, token=token, approver=approver,
+                                  key_id=key_id, receipt=receipt, issued_at=issued_at,
+                                  expires_at=expires_at, registered_grant=grant)
+        return digest, grant
+
     @property
     def mode(self) -> RuntimeMode:
         run = self._run()
@@ -190,10 +233,11 @@ class RolloutRuntime:
         if workspace_path is None or self.host.allowed_workspace() != workspace_path: raise ValueError("workspace_not_allowed")
         plan = rollback_plan or {"schema_version": "rollout-plan-v1", "resources": "rollout-scoped"}; plan_digest = _digest(plan)
         fields = {"mode": new_mode.value, "workspace": str(workspace_path), "deadline": _utc(deadline).isoformat(timespec="microseconds").replace("+00:00", "Z"), "max_sessions": max_sessions, "max_candidates": max_candidates, "generation": generation or self.config.rollout_generation, "rollback_plan_digest": plan_digest}
-        request_digest = self.auth.verify(action="activation", fields=fields, token=token, approver=approver, key_id=key_id, receipt=approval_receipt, issued_at=issued_at, expires_at=expires_at)
+        request_digest, grant = self._authorize(action="activation", fields=fields, token=token, approver=approver, key_id=key_id, receipt=approval_receipt, issued_at=issued_at, expires_at=expires_at)
         if _utc(deadline) > datetime.now(timezone.utc) + timedelta(hours=24): raise ValueError("deadline_too_long")
         now = datetime.now(timezone.utc); rollout_id = str(uuid.uuid4())
         with self.ledger._write_transaction():
+            self._consume_grant(grant)
             if self.ledger.db.execute("SELECT 1 FROM rollout_runs WHERE owner_id=? AND status IN ('running','draining','stopping','cleanup_required')", (self.ledger.owner_id,)).fetchone(): raise ValueError("rollout_already_live")
             existing = self.ledger.db.execute("SELECT result_json,request_digest,action FROM rollout_action_receipts WHERE owner_id=? AND receipt=?", (self.ledger.owner_id, approval_receipt)).fetchone()
             if existing:
@@ -233,8 +277,9 @@ class RolloutRuntime:
                  issued_at: str | None, expires_at: str | None) -> dict[str, Any]:
         if key_id != self.config.rollout_key_id:
             raise ValueError("rollback_requires_current_key")
-        digest = self.auth.verify(action="rollback", fields={"rollout_id": rollout_id, "rollback_plan_digest": plan_digest, "phase": phase}, token=token, approver=approver, key_id=key_id, receipt=receipt, issued_at=issued_at, expires_at=expires_at)
+        digest, grant = self._authorize(action="rollback", fields={"rollout_id": rollout_id, "rollback_plan_digest": plan_digest, "phase": phase}, token=token, approver=approver, key_id=key_id, receipt=receipt, issued_at=issued_at, expires_at=expires_at)
         with self.ledger._write_transaction():
+            self._consume_grant(grant)
             row = self.ledger.db.execute("SELECT rollback_plan_digest,status FROM rollout_runs WHERE rollout_id=? AND owner_id=?", (rollout_id,self.ledger.owner_id)).fetchone()
             if not row or row["rollback_plan_digest"] != plan_digest: raise ValueError("rollback_plan_mismatch")
             old = self.ledger.db.execute("SELECT result_json,request_digest FROM rollout_action_receipts WHERE owner_id=? AND receipt=?", (self.ledger.owner_id,receipt)).fetchone()
@@ -292,8 +337,9 @@ class RolloutRuntime:
     def review_batch(self, batch_id: str, decision: Literal["approve", "reject"], *, reviewer: str, receipt: str, approver: str | None = None, **auth: Any) -> dict[str, Any]:
         run = self._run()
         if not run or run["mode"] != "guarded": raise ValueError("review_requires_guarded_mode")
-        digest = self.auth.verify(action="review", fields={"rollout_id": run["rollout_id"], "batch": batch_id, "decision": decision, "reviewer": reviewer}, receipt=receipt, approver=approver, **auth)
+        digest, grant = self._authorize(action="review", fields={"rollout_id": run["rollout_id"], "batch": batch_id, "decision": decision, "reviewer": reviewer}, receipt=receipt, approver=approver, **auth)
         with self.ledger._write_transaction():
+            self._consume_grant(grant)
             old = self.ledger.db.execute("SELECT action,request_digest,result_json FROM rollout_action_receipts WHERE owner_id=? AND receipt=?", (self.ledger.owner_id, receipt)).fetchone()
             if old:
                 if old["action"] == "review" and old["request_digest"] == digest: return json.loads(old["result_json"])

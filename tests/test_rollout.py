@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sagacontext.backends import BackendHit, InMemoryBackend
@@ -55,6 +56,28 @@ class RolloutTests(unittest.TestCase):
         self.stop.touch()
         self.assertEqual(self.record(key="blocked").reason, "kill_switch")
         self.assertEqual(self.ledger.db.execute("SELECT COUNT(*) FROM events").fetchone()[0], 0)
+
+    def test_previous_key_registered_grant_is_exactly_once(self):
+        now = datetime.now(timezone.utc)
+        token = "previous-secret"
+        self.config.rollout_approver = "ops"
+        self.config.rollout_key_id = "current"
+        self.config.rollout_token_digest = hashlib.sha256(b"current-secret").hexdigest()
+        self.config.rollout_previous_key_id = "previous"
+        self.config.rollout_previous_token_digest = hashlib.sha256(token.encode()).hexdigest()
+        fields = {"rollout_id": "r1", "rollback_plan_digest": "p1", "phase": "freeze"}
+        receipt = "grant-1"
+        issued = now.isoformat().replace("+00:00", "Z")
+        expires = (now + timedelta(minutes=2)).isoformat().replace("+00:00", "Z")
+        digest = self.runtime.auth.request_digest("rollback", {**fields, "approver": "ops", "key_id": "previous", "approval_receipt": receipt, "issued_at": now.isoformat(timespec="microseconds").replace("+00:00", "Z"), "expires_at": (now + timedelta(minutes=2)).isoformat(timespec="microseconds").replace("+00:00", "Z")})
+        self.ledger.db.execute("INSERT INTO rollout_approval_grants VALUES (?,?,?,?,?,?,NULL)", ("owner", receipt, digest, "previous", (now - timedelta(minutes=1)).isoformat(), (now + timedelta(minutes=2)).isoformat()))
+        self.ledger.db.commit()
+        verified, grant = self.runtime._authorize(action="rollback", fields=fields, token=token, approver="ops", key_id="previous", receipt=receipt, issued_at=issued, expires_at=expires)
+        self.assertEqual(verified, digest)
+        with self.ledger._write_transaction():
+            self.runtime._consume_grant(grant)
+        with self.assertRaisesRegex(ValueError, "previous_key_requires_registered_grant"):
+            self.runtime._authorize(action="rollback", fields=fields, token=token, approver="ops", key_id="previous", receipt=receipt, issued_at=issued, expires_at=expires)
 
     def test_shadow_stops_at_proposal_without_ledger_memory(self):
         self.config.rollout_mode = "shadow"
