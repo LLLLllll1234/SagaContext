@@ -14,6 +14,8 @@ from .config import Config
 from .ledger import CommitRequest
 from .ledger.schema import SCHEMA_VERSION
 from .rollout import RuntimeMode
+from .maintenance.judge import OpenAIProposalJudge
+from .llm import OpenAIJudge
 
 
 class ProjectRegistration(BaseModel):
@@ -113,6 +115,20 @@ def create_app(config: Config | None = None) -> FastAPI:
         if receipt.reason == "mode_off":
             return JSONResponse(status_code=501, content={"status": "host_ingestion_disabled", "stage": "S1", "sagacontextReceipt": receipt.model_dump(mode="json")})
         return {"status": receipt.status, "reason": receipt.reason}
+
+    @api.post("/rollout/batches/run")
+    def rollout_run_batch(payload: dict[str, Any], request: Request):
+        runtime = _runtime(request)
+        if not runtime.config.llm_base_url or not runtime.config.llm_api_key or not runtime.config.llm_model:
+            raise HTTPException(status_code=503, detail={"status": "judge_configuration_missing"})
+        session_id = str(payload.get("session_id", ""))
+        if not session_id:
+            raise HTTPException(status_code=400, detail={"status": "invalid_request", "reason": "session_id_required"})
+        judge = OpenAIProposalJudge(OpenAIJudge(runtime.config.llm_base_url, runtime.config.llm_api_key, runtime.config.llm_model, timeout=30.0, temperature=0.0))
+        try:
+            return runtime.rollout.run_batch(judge, session_id, task_id=payload.get("task_id"))
+        except ValueError as error:
+            raise _invalid(error) from error
 
     @api.get("/rollout/audit")
     def rollout_audit(request: Request, kind: str | None = None):

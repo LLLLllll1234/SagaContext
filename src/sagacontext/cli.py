@@ -144,5 +144,20 @@ def outbox_list() -> None:
     _execute(lambda runtime: runtime.ledger.list_outbox())
 
 
+@app.command("config-doctor")
+def config_doctor() -> None:
+    """Report configuration readiness without exposing secrets."""
+    config = Config.load()
+    _emit({
+        "status": "ok",
+        "mode": config.rollout_mode,
+        "workspace_configured": bool(config.rollout_workspaces),
+        "judge": {"base_url_configured": bool(config.llm_base_url), "api_key_configured": bool(config.llm_api_key), "model_configured": bool(config.llm_model)},
+        "backend": {"namespace_configured": bool(config.rollout_backend_namespace), "base_url": config.ov_base_url},
+        "daemon": {"host": config.host, "port": config.port},
+        "quotas": {"sessions": config.rollout_max_sessions, "candidates": config.rollout_max_candidates},
+    })
+
+
 if __name__ == "__main__":
     app()
