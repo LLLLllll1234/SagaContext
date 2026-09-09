@@ -53,6 +53,7 @@ OFFICIAL_REFERENCES = (
     "https://developers.openai.com/codex/cli/reference",
 )
 SCENARIOS = (
+    "no_context_control",
     "baseline_with_duplicate",
     "hook_nonzero_exit",
     "hook_timeout",
@@ -74,6 +75,7 @@ def _recorder_command(
     started_ns: int,
     behavior: str,
     handler_ref: str,
+    marker: str = SESSION_START_CONTEXT,
 ) -> str:
     args = [
         sys.executable,
@@ -92,6 +94,8 @@ def _recorder_command(
         behavior,
         "--handler-ref",
         handler_ref,
+        "--marker",
+        marker,
     ]
     if behavior == "sleep":
         args.extend(("--sleep", "2.5"))
@@ -106,6 +110,7 @@ def _hooks_config(
     probe_id: str,
     scenario: str,
     started_ns: int,
+    marker: str = SESSION_START_CONTEXT,
 ) -> dict[str, Any]:
     hooks: dict[str, list[dict[str, Any]]] = {}
     for event in SOURCE_DECLARED_EVENTS:
@@ -128,6 +133,7 @@ def _hooks_config(
                     started_ns=started_ns,
                     behavior=behavior,
                     handler_ref="primary",
+                    marker=marker,
                 ),
                 "timeout": timeout,
             }
@@ -145,6 +151,7 @@ def _hooks_config(
                         started_ns=started_ns,
                         behavior="normal",
                         handler_ref="duplicate",
+                        marker=marker,
                     ),
                     "timeout": timeout,
                 }
@@ -193,9 +200,9 @@ def _last_agent_message(events: list[dict[str, Any]]) -> str:
     return ""
 
 
-def _agent_received_marker(events: list[dict[str, Any]]) -> bool:
+def _agent_received_marker(events: list[dict[str, Any]], marker: str = SESSION_START_CONTEXT) -> bool:
     # Tool output and hook receipts can contain the marker without model consumption.
-    return SESSION_START_CONTEXT in _last_agent_message(events)
+    return bool(marker) and _last_agent_message(events).strip() == marker
 
 
 def _classify_blocker(stderr: str, timed_out: bool) -> str | None:
@@ -272,6 +279,7 @@ def _scenario_result(
     codex_home: Path,
     timeout_seconds: int,
     model: str = PINNED_MODEL,
+    marker: str = SESSION_START_CONTEXT,
 ) -> dict[str, Any]:
     command = [
         "codex",
@@ -336,15 +344,30 @@ def _scenario_result(
         "blocker": blocker,
         "stderr_summary": _stderr_summary(stderr),
         "cli_event_types": dict(sorted(Counter(str(item.get("type", "unknown")) for item in cli_events).items())),
-        "agent_received_injected_context": _agent_received_marker(cli_events),
+        "agent_received_injected_context": _agent_received_marker(cli_events, marker),
+        "consumption_evidence": {
+            "expected_marker_digest": hashlib.sha256(marker.encode()).hexdigest(),
+            "final_message_digest": hashlib.sha256(_last_agent_message(cli_events).strip().encode()).hexdigest(),
+            "final_message_present": bool(_last_agent_message(cli_events)),
+            "final_message_is_missing": _last_agent_message(cli_events).strip() == "MISSING",
+            "marker_in_non_message_item": any(
+                marker in json.dumps(event["item"], sort_keys=True)
+                for event in cli_events if event.get("item")
+                and event["item"].get("type") != "agent_message"
+            ),
+        },
     }
 
 
 def run_probe(output: Path, timeout_seconds: int = 90, model: str = PINNED_MODEL) -> dict[str, Any]:
+    if output.exists():
+        raise ValueError("refusing_to_overwrite_capture")
     recorder = Path(__file__).with_name("g3_hook_recorder.py").resolve()
     version = subprocess.run(
         ["codex", "--version"], check=True, text=True, capture_output=True
     ).stdout.strip()
+    if version != PINNED_EXECUTABLE_VERSION:
+        raise ValueError("host_version_not_pinned")
     probe_id = f"g3-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
     started_at = _utc_now()
     started_ns = time.monotonic_ns()
@@ -363,6 +386,7 @@ def run_probe(output: Path, timeout_seconds: int = 90, model: str = PINNED_MODEL
         configs: dict[str, dict[str, Any]] = {}
         scenarios: list[dict[str, Any]] = []
         for scenario in SCENARIOS:
+            marker = "G3_" + uuid.uuid4().hex.upper()
             config = _hooks_config(
                 recorder=recorder,
                 log=hook_log,
@@ -370,6 +394,7 @@ def run_probe(output: Path, timeout_seconds: int = 90, model: str = PINNED_MODEL
                 probe_id=probe_id,
                 scenario=scenario,
                 started_ns=started_ns,
+                marker=marker,
             )
             configs[scenario] = config
             (workspace / ".codex" / "hooks.json").write_text(
@@ -381,6 +406,7 @@ def run_probe(output: Path, timeout_seconds: int = 90, model: str = PINNED_MODEL
                 codex_home=codex_home,
                 timeout_seconds=timeout_seconds,
                 model=model,
+                marker=marker,
             )
             current_records = _read_records(hook_log)
             scenario_records = [item for item in current_records if item.get("scenario") == scenario]
@@ -438,7 +464,7 @@ def run_probe(output: Path, timeout_seconds: int = 90, model: str = PINNED_MODEL
             "executable_version": version,
             "pinned_executable_version": PINNED_EXECUTABLE_VERSION,
             "requested_model": model,
-            "adapter_version": "g3-probe-v4",
+            "adapter_version": "g3-probe-v5",
             "config_fingerprint": _config_fingerprint(configs),
             "verified_events": event_capabilities,
             "injection_modes": ["SessionStart.additionalContext"]

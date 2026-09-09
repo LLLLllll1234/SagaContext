@@ -1,0 +1,36 @@
+{
+  "run_id": "20260909T164942Z-deepseek-v4-flash",
+  "model": "deepseek-v4-flash",
+  "mode": "isolated_shadow",
+  "shadow_only": true,
+  "formal_memory_write": false,
+  "recall_enabled": false,
+  "injection_enabled": false,
+  "dataset_digest": "c07572973024b3b5227ee09b4fa2540c8eae6e313cc9da7cb65d714c31a05138",
+  "dataset_id": "real-judge-v4",
+  "body_normalizer_version": "body-normalizer-v2",
+  "input_digest": "sha256:b4fc89adad025063e3ae0f5b1e3d07f1b9ac526faf8d915c1615e304065e6e2a",
+  "temporary_namespace": "viking://user/shadow-20260909T164942Z-deepseek-v4-flash/memories/sagacontext/20260909T164942Z-deepseek-v4-flash",
+  "temporary_ledger_created": true,
+  "workspace_id": "d342e6c3-5605-46c8-95d0-96a6169b2ab2",
+  "temporary_memory_count_before": 0,
+  "temporary_memory_count_after": 0,
+  "temporary_memory_write_observed": false,
+  "shadow_audit": {
+    "model_observations": 42,
+    "candidates": 0,
+    "isolated_data_records": 0,
+    "cleanup_targets": 0,
+    "residual_items": 0
+  },
+  "cleanup": {
+    "temporary_root_removed": true,
+    "temporary_ledger_removed": true
+  },
+  "admission_errors": [],
+  "artifact_files": [
+    "replay.jsonl",
+    "report.md",
+    "manifest.json"
+  ]
+}

@@ -12,9 +12,9 @@
 
 ## 批准前证据
 
-1. 真实 Codex probe 必须 `passed`，且 `marker_context_injection` 为 `pass`；当前最新结果为 `15/19 failed_contract`。
-2. Judge Pro/Flash shadow 必须完成语义 observation；当前 artifact 仍为 `unsuccessful_observation`。
+1. 真实 Codex probe 必须 `passed`，且 `marker_context_injection` 为 `pass`；[最新 v5 结果](2026-09-09-marker-consumption-admission.md)为 `21/21 passed`，仅适用于 `codex-cli 0.153.4` + `gpt-5.6-terra`。
+2. Judge Pro/Flash shadow 必须完成语义 observation；当前缺少 LLM 配置，preflight 为 `blocked_configuration`，模型请求数 0；旧 artifact 的 `unsuccessful_observation` 不作为准入证据。
 3. 在授权环境中重新执行非空 locator 删除、重启恢复、并发 rollback、重复 receipt 和 compensation failure，并保存脱敏 shadow audit。
 4. 审批 receipt 必须包含 workspace、owner、approver、current key id、generation、session/candidate quota、deadline、rollback plan digest 和明确的 STOP/rollback 操作人。
 
-在以上四项完成并由批准主体签署前，不得从 `off` 进入 `shadow` 或 `guarded`，不得启用正常 workspace hooks、自动写入或自动注入。
+本任务的 workspace shadow 实施已获用户授权，仍等待 Judge 准入闭合；当前不启用正常 workspace hooks。guarded 需上述证据闭合并由批准主体单独签署，不得自动写入或自动注入。

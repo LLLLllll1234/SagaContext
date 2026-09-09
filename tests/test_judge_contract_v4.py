@@ -206,7 +206,10 @@ class AdmissionV4Tests(unittest.TestCase):
             self.assertTrue(all(manifest["cleanup"].values()))
             self.assertIn("unsuccessful_observation", manifest["admission_errors"])
             self.assertIn("Acceptance: blocked", (Path(tmp) / "test/report.md").read_text())
-            with patch.object(module, "run_model", return_value=manifest), patch("sys.argv", [
+            configured = module.Config(state_path=Path(tmp) / "state.db", ledger_path=Path(tmp) / "ledger.db",
+                llm_base_url="https://synthetic.invalid", llm_api_key="synthetic-test-key")
+            with patch.object(module.Config, "load", return_value=configured), \
+                    patch.object(module, "run_model", return_value=manifest), patch("sys.argv", [
                 "shadow", "--output-dir", str(Path(tmp) / "main"), "--models", "test",
             ]):
                 self.assertEqual(module.main(), 1)

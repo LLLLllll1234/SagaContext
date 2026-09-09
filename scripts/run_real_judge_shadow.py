@@ -33,6 +33,22 @@ def _slug(model: str) -> str:
     return model.replace("/", "-").replace(".", "-")
 
 
+def configuration_preflight(config: Config) -> dict[str, object]:
+    """Report readiness without exposing configuration or inventing observations."""
+    missing = []
+    if not config.llm_base_url:
+        missing.append("llm.base_url")
+    if not config.llm_api_key:
+        missing.append("llm.api_key")
+    return {
+        "schema": "judge-shadow-preflight-v1",
+        "status": "blocked_configuration" if missing else "ready",
+        "missing_fields": missing,
+        "model_requests_started": 0,
+        "semantic_admission": "not_evaluated",
+    }
+
+
 def run_model(
     dataset_path: Path,
     output_dir: Path,
@@ -112,13 +128,19 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=300.0)
     parser.add_argument("--attempts", type=int, default=3)
     parser.add_argument("--models", nargs="+", default=["deepseek-v4-pro", "deepseek-v4-flash"])
+    parser.add_argument("--config", type=Path, help="Authorized SagaContext TOML configuration; values are never printed")
     args = parser.parse_args()
     if args.timeout != 300.0 or args.attempts != 3:
         parser.error("shadow requires timeout=300 and attempts=3")
     if args.output_dir.exists() and any(args.output_dir.iterdir()):
         parser.error(f"refusing to write into non-empty output directory: {args.output_dir}")
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    config = Config.load()
+    config = Config.load(args.config)
+    preflight = configuration_preflight(config)
+    (args.output_dir / "preflight.json").write_text(json.dumps(preflight, indent=2) + "\n")
+    if preflight["status"] != "ready":
+        print(json.dumps(preflight, sort_keys=True))
+        return 2
     base_url = os.environ.get("SAGACONTEXT_LLM_BASE_URL", config.llm_base_url)
     api_key = os.environ.get("SAGACONTEXT_LLM_API_KEY", config.llm_api_key)
     manifests = []

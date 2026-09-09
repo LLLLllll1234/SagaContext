@@ -183,6 +183,7 @@ def main() -> int:
     parser.add_argument("--behavior", choices=("normal", "exit", "sleep"), default="normal")
     parser.add_argument("--handler-ref", default="primary")
     parser.add_argument("--sleep", type=float, default=0)
+    parser.add_argument("--marker", default=SESSION_START_CONTEXT)
     args = parser.parse_args()
     payload = json.load(sys.stdin)
     _append_receipt(
@@ -200,13 +201,13 @@ def main() -> int:
     if args.behavior == "sleep":
         time.sleep(args.sleep)
     event = payload.get("hook_event_name")
-    if event == "SessionStart":
+    if event == "SessionStart" and args.scenario != "no_context_control":
         print(
             json.dumps(
                 {
                     "hookSpecificOutput": {
                         "hookEventName": event,
-                        "additionalContext": SESSION_START_CONTEXT,
+                        "additionalContext": args.marker,
                     }
                 }
             )

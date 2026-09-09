@@ -4,6 +4,7 @@
 
 ## 当前阅读入口
 
+- 最新准入进展：[Codex marker 消费与 Judge 准入复核](probes/2026-09-09-marker-consumption-admission.md)：Codex v5 21/21 passed；Judge 缺配置阻断，正常 workspace 保持 off。
 - 查看当前实现与验收结论：[v6 Judge 基线与 S3-3/S3-4 隔离验收](probes/2026-09-07-v6-judge-baseline.md) → [Judge Pro/Flash 双模型与隔离 Shadow](probes/2026-09-06-dual-model-acceptance.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
 - 复查测试记录：[验收报告索引](probes/README.md) → [S3 原始运行清单](../artifacts/probes/S3-RESULTS.md)。
 - 理解实现约束：[v0.3 总设计](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) → [S1](superpowers/specs/2026-09-05-s1-data-closure-design.md) → [S2](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) → [S3](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md)。

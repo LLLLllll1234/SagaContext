@@ -60,6 +60,26 @@ def evaluate(capture: dict[str, Any], capture_digest: str) -> dict[str, Any]:
     records = list(capture.get("payload_shapes") or [])
     scenarios = {item.get("name"): item for item in capture.get("scenarios") or []}
     capture_status = (capture.get("probe_result") or {}).get("status")
+    if capture.get("adapter_version") == "g3-probe-v5":
+        control = scenarios.get("no_context_control") or {}
+        evidence = control.get("consumption_evidence") or {}
+        check("no_context_negative_control", "pass" if (
+            control.get("exit_code") == 0 and control.get("blocker") is None
+            and evidence.get("final_message_is_missing") is True
+            and control.get("agent_received_injected_context") is False
+        ) else "fail", {"scenario": control})
+        positive = [scenarios.get(name) or {} for name in (
+            "baseline_with_duplicate", "hook_nonzero_exit", "hook_timeout", "restart_recovery")]
+        digests = [s.get("consumption_evidence", {}).get("expected_marker_digest", "") for s in positive]
+        check("random_marker_final_message_evidence", "pass" if (
+            len(set(digests)) == 4 and all(len(d) == 64 for d in digests)
+            and all(s.get("exit_code") == 0 and s.get("blocker") is None
+                and s.get("agent_received_injected_context") is True
+                and s.get("consumption_evidence", {}).get("final_message_present") is True
+                and s.get("consumption_evidence", {}).get("marker_in_non_message_item") is False
+                and s.get("consumption_evidence", {}).get("final_message_digest") == d
+                for s, d in zip(positive, digests))
+        ) else "not_observed", {"marker_digests": digests})
     check(
         "executable_version_pinned",
         "pass"
@@ -289,7 +309,7 @@ def _write_report(path: Path, capture: dict[str, Any], evaluation: dict[str, Any
 - 模型：`{capture.get('requested_model')}`
 - 配置 digest：`{capture.get('config_fingerprint')}`
 - Capture digest：`{evaluation.get('capture_artifact_digest')}`
-- Payload：仅合成 prompt、固定 marker 和临时 Git 仓库；仅保存字段形状、稳定 probe 内引用、枚举、摘要与耗时。
+- Payload：仅合成 prompt、marker 和临时 Git 仓库；v5 使用每场景随机 marker 与无注入对照。仅保存字段形状、稳定 probe 内引用、枚举、摘要与耗时。
 - 模型运行时：临时最小 `CODEX_HOME`；不保存 provider 地址或认证材料，不加载用户全局 hooks/插件。
 
 ## 场景与等待时间
