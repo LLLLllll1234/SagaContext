@@ -18,6 +18,7 @@ from .config import Config
 from .ledger import Ledger, Scope, TaskContext
 from .maintenance import BatchService, BatchWorker, CandidateInput, DeltaProposal, EventJournal, JournalEvent
 from .recall_policy import RecallPolicy
+from .rollback import RollbackRunner
 
 
 class ProposalJudge(Protocol):
@@ -170,6 +171,8 @@ class RolloutRuntime:
         self.host, self.auth = NormalHostAdapter(ledger, config), ControlAuth(config)
         self._sync_control_key()
         self.batches, self.worker, self.policy = BatchService(ledger, judge_version="openai-judge-prompt-v6"), BatchWorker(ledger), RecallPolicy(ledger)
+        self.rollback_runner = RollbackRunner(ledger)
+        self.backend = None
 
     def _sync_control_key(self) -> None:
         """Persist trusted configuration rotation, serialized with grant registration."""
@@ -377,9 +380,7 @@ class RolloutRuntime:
                 (rollout_id, self.ledger.owner_id)).fetchone()
             if not row or row["workspace_root"] != str(self.host.allowed_workspace()) or row["rollback_plan_digest"] != plan_digest:
                 raise ValueError("rollback_plan_mismatch")
-            # Data rollback is not implemented to the frozen phased contract yet.
-            # Fail closed instead of treating arbitrary phase strings as cleanup authorization.
-            if phase != "freeze":
+            if phase not in {"freeze", "memory", "shadow", "locator", "verify", "run"}:
                 raise ValueError("rollback_phase_not_implemented")
             self.ledger.db.execute(
                 "UPDATE rollout_runs SET status='stopping',control_epoch=control_epoch+1,"
@@ -387,7 +388,10 @@ class RolloutRuntime:
                 "AND status IN ('running','draining')",
                 (datetime.now(timezone.utc).isoformat(), rollout_id, self.ledger.owner_id),
             )
-            result = {"rollout_id": rollout_id, "phase": phase, "status": "frozen"}
+            if phase != "freeze":
+                result = self.rollback_runner.run(rollout_id, plan_digest, backend=self.backend)
+            else:
+                result = {"rollout_id": rollout_id, "phase": phase, "status": "frozen"}
             self.ledger.db.execute("INSERT INTO rollout_action_receipts VALUES (?,?,?,?,?,?,?)",
                 (self.ledger.owner_id, receipt, "rollback", digest, rollout_id, _canonical(result), datetime.now(timezone.utc).isoformat()))
             return result

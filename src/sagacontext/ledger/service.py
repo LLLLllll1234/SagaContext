@@ -275,7 +275,7 @@ class Ledger:
         if version >= 3:
             required_tables.update(_V3_TABLES)
         if version >= 4:
-            required_tables.add("rollout_control_keys")
+            required_tables.update({"rollout_control_keys", "rollback_runs", "rollback_steps"})
         missing_tables = required_tables - self._user_tables()
         if missing_tables:
             raise RuntimeError(f"incomplete schema v{version}: missing tables")

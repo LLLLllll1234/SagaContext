@@ -47,6 +47,7 @@ class Application:
                 namespace=config.rollout_backend_namespace,
                 owner_id=self.owner_id,
             )
+        self.rollout.backend = self.rollout_backend
         self._closed = False
 
     @property

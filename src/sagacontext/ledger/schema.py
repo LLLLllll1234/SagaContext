@@ -498,4 +498,16 @@ CREATE TABLE rollout_control_keys(
 );
 CREATE UNIQUE INDEX one_current_control_key ON rollout_control_keys(owner_id)
     WHERE retired_at IS NULL;
+CREATE TABLE rollback_runs(
+    rollback_id TEXT PRIMARY KEY, rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    owner_id TEXT NOT NULL, plan_digest TEXT NOT NULL, status TEXT NOT NULL,
+    control_epoch INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    UNIQUE(rollout_id)
+);
+CREATE TABLE rollback_steps(
+    rollback_id TEXT NOT NULL REFERENCES rollback_runs(rollback_id), step_no INTEGER NOT NULL,
+    kind TEXT NOT NULL, status TEXT NOT NULL, target_json TEXT NOT NULL,
+    receipt TEXT, error_class TEXT, started_at TEXT, finished_at TEXT,
+    PRIMARY KEY(rollback_id,step_no)
+);
 """

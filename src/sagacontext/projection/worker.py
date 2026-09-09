@@ -278,7 +278,13 @@ class Projector:
                         with self.ledger._write_transaction():
                             self.ledger.db.execute("UPDATE outbox SET status='compensated',lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=? WHERE outbox_id=?", (_now(), claim.outbox_id))
                     except Exception:
-                        pass
+                        with self.ledger._write_transaction():
+                            self.ledger.db.execute(
+                                "UPDATE outbox SET status='cleanup_required',last_error_class='compensation_failed',"
+                                "lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=? WHERE outbox_id=?",
+                                (_now(), claim.outbox_id),
+                            )
+                        return ProjectionRunResult(status="blocked", outbox_id=claim.outbox_id)
                 return ProjectionRunResult(status="fenced", outbox_id=claim.outbox_id)
         if not self._owns(claim, now):
             return ProjectionRunResult(status="fenced", outbox_id=claim.outbox_id)
