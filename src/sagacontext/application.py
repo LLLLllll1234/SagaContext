@@ -40,7 +40,7 @@ class Application:
         self.recall_policy = RecallPolicy(self.ledger)
         self.rollout = RolloutRuntime(self.ledger, config)
         self.rollout_backend = None
-        if config.rollout_backend_namespace and config.rollout_mode != "off":
+        if config.rollout_backend_namespace:
             self.rollout_backend = OpenVikingBackendAdapter(
                 config.ov_base_url,
                 config.ov_api_key,

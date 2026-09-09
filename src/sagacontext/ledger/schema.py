@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 MIGRATION_1 = """
 CREATE TABLE owners(
@@ -510,4 +510,42 @@ CREATE TABLE rollback_steps(
     receipt TEXT, error_class TEXT, started_at TEXT, finished_at TEXT,
     PRIMARY KEY(rollback_id,step_no)
 );
+"""
+
+MIGRATION_5 = """
+ALTER TABLE projection_attempts ADD COLUMN rollout_id TEXT;
+ALTER TABLE projection_attempts ADD COLUMN control_epoch INTEGER;
+CREATE TABLE projection_operations(
+    outbox_id INTEGER PRIMARY KEY REFERENCES outbox(outbox_id),
+    operation_key TEXT NOT NULL UNIQUE,
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    authorization_receipt TEXT NOT NULL,
+    control_epoch INTEGER NOT NULL,
+    claim_token TEXT,
+    claim_until TEXT,
+    state TEXT NOT NULL,
+    locator TEXT,
+    payload_digest TEXT,
+    compensation_token TEXT,
+    compensation_until TEXT,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE rollout_compensation_receipts(
+    receipt_id TEXT PRIMARY KEY,
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    outbox_id INTEGER NOT NULL REFERENCES projection_operations(outbox_id),
+    operation_key TEXT NOT NULL,
+    authorization_receipt TEXT NOT NULL,
+    claim_token TEXT,
+    control_epoch INTEGER NOT NULL,
+    stop_epoch INTEGER NOT NULL,
+    generation TEXT NOT NULL,
+    locator_digest TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error_class TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX compensation_by_operation ON rollout_compensation_receipts(outbox_id,created_at);
+ALTER TABLE rollback_runs ADD COLUMN lease_token TEXT;
+ALTER TABLE rollback_runs ADD COLUMN lease_until TEXT;
 """

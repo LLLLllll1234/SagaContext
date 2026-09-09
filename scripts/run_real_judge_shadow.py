@@ -83,6 +83,13 @@ def run_model(
                 "temporary_memory_count_before": before,
                 "temporary_memory_count_after": after,
                 "temporary_memory_write_observed": after != before,
+                "shadow_audit": {
+                    "model_observations": len(results),
+                    "candidates": int(ledger.db.execute("SELECT COUNT(*) FROM candidates").fetchone()[0]),
+                    "isolated_data_records": int(ledger.db.execute("SELECT COUNT(*) FROM events").fetchone()[0]),
+                    "cleanup_targets": int(ledger.db.execute("SELECT COUNT(*) FROM rollout_candidates").fetchone()[0]),
+                    "residual_items": None,
+                },
                 "cleanup": {"temporary_root_removed": False, "temporary_ledger_removed": False},
                 "admission_errors": admission_errors(results, model=model),
                 "artifact_files": ["replay.jsonl", "report.md", "manifest.json"],
@@ -93,6 +100,7 @@ def run_model(
         "temporary_root_removed": not temp_path.exists(),
         "temporary_ledger_removed": not (temp_path / "shadow-ledger.db").exists(),
     }
+    run_manifest["shadow_audit"]["residual_items"] = len(list(temp_path.rglob("*"))) if temp_path.exists() else 0
     (model_dir / "manifest.json").write_text(json.dumps(run_manifest, ensure_ascii=True, indent=2) + "\n")
     return run_manifest
 

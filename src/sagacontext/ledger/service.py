@@ -19,7 +19,7 @@ from .models import (
     Scope,
     TaskContext,
 )
-from .schema import MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, SCHEMA_VERSION
+from .schema import MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, MIGRATION_5, SCHEMA_VERSION
 
 
 def _now() -> str:
@@ -226,7 +226,7 @@ class Ledger:
             tables = self._user_tables()
             if tables != {"schema_migrations"}:
                 raise RuntimeError("incomplete schema v0")
-        for version, migration in ((1, MIGRATION_1), (2, MIGRATION_2), (3, MIGRATION_3), (4, MIGRATION_4)):
+        for version, migration in ((1, MIGRATION_1), (2, MIGRATION_2), (3, MIGRATION_3), (4, MIGRATION_4), (5, MIGRATION_5)):
             if version in applied:
                 continue
             try:
@@ -276,6 +276,8 @@ class Ledger:
             required_tables.update(_V3_TABLES)
         if version >= 4:
             required_tables.update({"rollout_control_keys", "rollback_runs", "rollback_steps"})
+        if version >= 5:
+            required_tables.update({"projection_operations", "rollout_compensation_receipts"})
         missing_tables = required_tables - self._user_tables()
         if missing_tables:
             raise RuntimeError(f"incomplete schema v{version}: missing tables")
@@ -297,6 +299,16 @@ class Ledger:
                     raise RuntimeError(
                         f"incomplete schema v{version}: missing columns in {table}"
                     )
+        if version >= 5:
+            for table, required in {
+                "projection_operations": {"outbox_id", "operation_key", "authorization_receipt", "control_epoch", "claim_token", "compensation_token", "state", "locator"},
+                "projection_attempts": {"rollout_id", "control_epoch"},
+                "rollout_compensation_receipts": {"outbox_id", "operation_key", "claim_token", "control_epoch", "stop_epoch", "status", "locator_digest"},
+                "rollback_runs": {"lease_token", "lease_until"},
+            }.items():
+                columns = {row[1] for row in self.db.execute(f"PRAGMA table_info({table})")}
+                if required - columns:
+                    raise RuntimeError(f"incomplete schema v5: missing columns in {table}")
         if version >= 4:
             columns = {row[1] for row in self.db.execute("PRAGMA table_info(rollout_control_keys)")}
             if {"owner_id", "key_id", "token_digest", "approver", "registered_at", "retired_at"} - columns:

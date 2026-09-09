@@ -293,7 +293,7 @@ class RolloutRuntime:
         if new_mode not in {RuntimeMode.SHADOW, RuntimeMode.GUARDED}: raise ValueError("active_unreachable")
         workspace_path = _path(workspace)
         if workspace_path is None or self.host.allowed_workspace() != workspace_path: raise ValueError("workspace_not_allowed")
-        plan = rollback_plan or {"schema_version": "rollout-plan-v1", "resources": "rollout-scoped"}; plan_digest = _digest(plan)
+        plan = rollback_plan or {"schema_version": "rollout-plan-v1", "resources": "rollout-scoped", "compensate_inflight": True}; plan_digest = _digest(plan)
         fields = {"mode": new_mode.value, "workspace": str(workspace_path), "deadline": _utc(deadline).isoformat(timespec="microseconds").replace("+00:00", "Z"), "max_sessions": max_sessions, "max_candidates": max_candidates, "generation": generation or self.config.rollout_generation, "rollback_plan_digest": plan_digest}
         if _utc(deadline) > datetime.now(timezone.utc) + timedelta(hours=24): raise ValueError("deadline_too_long")
         now = datetime.now(timezone.utc); rollout_id = str(uuid.uuid4())
@@ -374,27 +374,40 @@ class RolloutRuntime:
         with self._control_transaction(action="rollback", fields={"rollout_id": rollout_id,
                 "rollback_plan_digest": plan_digest, "phase": phase}, token=token, approver=approver,
                 key_id=key_id, receipt=receipt, issued_at=issued_at, expires_at=expires_at) as (digest, old):
-            if old is not None:
-                return old
-            row = self.ledger.db.execute("SELECT * FROM rollout_runs WHERE rollout_id=? AND owner_id=?",
-                (rollout_id, self.ledger.owner_id)).fetchone()
-            if not row or row["workspace_root"] != str(self.host.allowed_workspace()) or row["rollback_plan_digest"] != plan_digest:
-                raise ValueError("rollback_plan_mismatch")
-            if phase not in {"freeze", "memory", "shadow", "locator", "verify", "run"}:
-                raise ValueError("rollback_phase_not_implemented")
-            self.ledger.db.execute(
-                "UPDATE rollout_runs SET status='stopping',control_epoch=control_epoch+1,"
-                "stopped_at=?,stop_reason='rollback_freeze' WHERE rollout_id=? AND owner_id=? "
-                "AND status IN ('running','draining')",
-                (datetime.now(timezone.utc).isoformat(), rollout_id, self.ledger.owner_id),
-            )
-            if phase != "freeze":
-                result = self.rollback_runner.run(rollout_id, plan_digest, backend=self.backend)
+            if old is None:
+                row = self.ledger.db.execute("SELECT * FROM rollout_runs WHERE rollout_id=? AND owner_id=?",
+                    (rollout_id, self.ledger.owner_id)).fetchone()
+                if not row or row["workspace_root"] != str(self.host.allowed_workspace()) or row["rollback_plan_digest"] != plan_digest:
+                    raise ValueError("rollback_plan_mismatch")
+                if phase not in {"freeze", "memory", "shadow", "locator", "verify", "run"}:
+                    raise ValueError("rollback_phase_not_implemented")
+                self.ledger.db.execute(
+                    "UPDATE rollout_runs SET status='stopping',control_epoch=control_epoch+1,"
+                    "stopped_at=?,stop_reason='rollback_freeze' WHERE rollout_id=? AND owner_id=? "
+                    "AND status IN ('running','draining')",
+                    (datetime.now(timezone.utc).isoformat(), rollout_id, self.ledger.owner_id),
+                )
+                result = {"rollout_id": rollout_id, "phase": phase, "status": "frozen" if phase == "freeze" else "authorized"}
+                self.ledger.db.execute("INSERT INTO rollout_action_receipts VALUES (?,?,?,?,?,?,?)",
+                    (self.ledger.owner_id, receipt, "rollback", digest, rollout_id, _canonical(result), datetime.now(timezone.utc).isoformat()))
+                self.ledger.db.execute("INSERT INTO rollout_rollback_receipts VALUES (?,?,?,?,?,?,?)",
+                    (self.ledger.owner_id, receipt, rollout_id, plan_digest, result["status"], _canonical(result), datetime.now(timezone.utc).isoformat()))
             else:
-                result = {"rollout_id": rollout_id, "phase": phase, "status": "frozen"}
-            self.ledger.db.execute("INSERT INTO rollout_action_receipts VALUES (?,?,?,?,?,?,?)",
-                (self.ledger.owner_id, receipt, "rollback", digest, rollout_id, _canonical(result), datetime.now(timezone.utc).isoformat()))
+                result = old
+        if phase == "freeze" or result["status"] not in {"authorized", "in_progress"}:
             return result
+        # Authorization is committed before external effects. A crash resumes only
+        # this authenticated action; a failed stage needs a new current-key receipt.
+        result = self.rollback_runner.run(rollout_id, plan_digest, backend=self.backend,
+            through="verify" if phase == "run" else phase)
+        with self.ledger._write_transaction():
+            existing = self.ledger.db.execute("SELECT result_json FROM rollout_action_receipts WHERE owner_id=? AND receipt=?", (self.ledger.owner_id, receipt)).fetchone()
+            saved = json.loads(existing["result_json"])
+            if saved["status"] not in {"authorized", "in_progress"}:
+                return saved
+            self.ledger.db.execute("UPDATE rollout_action_receipts SET result_json=? WHERE owner_id=? AND receipt=?", (_canonical(result), self.ledger.owner_id, receipt))
+            self.ledger.db.execute("UPDATE rollout_rollback_receipts SET status=?,result_json=? WHERE owner_id=? AND receipt=?", (result["status"], _canonical(result), self.ledger.owner_id, receipt))
+        return result
 
     def ingest(self, record: dict[str, Any]) -> GateReceipt:
         run = self._run(); receipt = self.host.ingest(record, rollout=run)

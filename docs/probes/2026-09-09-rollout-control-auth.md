@@ -45,3 +45,13 @@ Judge isolated shadow 在当前进程没有 LLM endpoint/key 的情况下重跑�
 ## 最终复核（2026-09-09）
 
 回滚 runner、schema v4、Projector 补偿和授权路径复核后，`uv run --locked pytest -q` 结果为 `196 passed, 91 subtests passed`；仅有既有依赖弃用警告。Codex 90 秒重跑的 evaluator 为 `18/19`, `inconclusive`，唯一未观察到的是 `marker_context_injection`；Judge shadow 仍为 `unsuccessful_observation`。因此真实 Codex/Judge 准入证据尚未闭合，正常 workspace 继续保持 `off`。
+
+## Projector/rollback 协议与故障矩阵（2026-09-09）
+
+新增 schema v5 `projection_operations` 与 `rollout_compensation_receipts`。Projector claim 会先登记 operation、authorization receipt、claim token 和 control epoch；外部 backend 调用前后均检查 lease/epoch/deadline。停止期间的 late upsert 只允许通过相同 operation、generation、owner、revision、payload digest 和精确 locator 进行补偿。删除后必须再次 inspect 确认为空；失败写入 `cleanup_required`，重启可恢复，重复执行不重复删除。
+
+独立故障矩阵覆盖 17 项：非空 rollback、OpenViking adapter 精确删除、单进程失败、重启恢复、并发 rollback、重复 receipt、在途 call、STOP 竞态、补偿失败、locator 身份冲突、缺 backend、阶段收敛、head 变化、租约回收、shadow 隔离和迁移失败。新增矩阵测试后全量为 `217 passed, 96 subtests passed`；报告统计字段包含候选、隔离数据、清理目标、补偿 receipt 和残留 memory/candidate/operation/outbox。
+
+独立 shadow audit：[shadow-audit.json](../../artifacts/probes/20260909-rollout-protocol/shadow-audit.json)。3 条候选和 3 条隔离事件均被统计，正式 memory/projection 为零，回滚后候选残留为零，临时 Ledger 与目录均清理。
+
+最新 Codex probe artifact：`artifacts/probes/20260909-rollout-protocol/codex-probe.json`，评估：[codex-evaluation.json](../../artifacts/probes/20260909-rollout-protocol/codex-evaluation.json)。固定 `codex-cli 0.153.4` 与 `gpt-5.6-terra`，六类要求事件均观察到，evaluator 为 `18/19 inconclusive`；唯一未通过仍是 `marker_context_injection`。模型配置和 host 执行已恢复，但真实消费 marker 尚未成功，因此仍不是准入证据；未读取私人 transcript、未保存 endpoint 或 token。

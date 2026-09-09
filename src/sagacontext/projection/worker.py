@@ -18,6 +18,7 @@ from ..backends import (
     Projection,
 )
 from ..ledger import Ledger
+from .protocol import ProjectionProtocol, operation_key
 
 
 def _now() -> str:
@@ -57,6 +58,7 @@ class ProjectionRunResult(BaseModel):
 class Projector:
     def __init__(self, ledger: Ledger):
         self.ledger = ledger
+        self.protocol = ProjectionProtocol(ledger)
 
     def drain_once(
         self,
@@ -177,9 +179,20 @@ class Projector:
             if rollout_id is not None:
                 query += " AND EXISTS (SELECT 1 FROM rollout_commits rc WHERE rc.outbox_id=outbox.outbox_id AND rc.rollout_id=?)"
                 params.append(rollout_id)
+            query += (" AND NOT EXISTS (SELECT 1 FROM rollout_commits c JOIN rollout_runs r "
+                      "ON r.rollout_id=c.rollout_id WHERE c.memory_id=outbox.memory_id "
+                      "AND r.status NOT IN ('running','draining'))")
             query += " ORDER BY CASE status WHEN 'unknown' THEN 0 ELSE 1 END,outbox_id LIMIT 1"
             row = self.ledger.db.execute(query, params).fetchone()
             if not row:
+                return None
+            run = self.protocol.ownership(row["outbox_id"])
+            associated = self.ledger.db.execute("SELECT 1 FROM rollout_commits WHERE outbox_id=?", (row["outbox_id"],)).fetchone()
+            if associated and not run:
+                raise ValueError("projection_authorization_missing")
+            rollout_id = run["rollout_id"] if run else None
+            epoch = run["control_epoch"] if run else None
+            if run and (run["status"] not in {"running", "draining"} or run["deadline"] <= now_text):
                 return None
             projection = self._projection(row)
             operation_key = self._operation_key(row)
@@ -203,7 +216,7 @@ class Projector:
                 return None
             self.ledger.db.execute(
                 "INSERT INTO projection_attempts(attempt_id,outbox_id,operation_key,attempt_no,"
-                "started_at,lease_owner,lease_token) VALUES (?,?,?,?,?,?,?)",
+                "started_at,lease_owner,lease_token,rollout_id,control_epoch) VALUES (?,?,?,?,?,?,?,?,?)",
                 (
                     str(uuid.uuid4()),
                     row["outbox_id"],
@@ -212,8 +225,12 @@ class Projector:
                     now_text,
                     worker_id,
                     token,
+                    rollout_id,
+                    epoch,
                 ),
             )
+            if rollout_id:
+                self.protocol.register(row, run, token=token, until=lease_until.isoformat(), payload_digest=projection.payload_digest)
         return ProjectionClaim(
             outbox_id=row["outbox_id"],
             action=row["action"],
@@ -225,17 +242,18 @@ class Projector:
             source_status=row["status"],
             projection=projection,
             rollout_id=rollout_id,
-            control_epoch=(self.ledger.db.execute("SELECT control_epoch FROM rollout_runs WHERE rollout_id=?", (rollout_id,)).fetchone()[0] if rollout_id else None),
+            control_epoch=epoch,
         )
 
     def call_backend(
         self, claim: ProjectionClaim, backend: BackendAdapter, *, now: datetime
     ) -> str:
-        if claim.rollout_id:
-            run = self.ledger.db.execute("SELECT status,control_epoch FROM rollout_runs WHERE rollout_id=?", (claim.rollout_id,)).fetchone()
-            if not run or run["status"] not in {"running", "draining"} or (claim.control_epoch is not None and run["control_epoch"] != claim.control_epoch):
-                raise ValueError("rollout_projection_fenced")
         with self.ledger._write_transaction():
+            if claim.rollout_id:
+                run = self.ledger.db.execute("SELECT status,control_epoch,deadline FROM rollout_runs WHERE rollout_id=?", (claim.rollout_id,)).fetchone()
+                if not run or run["status"] not in {"running", "draining"} or run["control_epoch"] != claim.control_epoch or run["deadline"] <= now.isoformat():
+                    raise ValueError("rollout_projection_fenced")
+                self.ledger.db.execute("UPDATE projection_operations SET state='calling' WHERE outbox_id=? AND claim_token=?", (claim.outbox_id, claim.lease_token))
             if not self._owns(claim, now):
                 raise ValueError("projection_lease_fenced")
             self.ledger.db.execute(
@@ -270,22 +288,21 @@ class Projector:
         max_attempts: int = 3,
     ) -> ProjectionRunResult:
         if claim.rollout_id:
-            run = self.ledger.db.execute("SELECT status,control_epoch FROM rollout_runs WHERE rollout_id=?", (claim.rollout_id,)).fetchone()
-            if not run or run["status"] not in {"running", "draining"} or (claim.control_epoch is not None and run["control_epoch"] != claim.control_epoch):
-                if locator and claim.action == "upsert":
-                    try:
-                        backend.remove_projection([locator])
-                        with self.ledger._write_transaction():
-                            self.ledger.db.execute("UPDATE outbox SET status='compensated',lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=? WHERE outbox_id=?", (_now(), claim.outbox_id))
-                    except Exception:
-                        with self.ledger._write_transaction():
-                            self.ledger.db.execute(
-                                "UPDATE outbox SET status='cleanup_required',last_error_class='compensation_failed',"
-                                "lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=? WHERE outbox_id=?",
-                                (_now(), claim.outbox_id),
-                            )
-                        return ProjectionRunResult(status="blocked", outbox_id=claim.outbox_id)
-                return ProjectionRunResult(status="fenced", outbox_id=claim.outbox_id)
+            self.protocol.record_return(claim, locator)
+            run = self.ledger.db.execute("SELECT status,control_epoch,deadline FROM rollout_runs WHERE rollout_id=?", (claim.rollout_id,)).fetchone()
+            if run and run["deadline"] <= now.isoformat() and run["status"] in {"running", "draining"}:
+                with self.ledger._write_transaction():
+                    self.ledger.db.execute("UPDATE rollout_runs SET status='stopping',control_epoch=control_epoch+1 WHERE rollout_id=? AND status IN ('running','draining')", (claim.rollout_id,))
+                run = None
+            if not run or run["status"] not in {"running", "draining"} or run["control_epoch"] != claim.control_epoch:
+                try:
+                    status = self.protocol.compensate(claim.outbox_id, backend)
+                except ValueError:
+                    with self.ledger._write_transaction():
+                        self.ledger.db.execute("UPDATE projection_operations SET state='cleanup_required' WHERE outbox_id=?", (claim.outbox_id,))
+                        self.ledger.db.execute("UPDATE outbox SET status='cleanup_required' WHERE outbox_id=?", (claim.outbox_id,))
+                    status = 'cleanup_required'
+                return ProjectionRunResult(status="fenced" if status == "compensated" else "blocked", outbox_id=claim.outbox_id)
         if not self._owns(claim, now):
             return ProjectionRunResult(status="fenced", outbox_id=claim.outbox_id)
         started = time.monotonic()
@@ -304,6 +321,12 @@ class Projector:
         now = now + timedelta(seconds=time.monotonic() - started)
         backend_name = backend.capabilities().backend
         with self.ledger._write_transaction():
+            if claim.rollout_id:
+                run = self.ledger.db.execute("SELECT status,control_epoch FROM rollout_runs WHERE rollout_id=?", (claim.rollout_id,)).fetchone()
+                if not run or run["status"] not in {"running", "draining"} or run["control_epoch"] != claim.control_epoch:
+                    self.ledger.db.execute("UPDATE projection_operations SET state='cleanup_required' WHERE outbox_id=?", (claim.outbox_id,))
+                    self.ledger.db.execute("UPDATE outbox SET status='cleanup_required' WHERE outbox_id=?", (claim.outbox_id,))
+                    return ProjectionRunResult(status="blocked", outbox_id=claim.outbox_id)
             if not self._owns(claim, now):
                 return ProjectionRunResult(status="fenced", outbox_id=claim.outbox_id)
             head = self.ledger.db.execute(
@@ -405,6 +428,8 @@ class Projector:
             )
             if changed.rowcount != 1:
                 raise ValueError("projection_lease_fenced")
+            if claim.rollout_id:
+                self.ledger.db.execute("UPDATE projection_operations SET state=?,locator=?,updated_at=? WHERE outbox_id=?", (status, locator, _now(), claim.outbox_id))
         return ProjectionRunResult(
             status=status, outbox_id=claim.outbox_id, recovered=recovered
         )
@@ -470,6 +495,10 @@ class Projector:
 
     def _mark_call_started(self, claim: ProjectionClaim, now: datetime) -> None:
         with self.ledger._write_transaction():
+            if claim.rollout_id:
+                run = self.ledger.db.execute("SELECT status,control_epoch,deadline FROM rollout_runs WHERE rollout_id=?", (claim.rollout_id,)).fetchone()
+                if not run or run["status"] not in {"running", "draining"} or run["control_epoch"] != claim.control_epoch or run["deadline"] <= now.isoformat():
+                    raise ValueError("rollout_projection_fenced")
             if not self._owns(claim, now):
                 raise ValueError("projection_lease_fenced")
             self.ledger.db.execute(
@@ -520,6 +549,8 @@ class Projector:
         )
         if changed.rowcount != 1:
             raise ValueError("projection_lease_fenced")
+        if claim.rollout_id:
+            self.ledger.db.execute("UPDATE projection_operations SET state=?,updated_at=? WHERE outbox_id=? AND claim_token=?", (status, _now(), claim.outbox_id, claim.lease_token))
 
     def _owns(self, claim: ProjectionClaim, now: datetime) -> bool:
         row = self.ledger.db.execute(
@@ -565,15 +596,7 @@ class Projector:
 
     @staticmethod
     def _operation_key(outbox) -> str:
-        identity = {
-            "action": outbox["action"],
-            "backend": outbox["backend"],
-            "generation": outbox["generation"],
-            "memory_id": outbox["memory_id"],
-            "revision": outbox["revision"],
-            "target_locator": outbox["target_locator"],
-        }
-        return hashlib.sha256(_canonical(identity).encode()).hexdigest()
+        return operation_key(outbox)
 
     def _is_current(self, projection: Projection) -> bool:
         row = self.ledger.db.execute(

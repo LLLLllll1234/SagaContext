@@ -63,6 +63,12 @@ class ProbeRunnerTests(unittest.TestCase):
     def test_marker_detection_scans_completed_item_payload(self):
         self.assertTrue(
             PROBE._agent_received_marker(
-                [{"type": "item.completed", "item": {"text": ["G3_SESSION_START_CONTEXT"]}}]
+                [{"type": "item.completed", "item": {"type": "agent_message", "text": "G3_SESSION_START_CONTEXT"}}]
             )
         )
+
+    def test_tool_output_marker_is_not_consumption(self):
+        self.assertFalse(PROBE._agent_received_marker([
+            {"type": "item.completed", "item": {"type": "command_execution", "aggregated_output": "G3_SESSION_START_CONTEXT"}},
+            {"type": "item.completed", "item": {"type": "agent_message", "text": "MISSING"}},
+        ]))

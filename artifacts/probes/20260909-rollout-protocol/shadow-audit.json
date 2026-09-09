@@ -1,0 +1,39 @@
+{
+  "schema": "rollout-shadow-audit-v1",
+  "environment": "temporary-ledger-scripted-judge",
+  "rollout_id": "2ddf17fe-1585-490f-8b0c-167eb5101f0a",
+  "formal_workspace_mode": "off",
+  "formal_write": false,
+  "recall": false,
+  "injection": false,
+  "before": {
+    "candidates": 3,
+    "events_retained_for_audit": 3,
+    "batches_retained_for_audit": 3,
+    "memory_targets": 0,
+    "projection_targets": 0,
+    "compensation_receipts": 0,
+    "residual_memories": 0,
+    "residual_candidates": 3,
+    "residual_operations": 0,
+    "residual_outbox": 0
+  },
+  "after": {
+    "candidates": 3,
+    "events_retained_for_audit": 3,
+    "batches_retained_for_audit": 3,
+    "memory_targets": 0,
+    "projection_targets": 0,
+    "compensation_receipts": 0,
+    "residual_memories": 0,
+    "residual_candidates": 0,
+    "residual_operations": 0,
+    "residual_outbox": 0
+  },
+  "rollback_status": "completed",
+  "total_ledger_memories": 0,
+  "retention_policy": "quarantined candidates and settled batches retained with event/control evidence until temporary workspace removal",
+  "temporary_root_removed": true,
+  "temporary_ledger_removed": true,
+  "residual_files": 0
+}
