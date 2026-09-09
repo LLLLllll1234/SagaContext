@@ -164,20 +164,28 @@ class BatchService:
         return BatchReceipt(batch_id=batch_id, candidate_claim_tokens=tuple(claim_tokens))
 
     def claim_next(
-        self, worker_id: str, now: datetime, lease_duration: timedelta
+        self, worker_id: str, now: datetime, lease_duration: timedelta, batch_id: str | None = None
     ) -> BatchClaim | None:
         if lease_duration <= timedelta(0):
             raise ValueError("lease_duration must be positive")
         now_text = now.astimezone(timezone.utc).isoformat()
         lease_until = now.astimezone(timezone.utc) + lease_duration
         with self.ledger._write_transaction():
-            row = self.ledger.db.execute(
+            if batch_id is not None:
+                row = self.ledger.db.execute(
+                    "SELECT batch_id,status,lease_token FROM batches WHERE owner_id=? AND batch_id=? AND "
+                    "((status IN ('pending','retry') AND (next_attempt_at IS NULL OR next_attempt_at<=?)) "
+                    "OR (status IN ('running','proposed') AND lease_until<?))",
+                    (self.ledger.owner_id, batch_id, now_text, now_text),
+                ).fetchone()
+            else:
+                row = self.ledger.db.execute(
                 "SELECT batch_id,status,lease_token FROM batches WHERE owner_id=? AND "
                 "((status IN ('pending','retry') AND (next_attempt_at IS NULL OR next_attempt_at<=?)) "
                 "OR (status IN ('running','proposed') AND lease_until<?)) "
                 "ORDER BY created_at,batch_id LIMIT 1",
                 (self.ledger.owner_id, now_text, now_text),
-            ).fetchone()
+                ).fetchone()
             if not row:
                 return None
             token = str(uuid.uuid4())

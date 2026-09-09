@@ -4,11 +4,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .backends import OpenVikingBackendAdapter
 from .config import Config
 from .ledger import Ledger, TaskContext
 from .maintenance import BatchService, BatchWorker, EventJournal, ReviewService
 from .projection import Projector
 from .recall_policy import RecallPolicy
+from .rollout import RolloutRuntime
 
 
 class TaskContextInput(BaseModel):
@@ -36,6 +38,15 @@ class Application:
         self.reviews = ReviewService(self.ledger)
         self.projector = Projector(self.ledger)
         self.recall_policy = RecallPolicy(self.ledger)
+        self.rollout = RolloutRuntime(self.ledger, config)
+        self.rollout_backend = None
+        if config.rollout_backend_namespace and config.rollout_mode != "off":
+            self.rollout_backend = OpenVikingBackendAdapter(
+                config.ov_base_url,
+                config.ov_api_key,
+                namespace=config.rollout_backend_namespace,
+                owner_id=self.owner_id,
+            )
         self._closed = False
 
     @property
@@ -47,6 +58,8 @@ class Application:
 
     def close(self) -> None:
         if not self._closed:
+            if self.rollout_backend is not None:
+                self.rollout_backend.close()
             self.ledger.close()
             self._closed = True
 

@@ -2,7 +2,12 @@
 HOST="$1"
 EVENT="$2"
 PORT="${SAGACTL_PORT:-37780}"
-OUT=$(curl -s -m 0.8 -H 'Content-Type: application/json' --data-binary @- "http://127.0.0.1:${PORT}/events?host=${HOST}&event=${EVENT}" 2>/dev/null)
+HOST_VERSION="${SAGACONTEXT_HOST_VERSION:-}"
+GENERATION="${SAGACONTEXT_GENERATION:-}"
+OUT=$(curl -s -m 0.8 -H 'Content-Type: application/json' \
+  -H "X-SagaContext-Host-Version: ${HOST_VERSION}" \
+  -H "X-SagaContext-Generation: ${GENERATION}" \
+  --data-binary @- "http://127.0.0.1:${PORT}/events?host=${HOST}&event=${EVENT}" 2>/dev/null)
 RC=$?
 if [ "$RC" -ne 0 ]; then
   if [ "$RC" -eq 7 ] && command -v sagacontext-daemon >/dev/null 2>&1; then

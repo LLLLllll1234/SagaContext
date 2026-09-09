@@ -40,6 +40,8 @@ class ProjectionClaim(BaseModel):
     lease_until: datetime
     source_status: Literal["pending", "retry", "unknown"]
     projection: Projection
+    rollout_id: str | None = None
+    control_epoch: int | None = None
 
 
 class ProjectionRunResult(BaseModel):
@@ -67,6 +69,7 @@ class Projector:
         lease_duration: timedelta,
         verification_timeout: timedelta,
         max_attempts: int = 3,
+        rollout_id: str | None = None,
     ) -> ProjectionRunResult:
         if verification_timeout <= timedelta(0):
             raise ValueError("verification_timeout must be positive")
@@ -86,6 +89,7 @@ class Projector:
             lease_duration=lease_duration,
             backend_timeout=backend_timeout,
             local_completion_margin=local_completion_margin,
+            rollout_id=rollout_id,
         )
         if claim is None:
             return ProjectionRunResult(status="idle")
@@ -128,12 +132,17 @@ class Projector:
         lease_duration: timedelta,
         backend_timeout: timedelta,
         local_completion_margin: timedelta,
+        rollout_id: str | None = None,
     ) -> ProjectionClaim | None:
         if lease_duration <= backend_timeout + local_completion_margin:
             raise ValueError("lease_duration must exceed backend_timeout plus completion margin")
         backend_name = backend.capabilities().backend
         now = now.astimezone(timezone.utc)
         now_text = now.isoformat()
+        if rollout_id is not None:
+            rollout = self.ledger.db.execute("SELECT status FROM rollout_runs WHERE rollout_id=?", (rollout_id,)).fetchone()
+            if not rollout or rollout["status"] not in {"running", "draining"}:
+                return None
         with self.ledger._write_transaction():
             expired = self.ledger.db.execute(
                 "SELECT outbox_id FROM outbox WHERE backend=? AND status='running' "
@@ -161,13 +170,15 @@ class Projector:
                     "updated_at=? WHERE outbox_id=? AND status='running'",
                     (status, now_text, row["outbox_id"]),
                 )
-            row = self.ledger.db.execute(
-                "SELECT * FROM outbox WHERE backend=? AND "
-                "(status='unknown' OR (status IN ('pending','retry') "
-                "AND (next_attempt_at IS NULL OR next_attempt_at<=?))) "
-                "ORDER BY CASE status WHEN 'unknown' THEN 0 ELSE 1 END,outbox_id LIMIT 1",
-                (backend_name, now_text),
-            ).fetchone()
+            query = ("SELECT * FROM outbox WHERE backend=? AND "
+                     "(status='unknown' OR (status IN ('pending','retry') "
+                     "AND (next_attempt_at IS NULL OR next_attempt_at<=?)))")
+            params: list[object] = [backend_name, now_text]
+            if rollout_id is not None:
+                query += " AND EXISTS (SELECT 1 FROM rollout_commits rc WHERE rc.outbox_id=outbox.outbox_id AND rc.rollout_id=?)"
+                params.append(rollout_id)
+            query += " ORDER BY CASE status WHEN 'unknown' THEN 0 ELSE 1 END,outbox_id LIMIT 1"
+            row = self.ledger.db.execute(query, params).fetchone()
             if not row:
                 return None
             projection = self._projection(row)
@@ -213,11 +224,17 @@ class Projector:
             lease_until=lease_until,
             source_status=row["status"],
             projection=projection,
+            rollout_id=rollout_id,
+            control_epoch=(self.ledger.db.execute("SELECT control_epoch FROM rollout_runs WHERE rollout_id=?", (rollout_id,)).fetchone()[0] if rollout_id else None),
         )
 
     def call_backend(
         self, claim: ProjectionClaim, backend: BackendAdapter, *, now: datetime
     ) -> str:
+        if claim.rollout_id:
+            run = self.ledger.db.execute("SELECT status,control_epoch FROM rollout_runs WHERE rollout_id=?", (claim.rollout_id,)).fetchone()
+            if not run or run["status"] not in {"running", "draining"} or (claim.control_epoch is not None and run["control_epoch"] != claim.control_epoch):
+                raise ValueError("rollout_projection_fenced")
         with self.ledger._write_transaction():
             if not self._owns(claim, now):
                 raise ValueError("projection_lease_fenced")
@@ -252,6 +269,17 @@ class Projector:
         now: datetime,
         max_attempts: int = 3,
     ) -> ProjectionRunResult:
+        if claim.rollout_id:
+            run = self.ledger.db.execute("SELECT status,control_epoch FROM rollout_runs WHERE rollout_id=?", (claim.rollout_id,)).fetchone()
+            if not run or run["status"] not in {"running", "draining"} or (claim.control_epoch is not None and run["control_epoch"] != claim.control_epoch):
+                if locator and claim.action == "upsert":
+                    try:
+                        backend.remove_projection([locator])
+                        with self.ledger._write_transaction():
+                            self.ledger.db.execute("UPDATE outbox SET status='compensated',lease_owner=NULL,lease_token=NULL,lease_until=NULL,updated_at=? WHERE outbox_id=?", (_now(), claim.outbox_id))
+                    except Exception:
+                        pass
+                return ProjectionRunResult(status="fenced", outbox_id=claim.outbox_id)
         if not self._owns(claim, now):
             return ProjectionRunResult(status="fenced", outbox_id=claim.outbox_id)
         started = time.monotonic()

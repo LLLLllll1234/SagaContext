@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from .application import Application, CurrentMemoryInput, TaskContextInput
 from .config import Config
 from .ledger import CommitRequest
 from .ledger.schema import SCHEMA_VERSION
+from .rollout import RuntimeMode
 
 
 class ProjectRegistration(BaseModel):
@@ -48,6 +52,13 @@ def _invalid(error: ValueError) -> HTTPException:
     return HTTPException(status_code=400, detail={"status": "invalid_request", "reason": str(error)})
 
 
+def _auth_kwargs(request: Request, approver: str | None, key_id: str | None,
+                 receipt: str | None, issued_at: str | None, expires_at: str | None) -> dict[str, str | None]:
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else None
+    return {"token": token, "key_id": key_id, "issued_at": issued_at, "expires_at": expires_at}
+
+
 def create_app(config: Config | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(api: FastAPI):
@@ -70,9 +81,127 @@ def create_app(config: Config | None = None) -> FastAPI:
             "host_ingestion": "disabled",
         }
 
-    @api.post("/events", status_code=501)
-    def events_disabled():
-        return {"status": "host_ingestion_disabled", "stage": "S1"}
+    @api.post("/events")
+    async def ingest_event(
+        request: Request, host: str = "codex", event: str = "",
+        host_version: str = Header("", alias="X-SagaContext-Host-Version"),
+        generation: str = Header("", alias="X-SagaContext-Generation"),
+    ):
+        runtime = _runtime(request)
+        try:
+            decoded = json.loads((await request.body()).decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            if runtime.rollout.mode.value == "off":
+                return JSONResponse(status_code=501, content={"status": "host_ingestion_disabled", "stage": "S1"})
+            raise HTTPException(status_code=400, detail={"status": "invalid_request", "reason": "invalid_json"})
+        if not isinstance(decoded, dict):
+            raise HTTPException(status_code=400, detail={"status": "invalid_request", "reason": "object_required"})
+        payload = decoded
+        record = {
+            **payload,
+            "host": host,
+            "hook_event_name": event or payload.get("hook_event_name", ""),
+            "host_version": host_version or payload.get("host_version", ""),
+            "source_generation": generation or payload.get("source_generation", ""),
+        }
+        if record["hook_event_name"] == "SessionStart":
+            output, receipt = runtime.rollout.session_start(
+                record, runtime.rollout_backend, query=str(payload.get("query", "workspace"))
+            )
+            return output
+        receipt = runtime.rollout.ingest(record)
+        if receipt.reason == "mode_off":
+            return JSONResponse(status_code=501, content={"status": "host_ingestion_disabled", "stage": "S1", "sagacontextReceipt": receipt.model_dump(mode="json")})
+        return {"status": receipt.status, "reason": receipt.reason}
+
+    @api.get("/rollout/audit")
+    def rollout_audit(request: Request, kind: str | None = None):
+        return _runtime(request).ledger.list_rollout_receipts(kind=kind)
+
+    @api.post("/rollout/mode")
+    def rollout_mode(payload: dict[str, Any], request: Request,
+                     approver: str | None = Header(None, alias="X-SagaContext-Approver"),
+                     key_id: str | None = Header(None, alias="X-SagaContext-Key-Id"),
+                     receipt: str | None = Header(None, alias="X-SagaContext-Approval-Receipt"),
+                     issued_at: str | None = Header(None, alias="X-SagaContext-Issued-At"),
+                     expires_at: str | None = Header(None, alias="X-SagaContext-Expires-At")):
+        try:
+            runtime = _runtime(request).rollout
+            mode = RuntimeMode(payload.get("mode", "off"))
+            if mode is RuntimeMode.OFF:
+                return runtime.stop(reason=str(payload.get("reason", "operator")))
+            return runtime.activate(mode=mode, workspace=str(payload.get("workspace", "")),
+                approver=approver or "", approval_receipt=receipt or "",
+                deadline=payload["deadline"], max_sessions=int(payload.get("max_sessions", 10)), max_candidates=int(payload.get("max_candidates", 20)),
+                generation=payload.get("generation"), rollback_plan=payload.get("rollback_plan"), **_auth_kwargs(request, approver, key_id, receipt, issued_at, expires_at))
+        except (ValueError, KeyError, TypeError) as error:
+            raise _invalid(error) from error
+
+    @api.post("/rollout/batches/{batch_id}/review")
+    def rollout_review(batch_id: str, payload: dict[str, Any], request: Request,
+                       approver: str | None = Header(None, alias="X-SagaContext-Approver"),
+                       key_id: str | None = Header(None, alias="X-SagaContext-Key-Id"),
+                       receipt: str | None = Header(None, alias="X-SagaContext-Approval-Receipt"),
+                       issued_at: str | None = Header(None, alias="X-SagaContext-Issued-At"),
+                       expires_at: str | None = Header(None, alias="X-SagaContext-Expires-At")):
+        try:
+            return _runtime(request).rollout.review_batch(
+                batch_id,
+                payload.get("decision", "reject"),
+                reviewer=payload.get("reviewer", "unknown"),
+                receipt=receipt or "",
+                approver=approver,
+                **_auth_kwargs(request, approver, key_id, receipt, issued_at, expires_at),
+            )
+        except ValueError as error:
+            raise _invalid(error) from error
+
+    @api.post("/rollout/grants")
+    def rollout_grant(payload: dict[str, Any], request: Request,
+                      approver: str | None = Header(None, alias="X-SagaContext-Approver"),
+                      key_id: str | None = Header(None, alias="X-SagaContext-Key-Id"),
+                      receipt: str | None = Header(None, alias="X-SagaContext-Approval-Receipt"),
+                      issued_at: str | None = Header(None, alias="X-SagaContext-Issued-At"),
+                      expires_at: str | None = Header(None, alias="X-SagaContext-Expires-At")):
+        try:
+            if set(payload) != {"action", "target_receipt", "request_digest", "expires_at"}:
+                raise ValueError("invalid_grant_fields")
+            auth = _auth_kwargs(request, approver, key_id, receipt, issued_at, expires_at)
+            return _runtime(request).rollout.register_grant(
+                action=payload["action"], target_receipt=payload["target_receipt"],
+                request_digest=payload["request_digest"], expires_at=payload["expires_at"],
+                token=auth["token"], approver=approver, key_id=key_id, receipt=receipt or "",
+                issued_at=issued_at, auth_expires_at=expires_at,
+            )
+        except (ValueError, TypeError, KeyError) as error:
+            raise _invalid(error) from error
+
+    @api.post("/rollout/rollback")
+    def rollout_rollback(payload: dict[str, Any], request: Request,
+                         approver: str | None = Header(None, alias="X-SagaContext-Approver"),
+                         key_id: str | None = Header(None, alias="X-SagaContext-Key-Id"),
+                         receipt: str | None = Header(None, alias="X-SagaContext-Approval-Receipt"),
+                         issued_at: str | None = Header(None, alias="X-SagaContext-Issued-At"),
+                         expires_at: str | None = Header(None, alias="X-SagaContext-Expires-At")):
+        try:
+            return _runtime(request).rollout.rollback(
+                rollout_id=str(payload.get("rollout_id", "")),
+                plan_digest=str(payload.get("rollback_plan_digest", "")),
+                phase=str(payload.get("phase", "")), receipt=receipt or "",
+                approver=approver,
+                **_auth_kwargs(request, approver, key_id, receipt, issued_at, expires_at),
+            )
+        except ValueError as error:
+            raise _invalid(error) from error
+
+    @api.post("/rollout/consumption")
+    def rollout_consumption(payload: dict[str, Any], request: Request):
+        try:
+            from .rollout import InjectionReceipt
+            receipt = InjectionReceipt.model_validate(payload.get("injection_receipt", payload))
+            return _runtime(request).rollout.record_consumption(receipt, result=payload.get("result", {}))
+        except (ValueError, TypeError) as error:
+            raise _invalid(error) from error
 
     @api.post("/projects/register")
     def register_project(payload: ProjectRegistration, request: Request):
@@ -119,10 +248,7 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     @api.post("/memories/commit")
     def commit_memory(payload: CommitRequest, request: Request):
-        try:
-            return _runtime(request).ledger.commit(payload)
-        except ValueError as error:
-            raise _invalid(error) from error
+        raise HTTPException(status_code=403, detail={"status": "direct_commit_disabled"})
 
     @api.post("/memories/current")
     def current_memories(payload: CurrentMemoryInput, request: Request):
@@ -136,7 +262,7 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     @api.post("/memories/{memory_id}/forget")
     def forget_memory(memory_id: str, payload: ForgetRequest, request: Request):
-        return _runtime(request).ledger.forget(memory_id, payload.receipt)
+        raise HTTPException(status_code=403, detail={"status": "direct_forget_disabled"})
 
     @api.get("/deletions/{job_id}")
     def deletion_status(job_id: str, request: Request):

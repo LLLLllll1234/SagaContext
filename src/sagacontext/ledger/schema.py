@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 4
 
 MIGRATION_1 = """
 CREATE TABLE owners(
@@ -344,4 +344,158 @@ ALTER TABLE outbox ADD COLUMN unknown_reason TEXT;
 ALTER TABLE outbox ADD COLUMN confirmed_receipt_id TEXT;
 ALTER TABLE outbox ADD COLUMN target_locator TEXT;
 ALTER TABLE outbox ADD COLUMN updated_at TEXT;
+"""
+
+MIGRATION_3 = """
+CREATE TABLE IF NOT EXISTS rollout_audit(
+    receipt_id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    workspace_id TEXT,
+    session_id TEXT,
+    digest TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+ALTER TABLE rollout_audit ADD COLUMN rollout_id TEXT;
+CREATE TABLE rollout_runs(
+    rollout_id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL REFERENCES owners(owner_id),
+    workspace_id TEXT NOT NULL,
+    workspace_root TEXT NOT NULL,
+    mode TEXT NOT NULL CHECK(mode IN ('shadow','guarded')),
+    status TEXT NOT NULL CHECK(status IN (
+        'running','draining','stopping','stopped','cleanup_required'
+    )),
+    approver TEXT NOT NULL,
+    key_id TEXT NOT NULL,
+    approval_receipt TEXT NOT NULL,
+    approval_digest TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    deadline TEXT NOT NULL,
+    stopped_at TEXT,
+    stop_reason TEXT,
+    max_sessions INTEGER NOT NULL CHECK(max_sessions > 0),
+    max_candidates INTEGER NOT NULL CHECK(max_candidates > 0),
+    generation TEXT NOT NULL,
+    control_epoch INTEGER NOT NULL DEFAULT 1,
+    rollback_plan_digest TEXT NOT NULL,
+    rollback_plan_json TEXT NOT NULL DEFAULT '{}',
+    plan_schema_version TEXT NOT NULL DEFAULT 'rollout-plan-v1',
+    created_at TEXT NOT NULL,
+    UNIQUE(owner_id, approval_receipt)
+);
+CREATE UNIQUE INDEX one_live_rollout_per_owner ON rollout_runs(owner_id)
+    WHERE status IN ('running','draining','stopping','cleanup_required');
+CREATE TABLE rollout_action_receipts(
+    owner_id TEXT NOT NULL REFERENCES owners(owner_id),
+    receipt TEXT NOT NULL,
+    action TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    rollout_id TEXT,
+    result_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(owner_id, receipt)
+);
+CREATE TABLE rollout_approval_grants(
+    owner_id TEXT NOT NULL REFERENCES owners(owner_id),
+    receipt TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    key_id TEXT NOT NULL,
+    registered_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    consumed_at TEXT,
+    PRIMARY KEY(owner_id, receipt)
+);
+CREATE TABLE rollout_sessions(
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    session_id TEXT NOT NULL REFERENCES sessions(session_id),
+    host_session_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('reserved','closed')),
+    reserved_at TEXT NOT NULL,
+    closed_at TEXT,
+    PRIMARY KEY(rollout_id, session_id),
+    UNIQUE(rollout_id, host_session_id)
+);
+CREATE TABLE rollout_events(
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    event_id TEXT NOT NULL REFERENCES events(event_id),
+    PRIMARY KEY(rollout_id, event_id)
+);
+CREATE TABLE rollout_candidate_reservations(
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    candidate_id TEXT NOT NULL REFERENCES candidates(candidate_id),
+    event_id TEXT NOT NULL REFERENCES events(event_id),
+    reserved_at TEXT NOT NULL,
+    PRIMARY KEY(rollout_id, candidate_id)
+);
+CREATE TABLE rollout_candidates(
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    candidate_id TEXT NOT NULL REFERENCES candidates(candidate_id),
+    PRIMARY KEY(rollout_id, candidate_id)
+);
+CREATE TABLE rollout_batches(
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    batch_id TEXT NOT NULL REFERENCES batches(batch_id),
+    PRIMARY KEY(rollout_id, batch_id)
+);
+CREATE TABLE rollout_review_receipts(
+    owner_id TEXT NOT NULL REFERENCES owners(owner_id),
+    receipt TEXT NOT NULL,
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    batch_id TEXT NOT NULL REFERENCES batches(batch_id),
+    decision TEXT NOT NULL CHECK(decision IN ('approve','reject')),
+    reviewer TEXT NOT NULL,
+    request_digest TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(owner_id, receipt)
+);
+CREATE TABLE rollout_commits(
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    proposal_id TEXT NOT NULL REFERENCES proposals(proposal_id),
+    memory_id TEXT NOT NULL REFERENCES memories(memory_id),
+    revision INTEGER NOT NULL,
+    previous_revision INTEGER,
+    previous_state TEXT,
+    outbox_id INTEGER REFERENCES outbox(outbox_id),
+    operation TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(rollout_id, proposal_id, memory_id, revision)
+);
+CREATE TABLE rollout_rollback_receipts(
+    owner_id TEXT NOT NULL REFERENCES owners(owner_id),
+    receipt TEXT NOT NULL,
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    plan_digest TEXT NOT NULL,
+    status TEXT NOT NULL,
+    result_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY(owner_id, receipt)
+);
+CREATE TABLE rollout_consumption_receipts(
+    owner_id TEXT NOT NULL REFERENCES owners(owner_id),
+    receipt_id TEXT PRIMARY KEY,
+    rollout_id TEXT REFERENCES rollout_runs(rollout_id),
+    session_digest TEXT NOT NULL,
+    bundle_digest TEXT,
+    result_digest TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+"""
+
+
+MIGRATION_4 = """
+CREATE TABLE rollout_control_keys(
+    owner_id TEXT NOT NULL REFERENCES owners(owner_id),
+    key_id TEXT NOT NULL,
+    token_digest TEXT NOT NULL,
+    approver TEXT NOT NULL,
+    registered_at TEXT NOT NULL,
+    retired_at TEXT,
+    PRIMARY KEY(owner_id,key_id)
+);
+CREATE UNIQUE INDEX one_current_control_key ON rollout_control_keys(owner_id)
+    WHERE retired_at IS NULL;
 """

@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from pathlib import Path
@@ -70,6 +71,8 @@ def _digest(value: object) -> str:
 
 def _utc(value: str | datetime) -> datetime:
     parsed = value if isinstance(value, datetime) else datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("timezone_required")
     return parsed.astimezone(timezone.utc)
 
 
@@ -81,30 +84,30 @@ class ControlAuth:
     def request_digest(self, action: str, fields: dict[str, Any]) -> str:
         return _digest({"digest_schema_version": "rollout-action-v1", "action": action, **fields})
 
-    def verify(self, *, action: str, fields: dict[str, Any], token: str | None, approver: str | None,
-               key_id: str | None, receipt: str | None, issued_at: str | None, expires_at: str | None,
-               registered_grant: dict[str, Any] | None = None) -> str:
-        if not token or not approver or not key_id or not receipt or not issued_at or not expires_at:
+    def verify(self, *, action: str, fields: dict[str, Any], token: str | None,
+               approver: str | None, key_id: str | None, receipt: str | None,
+               issued_at: str | None, expires_at: str | None) -> str:
+        if not all((token, approver, key_id, receipt, issued_at, expires_at)):
             raise ValueError("authorization_required")
         if approver != self.config.rollout_approver:
             raise ValueError("approver_mismatch")
-        digest = hashlib.sha256(token.encode()).hexdigest()
-        is_previous = key_id == self.config.rollout_previous_key_id
-        expected = self.config.rollout_previous_token_digest if is_previous else self.config.rollout_token_digest if key_id == self.config.rollout_key_id else ""
-        if is_previous and (not registered_grant or registered_grant.get("receipt") != receipt or registered_grant.get("key_id") != key_id):
-            raise ValueError("previous_key_requires_registered_grant")
-        if not expected or not hmac.compare_digest(digest, expected):
+        if key_id == self.config.rollout_key_id:
+            expected = self.config.rollout_token_digest
+        elif key_id == self.config.rollout_previous_key_id and action in {"activation", "review"}:
+            expected = self.config.rollout_previous_token_digest
+        else:
+            expected = ""
+        if not expected or not hmac.compare_digest(hashlib.sha256(token.encode()).hexdigest(), expected):
             raise ValueError("invalid_operator_token")
         now = datetime.now(timezone.utc)
         start, end = _utc(issued_at), _utc(expires_at)
-        if end < start or end - start > timedelta(minutes=5) or start - timedelta(seconds=60) > now or end + timedelta(seconds=60) < now:
+        if end <= start or end - start > timedelta(minutes=5) or start > now + timedelta(seconds=60) or end <= now:
             raise ValueError("authorization_expired")
-        digest = self.request_digest(action, {**fields, "approver": approver, "key_id": key_id, "approval_receipt": receipt,
-                                            "issued_at": start.isoformat(timespec="microseconds").replace("+00:00", "Z"),
-                                            "expires_at": end.isoformat(timespec="microseconds").replace("+00:00", "Z")})
-        if is_previous and registered_grant.get("request_digest") != digest:
-            raise ValueError("registered_grant_mismatch")
-        return digest
+        return self.request_digest(action, {
+            **fields, "approver": approver, "key_id": key_id, "approval_receipt": receipt,
+            "issued_at": start.isoformat(timespec="microseconds").replace("+00:00", "Z"),
+            "expires_at": end.isoformat(timespec="microseconds").replace("+00:00", "Z"),
+        })
 
 
 class NormalHostAdapter:
@@ -165,50 +168,106 @@ class RolloutRuntime:
     def __init__(self, ledger: Ledger, config: Config):
         self.ledger, self.config = ledger, config
         self.host, self.auth = NormalHostAdapter(ledger, config), ControlAuth(config)
+        self._sync_control_key()
         self.batches, self.worker, self.policy = BatchService(ledger, judge_version="openai-judge-prompt-v6"), BatchWorker(ledger), RecallPolicy(ledger)
 
-    def _registered_grant(self, receipt: str, request_digest: str) -> dict[str, Any] | None:
-        row = self.ledger.db.execute(
-            "SELECT receipt,request_digest,key_id,registered_at,expires_at,consumed_at "
-            "FROM rollout_approval_grants WHERE owner_id=? AND receipt=?",
-            (self.ledger.owner_id, receipt),
-        ).fetchone()
-        if not row or row["request_digest"] != request_digest or row["consumed_at"]:
-            return None
-        if self.config.rollout_previous_rotated_at and _utc(row["registered_at"]) >= _utc(self.config.rollout_previous_rotated_at):
-            return None
-        if _utc(row["expires_at"]) <= datetime.now(timezone.utc):
-            return None
-        return dict(row)
-
-    def _consume_grant(self, grant: dict[str, Any] | None) -> None:
-        if not grant:
+    def _sync_control_key(self) -> None:
+        """Persist trusted configuration rotation, serialized with grant registration."""
+        if not self.config.rollout_key_id or not self.config.rollout_token_digest:
             return
-        changed = self.ledger.db.execute(
-            "UPDATE rollout_approval_grants SET consumed_at=? "
-            "WHERE owner_id=? AND receipt=? AND consumed_at IS NULL",
-            (datetime.now(timezone.utc).isoformat(), self.ledger.owner_id, grant["receipt"]),
-        )
-        if changed.rowcount != 1:
-            raise ValueError("grant_already_consumed")
+        with self.ledger._write_transaction():
+            current = self.ledger.db.execute(
+                "SELECT * FROM rollout_control_keys WHERE owner_id=? AND retired_at IS NULL",
+                (self.ledger.owner_id,),
+            ).fetchone()
+            if current and current["key_id"] == self.config.rollout_key_id:
+                if (current["token_digest"] != self.config.rollout_token_digest
+                        or current["approver"] != self.config.rollout_approver):
+                    raise ValueError("key_identity_changed")
+                return
+            if self.ledger.db.execute(
+                "SELECT 1 FROM rollout_control_keys WHERE owner_id=? AND key_id=?",
+                (self.ledger.owner_id, self.config.rollout_key_id),
+            ).fetchone():
+                raise ValueError("retired_key_cannot_be_current")
+            now = datetime.now(timezone.utc).isoformat()
+            if current:
+                if (current["key_id"] != self.config.rollout_previous_key_id
+                        or current["token_digest"] != self.config.rollout_previous_token_digest
+                        or current["approver"] != self.config.rollout_approver):
+                    raise ValueError("rotation_previous_key_mismatch")
+                self.ledger.db.execute(
+                    "UPDATE rollout_control_keys SET retired_at=? WHERE owner_id=? AND retired_at IS NULL",
+                    (now, self.ledger.owner_id),
+                )
+            self.ledger.db.execute(
+                "INSERT INTO rollout_control_keys VALUES (?,?,?,?,?,NULL)",
+                (self.ledger.owner_id, self.config.rollout_key_id,
+                 self.config.rollout_token_digest, self.config.rollout_approver, now),
+            )
 
-    def _authorize(self, *, action: str, fields: dict[str, Any], token: str | None,
-                   approver: str | None, key_id: str | None, receipt: str,
-                   issued_at: str | None, expires_at: str | None) -> tuple[str, dict[str, Any] | None]:
-        if issued_at and expires_at:
-            start, end = _utc(issued_at), _utc(expires_at)
-            digest_fields = {**fields, "approver": approver, "key_id": key_id,
-                             "approval_receipt": receipt,
-                             "issued_at": start.isoformat(timespec="microseconds").replace("+00:00", "Z"),
-                             "expires_at": end.isoformat(timespec="microseconds").replace("+00:00", "Z")}
-            expected_digest = self.auth.request_digest(action, digest_fields)
-        else:
-            expected_digest = ""
-        grant = self._registered_grant(receipt, expected_digest)
-        digest = self.auth.verify(action=action, fields=fields, token=token, approver=approver,
-                                  key_id=key_id, receipt=receipt, issued_at=issued_at,
-                                  expires_at=expires_at, registered_grant=grant)
-        return digest, grant
+    @contextmanager
+    def _control_transaction(self, *, action: str, fields: dict[str, Any], **auth: Any):
+        """Authenticate, replay, consume and mutate under one SQLite write lock."""
+        with self.ledger._write_transaction():
+            fields = {**fields, "owner": self.ledger.owner_id,
+                      "workspace": fields.get("workspace", str(self.host.allowed_workspace() or ""))}
+            digest = self.auth.verify(action=action, fields=fields, **auth)
+            key_id, receipt = auth["key_id"], auth["receipt"]
+            current = self.ledger.db.execute(
+                "SELECT * FROM rollout_control_keys WHERE owner_id=? AND retired_at IS NULL",
+                (self.ledger.owner_id,),
+            ).fetchone()
+            if not current or current["key_id"] != self.config.rollout_key_id:
+                raise ValueError("control_key_configuration_stale")
+            previous = key_id != current["key_id"]
+            key = self.ledger.db.execute(
+                "SELECT * FROM rollout_control_keys WHERE owner_id=? AND key_id=?",
+                (self.ledger.owner_id, key_id),
+            ).fetchone()
+            if not key or key["approver"] != auth["approver"] or not hmac.compare_digest(
+                    key["token_digest"], hashlib.sha256(auth["token"].encode()).hexdigest()):
+                raise ValueError("invalid_operator_token")
+            old = self.ledger.db.execute(
+                "SELECT * FROM rollout_action_receipts WHERE owner_id=? AND receipt=?",
+                (self.ledger.owner_id, receipt),
+            ).fetchone()
+            if old:
+                if old["action"] != action or old["request_digest"] != digest:
+                    raise ValueError("receipt_conflict")
+                yield digest, json.loads(old["result_json"])
+                return
+            grant = self.ledger.db.execute(
+                "SELECT * FROM rollout_approval_grants WHERE owner_id=? AND receipt=?",
+                (self.ledger.owner_id, receipt),
+            ).fetchone()
+            if previous:
+                if action not in {"activation", "review"} or not grant or not key["retired_at"]:
+                    raise ValueError("previous_key_requires_registered_grant")
+                if _utc(grant["registered_at"]) >= _utc(key["retired_at"]):
+                    raise ValueError("grant_registered_after_rotation")
+            if grant:
+                if grant["request_digest"] != digest or grant["key_id"] != key_id:
+                    raise ValueError("registered_grant_mismatch")
+                if grant["consumed_at"]:
+                    raise ValueError("grant_already_consumed")
+                if _utc(grant["expires_at"]) <= datetime.now(timezone.utc):
+                    raise ValueError("grant_expired")
+                self.ledger.db.execute(
+                    "UPDATE rollout_approval_grants SET consumed_at=? WHERE owner_id=? AND receipt=?",
+                    (datetime.now(timezone.utc).isoformat(), self.ledger.owner_id, receipt),
+                )
+            yield digest, None
+            # Waiting for a write lock or executing a commit cannot extend either expiry.
+            now = datetime.now(timezone.utc)
+            if _utc(auth["expires_at"]) <= now or (grant and _utc(grant["expires_at"]) <= now):
+                raise ValueError("authorization_expired")
+            if action in {"activation", "review"}:
+                if self.config.rollout_mode == "off" or self.host.kill_switch_active():
+                    raise ValueError("rollout_stopped_during_control_action")
+                deadline = fields.get("deadline")
+                if deadline and _utc(deadline) <= now:
+                    raise ValueError("deadline_exceeded")
 
     @property
     def mode(self) -> RuntimeMode:
@@ -217,9 +276,9 @@ class RolloutRuntime:
 
     def _run(self) -> dict[str, Any] | None:
         row = self.ledger.db.execute("SELECT * FROM rollout_runs WHERE owner_id=? AND status IN ('running','draining') ORDER BY created_at DESC LIMIT 1", (self.ledger.owner_id,)).fetchone()
-        if row and (self.host.kill_switch_active() or _utc(row["deadline"]) <= datetime.now(timezone.utc)):
-            reason = "kill_switch" if self.host.kill_switch_active() else "deadline"
-            with self.ledger._write_transaction(): self.ledger.db.execute("UPDATE rollout_runs SET status='stopping',stopped_at=?,stop_reason=? WHERE rollout_id=?", (datetime.now(timezone.utc).isoformat(), reason, row["rollout_id"]))
+        if row and (self.config.rollout_mode == "off" or self.host.kill_switch_active() or _utc(row["deadline"]) <= datetime.now(timezone.utc)):
+            reason = "mode_off" if self.config.rollout_mode == "off" else "kill_switch" if self.host.kill_switch_active() else "deadline"
+            with self.ledger._write_transaction(): self.ledger.db.execute("UPDATE rollout_runs SET status='stopping',control_epoch=control_epoch+1,stopped_at=?,stop_reason=? WHERE rollout_id=? AND status IN ('running','draining')", (datetime.now(timezone.utc).isoformat(), reason, row["rollout_id"]))
             return None
         return dict(row) if row else None
 
@@ -233,16 +292,27 @@ class RolloutRuntime:
         if workspace_path is None or self.host.allowed_workspace() != workspace_path: raise ValueError("workspace_not_allowed")
         plan = rollback_plan or {"schema_version": "rollout-plan-v1", "resources": "rollout-scoped"}; plan_digest = _digest(plan)
         fields = {"mode": new_mode.value, "workspace": str(workspace_path), "deadline": _utc(deadline).isoformat(timespec="microseconds").replace("+00:00", "Z"), "max_sessions": max_sessions, "max_candidates": max_candidates, "generation": generation or self.config.rollout_generation, "rollback_plan_digest": plan_digest}
-        request_digest, grant = self._authorize(action="activation", fields=fields, token=token, approver=approver, key_id=key_id, receipt=approval_receipt, issued_at=issued_at, expires_at=expires_at)
         if _utc(deadline) > datetime.now(timezone.utc) + timedelta(hours=24): raise ValueError("deadline_too_long")
         now = datetime.now(timezone.utc); rollout_id = str(uuid.uuid4())
-        with self.ledger._write_transaction():
-            self._consume_grant(grant)
-            if self.ledger.db.execute("SELECT 1 FROM rollout_runs WHERE owner_id=? AND status IN ('running','draining','stopping','cleanup_required')", (self.ledger.owner_id,)).fetchone(): raise ValueError("rollout_already_live")
-            existing = self.ledger.db.execute("SELECT result_json,request_digest,action FROM rollout_action_receipts WHERE owner_id=? AND receipt=?", (self.ledger.owner_id, approval_receipt)).fetchone()
-            if existing:
-                if existing["action"] == "activation" and existing["request_digest"] == request_digest: return json.loads(existing["result_json"])
-                raise ValueError("receipt_conflict")
+        with self._control_transaction(action="activation", fields=fields, token=token,
+                approver=approver, key_id=key_id, receipt=approval_receipt,
+                issued_at=issued_at, expires_at=expires_at) as (request_digest, old):
+            if old is not None:
+                return old
+            if self.config.rollout_mode == "off" or self.host.kill_switch_active():
+                raise ValueError("rollout_configuration_off")
+            if new_mode == RuntimeMode.GUARDED and self.config.rollout_mode != "guarded":
+                raise ValueError("mode_exceeds_configuration")
+            if (type(max_sessions) is not int or type(max_candidates) is not int
+                    or not 0 < max_sessions <= min(10, self.config.rollout_max_sessions)
+                    or not 0 < max_candidates <= min(20, self.config.rollout_max_candidates)):
+                raise ValueError("quota_exceeds_limit")
+            if not now < _utc(deadline) <= now + timedelta(hours=min(24, self.config.rollout_window_hours)):
+                raise ValueError("invalid_deadline")
+            if generation and generation != self.config.rollout_generation:
+                raise ValueError("generation_not_verified")
+            if self.ledger.db.execute("SELECT 1 FROM rollout_runs WHERE owner_id=? AND status IN ('running','draining','stopping','cleanup_required')", (self.ledger.owner_id,)).fetchone():
+                raise ValueError("rollout_already_live")
             result = {"rollout_id": rollout_id, "mode": new_mode.value, "status": "running", "deadline": _utc(deadline).isoformat()}
             self.ledger.db.execute("INSERT INTO rollout_runs(rollout_id,owner_id,workspace_id,workspace_root,mode,status,approver,key_id,approval_receipt,approval_digest,started_at,deadline,max_sessions,max_candidates,generation,control_epoch,rollback_plan_digest,rollback_plan_json,plan_schema_version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (rollout_id,self.ledger.owner_id,self.ledger.resolve_project(workspace_path)["workspace_id"],str(workspace_path),new_mode.value,"running",approver,key_id,approval_receipt,request_digest,now.isoformat(),_utc(deadline).isoformat(),max_sessions,max_candidates,generation or self.config.rollout_generation,1,plan_digest,_canonical(plan),"rollout-plan-v1",now.isoformat()))
             self.ledger.db.execute("INSERT INTO rollout_action_receipts VALUES (?,?,?,?,?,?,?)", (self.ledger.owner_id,approval_receipt,"activation",request_digest,rollout_id,_canonical(result),now.isoformat()))
@@ -255,10 +325,31 @@ class RolloutRuntime:
         """Register a pre-rotation grant; previous keys can never mint one."""
         if key_id != self.config.rollout_key_id:
             raise ValueError("grant_requires_current_key")
-        digest = self.auth.verify(action="grant-registration", fields={"target_action": action, "target_receipt": target_receipt, "target_request_digest": request_digest, "grant_expires_at": _utc(expires_at).isoformat()}, token=token, approver=approver, key_id=key_id, receipt=receipt, issued_at=issued_at, expires_at=auth_expires_at)
-        with self.ledger._write_transaction():
-            self.ledger.db.execute("INSERT INTO rollout_approval_grants(owner_id,receipt,request_digest,key_id,registered_at,expires_at,consumed_at) VALUES (?,?,?,?,?,?,NULL)", (self.ledger.owner_id, target_receipt, request_digest, key_id, datetime.now(timezone.utc).isoformat(), _utc(expires_at).isoformat()))
-        return {"receipt": target_receipt, "request_digest": request_digest, "registration_digest": digest}
+        if action not in {"activation", "review"}:
+            raise ValueError("grant_action_not_allowed")
+        if receipt == target_receipt or not target_receipt:
+            raise ValueError("grant_receipt_conflict")
+        if len(request_digest) != 64 or any(c not in "0123456789abcdef" for c in request_digest):
+            raise ValueError("invalid_request_digest")
+        fields = {"target_action": action, "target_receipt": target_receipt,
+                  "target_request_digest": request_digest, "grant_expires_at": _utc(expires_at).isoformat()}
+        with self._control_transaction(action="grant-registration", fields=fields, token=token,
+                approver=approver, key_id=key_id, receipt=receipt, issued_at=issued_at,
+                expires_at=auth_expires_at) as (digest, old):
+            if old is not None:
+                return old
+            now = datetime.now(timezone.utc)
+            if not now < _utc(expires_at) <= min(now + timedelta(minutes=5), _utc(auth_expires_at)):
+                raise ValueError("invalid_grant_expiry")
+            if self.ledger.db.execute("SELECT 1 FROM rollout_action_receipts WHERE owner_id=? AND receipt=? UNION ALL SELECT 1 FROM rollout_approval_grants WHERE owner_id=? AND receipt=?",
+                    (self.ledger.owner_id, target_receipt, self.ledger.owner_id, target_receipt)).fetchone():
+                raise ValueError("grant_receipt_conflict")
+            self.ledger.db.execute("INSERT INTO rollout_approval_grants VALUES (?,?,?,?,?,?,NULL)",
+                (self.ledger.owner_id, target_receipt, request_digest, key_id, now.isoformat(), _utc(expires_at).isoformat()))
+            result = {"receipt": target_receipt, "request_digest": request_digest, "registration_digest": digest}
+            self.ledger.db.execute("INSERT INTO rollout_action_receipts VALUES (?,?,?,?,?,?,?)",
+                (self.ledger.owner_id, receipt, "grant-registration", digest, None, _canonical(result), now.isoformat()))
+            return result
 
     def set_mode(self, mode: RuntimeMode | str, *, operator: str, reason: str, **kwargs: Any) -> dict[str, Any]:
         if _safe_mode(mode) is RuntimeMode.OFF:
@@ -277,26 +368,29 @@ class RolloutRuntime:
                  issued_at: str | None, expires_at: str | None) -> dict[str, Any]:
         if key_id != self.config.rollout_key_id:
             raise ValueError("rollback_requires_current_key")
-        digest, grant = self._authorize(action="rollback", fields={"rollout_id": rollout_id, "rollback_plan_digest": plan_digest, "phase": phase}, token=token, approver=approver, key_id=key_id, receipt=receipt, issued_at=issued_at, expires_at=expires_at)
-        with self.ledger._write_transaction():
-            self._consume_grant(grant)
-            row = self.ledger.db.execute("SELECT rollback_plan_digest,status FROM rollout_runs WHERE rollout_id=? AND owner_id=?", (rollout_id,self.ledger.owner_id)).fetchone()
-            if not row or row["rollback_plan_digest"] != plan_digest: raise ValueError("rollback_plan_mismatch")
-            old = self.ledger.db.execute("SELECT result_json,request_digest FROM rollout_action_receipts WHERE owner_id=? AND receipt=?", (self.ledger.owner_id,receipt)).fetchone()
-            if old:
-                if old["request_digest"] == digest: return json.loads(old["result_json"])
-                raise ValueError("receipt_conflict")
-            # Only resources explicitly recorded by this rollout may be touched.
-            memory_ids = [r[0] for r in self.ledger.db.execute("SELECT DISTINCT memory_id FROM rollout_commits WHERE rollout_id=?", (rollout_id,)).fetchall()]
-            for memory_id in memory_ids:
-                self.ledger.forget(memory_id, f"rollback:{rollout_id}:{memory_id}")
-            self.ledger.db.execute("UPDATE candidates SET status='quarantined',active_batch_id=NULL,claim_token=NULL WHERE candidate_id IN (SELECT candidate_id FROM rollout_candidates WHERE rollout_id=?) AND status NOT IN ('settled','quarantined')", (rollout_id,))
-            self.ledger.db.execute("UPDATE batches SET status='blocked',last_error_class='rollout_rollback',settled_at=? WHERE batch_id IN (SELECT batch_id FROM rollout_batches WHERE rollout_id=?) AND status NOT IN ('settled','blocked')", (datetime.now(timezone.utc).isoformat(), rollout_id))
-            self.ledger.db.execute("UPDATE rollout_runs SET status='stopped',stopped_at=?,stop_reason=? WHERE rollout_id=?", (datetime.now(timezone.utc).isoformat(), "rollback:"+phase, rollout_id))
-            result={"rollout_id":rollout_id,"phase":phase,"status":"completed"}
-            self.ledger.db.execute("INSERT INTO rollout_action_receipts VALUES (?,?,?,?,?,?,?)", (self.ledger.owner_id,receipt,"rollback",digest,rollout_id,_canonical(result),datetime.now(timezone.utc).isoformat()))
-            self.ledger.db.execute("INSERT INTO rollout_rollback_receipts VALUES (?,?,?,?,?,?,?)", (self.ledger.owner_id,receipt,rollout_id,plan_digest,"completed",_canonical(result),datetime.now(timezone.utc).isoformat()))
-        return result
+        with self._control_transaction(action="rollback", fields={"rollout_id": rollout_id,
+                "rollback_plan_digest": plan_digest, "phase": phase}, token=token, approver=approver,
+                key_id=key_id, receipt=receipt, issued_at=issued_at, expires_at=expires_at) as (digest, old):
+            if old is not None:
+                return old
+            row = self.ledger.db.execute("SELECT * FROM rollout_runs WHERE rollout_id=? AND owner_id=?",
+                (rollout_id, self.ledger.owner_id)).fetchone()
+            if not row or row["workspace_root"] != str(self.host.allowed_workspace()) or row["rollback_plan_digest"] != plan_digest:
+                raise ValueError("rollback_plan_mismatch")
+            # Data rollback is not implemented to the frozen phased contract yet.
+            # Fail closed instead of treating arbitrary phase strings as cleanup authorization.
+            if phase != "freeze":
+                raise ValueError("rollback_phase_not_implemented")
+            self.ledger.db.execute(
+                "UPDATE rollout_runs SET status='stopping',control_epoch=control_epoch+1,"
+                "stopped_at=?,stop_reason='rollback_freeze' WHERE rollout_id=? AND owner_id=? "
+                "AND status IN ('running','draining')",
+                (datetime.now(timezone.utc).isoformat(), rollout_id, self.ledger.owner_id),
+            )
+            result = {"rollout_id": rollout_id, "phase": phase, "status": "frozen"}
+            self.ledger.db.execute("INSERT INTO rollout_action_receipts VALUES (?,?,?,?,?,?,?)",
+                (self.ledger.owner_id, receipt, "rollback", digest, rollout_id, _canonical(result), datetime.now(timezone.utc).isoformat()))
+            return result
 
     def ingest(self, record: dict[str, Any]) -> GateReceipt:
         run = self._run(); receipt = self.host.ingest(record, rollout=run)
@@ -335,15 +429,25 @@ class RolloutRuntime:
             self.ledger.db.execute("UPDATE proposals SET status='awaiting_review' WHERE batch_id=? AND status='proposed'", (batch_id,)); self.ledger.db.execute("UPDATE candidates SET status='awaiting_review' WHERE active_batch_id=? AND status='processing'", (batch_id,)); self.ledger.db.execute("UPDATE batches SET status='awaiting_review',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE batch_id=?", (batch_id,))
 
     def review_batch(self, batch_id: str, decision: Literal["approve", "reject"], *, reviewer: str, receipt: str, approver: str | None = None, **auth: Any) -> dict[str, Any]:
-        run = self._run()
-        if not run or run["mode"] != "guarded": raise ValueError("review_requires_guarded_mode")
-        digest, grant = self._authorize(action="review", fields={"rollout_id": run["rollout_id"], "batch": batch_id, "decision": decision, "reviewer": reviewer}, receipt=receipt, approver=approver, **auth)
-        with self.ledger._write_transaction():
-            self._consume_grant(grant)
-            old = self.ledger.db.execute("SELECT action,request_digest,result_json FROM rollout_action_receipts WHERE owner_id=? AND receipt=?", (self.ledger.owner_id, receipt)).fetchone()
-            if old:
-                if old["action"] == "review" and old["request_digest"] == digest: return json.loads(old["result_json"])
-                raise ValueError("receipt_conflict")
+        run = self.ledger.db.execute(
+            "SELECT r.* FROM rollout_batches rb JOIN rollout_runs r ON r.rollout_id=rb.rollout_id "
+            "WHERE rb.batch_id=? AND r.owner_id=?", (batch_id, self.ledger.owner_id),
+        ).fetchone()
+        if not run:
+            raise ValueError("rollout_batch_mismatch")
+        fields = {"rollout_id": run["rollout_id"], "workspace": run["workspace_root"],
+                  "batch": batch_id, "decision": decision, "reviewer": reviewer}
+        with self._control_transaction(action="review", fields=fields, receipt=receipt,
+                approver=approver, **auth) as (digest, old):
+            if old is not None:
+                return old
+            current = self._run()
+            if not current or current["rollout_id"] != run["rollout_id"] or current["mode"] != "guarded":
+                raise ValueError("review_requires_guarded_mode")
+            if decision not in {"approve", "reject"}:
+                raise ValueError("invalid_review_decision")
+            if reviewer != approver:
+                raise ValueError("reviewer_mismatch")
             row = self.ledger.db.execute("SELECT status FROM batches WHERE batch_id=? AND owner_id=?", (batch_id,self.ledger.owner_id)).fetchone()
             if not row or row["status"] != "awaiting_review": raise ValueError("batch_not_pending_review")
             now = datetime.now(timezone.utc)
@@ -353,6 +457,11 @@ class RolloutRuntime:
                 if self.host.kill_switch_active() or _utc(run["deadline"]) <= datetime.now(timezone.utc):
                     raise ValueError("kill_switch" if self.host.kill_switch_active() else "deadline_exceeded")
                 token=str(uuid.uuid4()); self.ledger.db.execute("UPDATE proposals SET status='proposed' WHERE batch_id=? AND status='awaiting_review'", (batch_id,)); self.ledger.db.execute("UPDATE candidates SET status='processing' WHERE active_batch_id=?", (batch_id,)); self.ledger.db.execute("UPDATE batches SET status='review_committing',lease_owner=?,lease_token=?,lease_until=? WHERE batch_id=?", (reviewer,token,(now+timedelta(seconds=30)).isoformat(),batch_id)); plan=self.worker._plan(batch_id,self.worker._proposed(batch_id)); committed=self.ledger.commit_batch(plan,token,now=now,rollout_authorization=(run["rollout_id"],run["control_epoch"])); result={"status":committed.status,"batch_id":batch_id,"memory_ids":list(committed.memory_ids)}
+            if self.host.kill_switch_active() or _utc(run["deadline"]) <= datetime.now(timezone.utc):
+                raise ValueError("rollout_stopped_during_review")
+            self.ledger.db.execute("INSERT INTO rollout_review_receipts VALUES (?,?,?,?,?,?,?,?,?)",
+                (self.ledger.owner_id, receipt, run["rollout_id"], batch_id, decision, reviewer, digest, _canonical(result), now.isoformat()))
+            self.ledger.record_rollout_receipt("review", {"batch_id": batch_id, "decision": decision, "status": result["status"]}, rollout_id=run["rollout_id"])
             self.ledger.db.execute("INSERT INTO rollout_action_receipts VALUES (?,?,?,?,?,?,?)", (self.ledger.owner_id,receipt,"review",digest,run["rollout_id"],_canonical(result),now.isoformat()))
         return result
 

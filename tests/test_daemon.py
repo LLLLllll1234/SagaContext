@@ -10,6 +10,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from sagacontext.config import Config
+from sagacontext.ledger import CommitRequest, Scope
 from sagacontext.daemon import create_app
 
 
@@ -110,7 +111,13 @@ class DaemonIntegrationTests(unittest.TestCase):
                 },
             )
             self.assertEqual(commit.status_code, 403)
-            return
+            self.assertEqual(client.app.state.runtime.ledger.db.execute("SELECT COUNT(*) FROM memories").fetchone()[0], 0)
+            # Internal fixture setup preserves read/owner isolation coverage; HTTP writes stay disabled.
+            commit = client.app.state.runtime.ledger.commit(CommitRequest(
+                receipt="fixture-memory", operation="new", memory_type="decision",
+                scope=Scope(kind="project", project_id=identity["project_id"]),
+                payload={"decision": "Ledger is authoritative"},
+            )).model_dump()
             context = {
                 "project_id": identity["project_id"],
                 "workspace_id": identity["workspace_id"],
@@ -138,22 +145,13 @@ class DaemonIntegrationTests(unittest.TestCase):
 
             forgotten = client.post(
                 f'/memories/{commit["memory_id"]}/forget', json={"receipt": "forget-1"}
-            ).json()
-            self.assertEqual(forgotten["status"], "remote_pending")
-            deletion = client.get(f'/deletions/{forgotten["job_id"]}').json()
-            self.assertEqual(deletion["pending_outbox"], 1)
-            self.assertEqual(deletion["status"], "remote_pending")
-            self.assertEqual(len(client.get("/outbox").json()), 2)
-            self.assertEqual(
-                client.post(
-                    "/memories/current",
-                    json={"memory_ids": [commit["memory_id"]], "context": context},
-                ).json(),
-                [],
             )
-            self.assertEqual(
-                client.post(f'/memories/{commit["memory_id"]}/history', json=context).json(), []
-            )
+            self.assertEqual(forgotten.status_code, 403)
+            self.assertEqual(len(client.get("/outbox").json()), 1)
+            current = client.post("/memories/current",
+                json={"memory_ids": [commit["memory_id"]], "context": context}).json()
+            self.assertEqual(current[0]["payload"], {"decision": "Ledger is authoritative"})
+
 
 
 if __name__ == "__main__":

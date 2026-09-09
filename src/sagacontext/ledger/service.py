@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import threading
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -18,7 +19,7 @@ from .models import (
     Scope,
     TaskContext,
 )
-from .schema import MIGRATION_1, MIGRATION_2, SCHEMA_VERSION
+from .schema import MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, SCHEMA_VERSION
 
 
 def _now() -> str:
@@ -97,11 +98,46 @@ _V2_COLUMNS = {
     "proposals": {"input_digest", "output_digest", "source_kind", "status"},
 }
 
+_V3_TABLES = {
+    "rollout_action_receipts",
+    "rollout_approval_grants",
+    "rollout_audit",
+    "rollout_batches",
+    "rollout_candidate_reservations",
+    "rollout_candidates",
+    "rollout_commits",
+    "rollout_consumption_receipts",
+    "rollout_events",
+    "rollout_review_receipts",
+    "rollout_rollback_receipts",
+    "rollout_runs",
+    "rollout_sessions",
+}
+
+_V3_COLUMNS = {
+    "rollout_audit": {"rollout_id"},
+    "rollout_runs": {
+        "rollout_id",
+        "mode",
+        "status",
+        "deadline",
+        "control_epoch",
+        "rollback_plan_digest",
+        "rollback_plan_json",
+        "plan_schema_version",
+    },
+    "rollout_action_receipts": {"action", "request_digest", "result_json"},
+    "rollout_commits": {"proposal_id", "memory_id", "revision", "outbox_id"},
+    "rollout_consumption_receipts": {"receipt_id", "session_digest", "bundle_digest", "result_digest"},
+}
+
 
 class Ledger:
     def __init__(self, path: Path, owner_id: str | None = None):
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
+        self._write_lock = threading.RLock()
+        self._transaction_state = threading.local()
         self.db = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys=ON")
@@ -119,6 +155,62 @@ class Ledger:
     def close(self) -> None:
         self.db.close()
 
+    def record_rollout_receipt(
+        self,
+        kind: str,
+        payload: dict[str, object],
+        *,
+        workspace_id: str | None = None,
+        session_id: str | None = None,
+        rollout_id: str | None = None,
+        receipt_id: str | None = None,
+    ) -> dict[str, str]:
+        """Persist a redacted, digest-addressed receipt for guarded runtime actions."""
+        def safe(value: object) -> object:
+            if isinstance(value, dict):
+                return {str(key): safe(item) for key, item in value.items()
+                        if str(key).lower() not in {"api_key", "authorization", "endpoint", "transcript_path", "raw"}}
+            if isinstance(value, (list, tuple)):
+                return [safe(item) for item in value]
+            return value
+        clean = safe(payload)
+        encoded = _canonical(clean)
+        digest = hashlib.sha256(encoded.encode()).hexdigest()
+        receipt_id = receipt_id or str(uuid.uuid4())
+        row = (
+            receipt_id,
+            self.owner_id,
+            kind,
+            workspace_id,
+            session_id,
+            digest,
+            encoded,
+            _now(),
+            rollout_id,
+        )
+        with self._write_transaction():
+            self.db.execute(
+                "INSERT OR IGNORE INTO rollout_audit("
+                "receipt_id,owner_id,kind,workspace_id,session_id,digest,payload_json,created_at,rollout_id"
+                ") VALUES (?,?,?,?,?,?,?,?,?)",
+                row,
+            )
+        return {"receipt_id": receipt_id, "kind": kind, "digest": digest}
+
+    def list_rollout_receipts(self, *, kind: str | None = None) -> list[dict[str, object]]:
+        if kind:
+            rows = self.db.execute(
+                "SELECT receipt_id,owner_id,kind,workspace_id,session_id,digest,payload_json,created_at,rollout_id "
+                "FROM rollout_audit WHERE owner_id=? AND kind=? ORDER BY created_at,receipt_id",
+                (self.owner_id, kind),
+            ).fetchall()
+        else:
+            rows = self.db.execute(
+                "SELECT receipt_id,owner_id,kind,workspace_id,session_id,digest,payload_json,created_at,rollout_id "
+                "FROM rollout_audit WHERE owner_id=? ORDER BY created_at,receipt_id", (self.owner_id,)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def _migrate(self) -> None:
         self.db.execute(
             "CREATE TABLE IF NOT EXISTS schema_migrations("
@@ -134,7 +226,7 @@ class Ledger:
             tables = self._user_tables()
             if tables != {"schema_migrations"}:
                 raise RuntimeError("incomplete schema v0")
-        for version, migration in ((1, MIGRATION_1), (2, MIGRATION_2)):
+        for version, migration in ((1, MIGRATION_1), (2, MIGRATION_2), (3, MIGRATION_3), (4, MIGRATION_4)):
             if version in applied:
                 continue
             try:
@@ -180,6 +272,10 @@ class Ledger:
         required_tables = set(_V1_TABLES)
         if version >= 2:
             required_tables.update(_V2_TABLES)
+        if version >= 3:
+            required_tables.update(_V3_TABLES)
+        if version >= 4:
+            required_tables.add("rollout_control_keys")
         missing_tables = required_tables - self._user_tables()
         if missing_tables:
             raise RuntimeError(f"incomplete schema v{version}: missing tables")
@@ -192,17 +288,46 @@ class Ledger:
                     raise RuntimeError(
                         f"incomplete schema v{version}: missing columns in {table}"
                     )
+        if version >= 3:
+            for table, required_columns in _V3_COLUMNS.items():
+                columns = {
+                    row[1] for row in self.db.execute(f"PRAGMA table_info({table})")
+                }
+                if required_columns - columns:
+                    raise RuntimeError(
+                        f"incomplete schema v{version}: missing columns in {table}"
+                    )
+        if version >= 4:
+            columns = {row[1] for row in self.db.execute("PRAGMA table_info(rollout_control_keys)")}
+            if {"owner_id", "key_id", "token_digest", "approver", "registered_at", "retired_at"} - columns:
+                raise RuntimeError("incomplete schema v4: missing control key columns")
 
     @contextmanager
     def _write_transaction(self) -> Iterator[None]:
-        self.db.execute("BEGIN IMMEDIATE")
-        try:
-            yield
-        except Exception:
-            self.db.rollback()
-            raise
-        else:
-            self.db.commit()
+        with self._write_lock:
+            depth = getattr(self._transaction_state, "depth", 0)
+            savepoint = f"sagacontext_nested_{depth}" if depth else None
+            if savepoint:
+                self.db.execute(f"SAVEPOINT {savepoint}")
+            else:
+                self.db.execute("BEGIN IMMEDIATE")
+            self._transaction_state.depth = depth + 1
+            try:
+                yield
+            except Exception:
+                if savepoint:
+                    self.db.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                    self.db.execute(f"RELEASE SAVEPOINT {savepoint}")
+                else:
+                    self.db.rollback()
+                raise
+            else:
+                if savepoint:
+                    self.db.execute(f"RELEASE SAVEPOINT {savepoint}")
+                else:
+                    self.db.commit()
+            finally:
+                self._transaction_state.depth = depth
 
     def register_project(self, name: str, location: Path) -> dict[str, str]:
         realpath = str(location.resolve(strict=True))
@@ -436,6 +561,7 @@ class Ledger:
         lease_token: str,
         *,
         now: datetime | None = None,
+        rollout_authorization: tuple[str, int] | None = None,
     ) -> BatchCommitResult:
         now = now or datetime.now(timezone.utc)
         memory_ids: list[str] = []
@@ -444,6 +570,22 @@ class Ledger:
                 "SELECT * FROM batches WHERE batch_id=? AND owner_id=?",
                 (plan.batch_id, self.owner_id),
             ).fetchone()
+            rollout = self.db.execute(
+                "SELECT r.* FROM rollout_batches rb JOIN rollout_runs r "
+                "ON r.rollout_id=rb.rollout_id WHERE rb.batch_id=? AND r.owner_id=?",
+                (plan.batch_id, self.owner_id),
+            ).fetchone()
+            if rollout:
+                if (
+                    rollout_authorization
+                    != (rollout["rollout_id"], rollout["control_epoch"])
+                    or rollout["mode"] != "guarded"
+                    or rollout["status"] not in {"running", "draining"}
+                    or rollout["deadline"] <= now.astimezone(timezone.utc).isoformat()
+                ):
+                    raise ValueError("review_authorization_required")
+            elif rollout_authorization is not None:
+                raise ValueError("rollout_batch_mismatch")
             if (
                 not batch
                 or batch["lease_token"] != lease_token
@@ -504,6 +646,8 @@ class Ledger:
                     )
                     current = None
                     revision = 1
+                    previous_revision = None
+                    previous_state = None
                 else:
                     memory_id = operation.memory_id or ""
                     current = self.db.execute(
@@ -518,6 +662,8 @@ class Ledger:
                         or current["scope_json"] != scope_json
                     ):
                         raise ValueError("operation_head_changed")
+                    previous_revision = current["current_revision"]
+                    previous_state = current["state"]
                     if operation.operation == "confirm":
                         previous = self.db.execute(
                             "SELECT payload_json FROM revisions WHERE memory_id=? AND revision=?",
@@ -600,11 +746,34 @@ class Ledger:
                         "INSERT OR IGNORE INTO revision_evidence VALUES (?,?,?,?)",
                         (memory_id, revision, evidence_id, claim_key),
                     )
+                action = "delete" if operation.operation == "supersede" else "upsert"
                 self._enqueue_projection(
                     memory_id,
                     revision,
-                    "delete" if operation.operation == "supersede" else "upsert",
+                    action,
                 )
+                if rollout:
+                    outbox = self.db.execute(
+                        "SELECT outbox_id FROM outbox WHERE generation=? AND memory_id=? "
+                        "AND revision=? AND action=? ORDER BY outbox_id LIMIT 1",
+                        (rollout["generation"], memory_id, revision, action),
+                    ).fetchone()
+                    self.db.execute(
+                        "INSERT INTO rollout_commits(rollout_id,proposal_id,memory_id,revision,"
+                        "previous_revision,previous_state,outbox_id,operation,created_at) "
+                        "VALUES (?,?,?,?,?,?,?,?,?)",
+                        (
+                            rollout["rollout_id"],
+                            operation.proposal_id,
+                            memory_id,
+                            revision,
+                            previous_revision,
+                            previous_state,
+                            outbox["outbox_id"] if outbox else None,
+                            operation.operation,
+                            _now(),
+                        ),
+                    )
                 memory_ids.append(memory_id)
 
             for conflict in plan.conflict_records:

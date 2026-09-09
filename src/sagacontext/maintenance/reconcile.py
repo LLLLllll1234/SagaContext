@@ -70,8 +70,9 @@ class BatchWorker:
         lease_duration: timedelta,
         stop_after_proposals: bool = False,
         max_attempts: int = 3,
+        target_batch_id: str | None = None,
     ) -> BatchRunResult:
-        claim = self.batches.claim_next(worker_id, now, lease_duration)
+        claim = self.batches.claim_next(worker_id, now, lease_duration, batch_id=target_batch_id)
         if claim is None:
             return BatchRunResult(status="idle")
         batch_id = claim.batch_id
