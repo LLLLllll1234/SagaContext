@@ -19,7 +19,7 @@ if [ "$RC" -ne 0 ]; then
       -H "X-SagaContext-Host-Version: ${HOST_VERSION}" -H "X-SagaContext-Generation: ${GENERATION}" \
       --data-binary "@$TMP" "http://127.0.0.1:${PORT}/events?host=${HOST}&event=${EVENT}" 2>/dev/null)
   fi
-  echo '{}'
+  [ -n "$OUT" ] && printf '%s\n' "$OUT" || echo '{}'
 else
   [ -n "$OUT" ] && printf '%s\n' "$OUT" || echo '{}'
 fi
