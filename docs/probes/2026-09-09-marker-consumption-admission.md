@@ -44,4 +44,8 @@ PYTHONPATH=src .venv/bin/python scripts/run_real_judge_shadow.py \
 
 Judge 语义准入现已闭合，可以进入独立隔离 workspace shadow；该 shadow 仍必须绑定本仓库 identity 和独立 Ledger，只观察新事件与候选，导出审计后回滚清理。guarded 继续等待单独批准，不能从此次 Judge 成功推导出写入或召回授权。
 
+## 已批准 workspace shadow（2026-09-10）
+
+按用户批准的边界，在 `/Users/lqy0584/Downloads/SagaContext` 绑定 workspace identity，使用独立临时 Ledger 完成一次 shadow 生命周期。1 条新合成事件被接收，生成 1 条 candidate 和 1 个 `proposed` batch；正式 memory 为 0，召回与注入均关闭。rollback 完成后 residual candidate 为 0，临时 Ledger 与目录已清理。证据：[shadow-report.json](../../artifacts/real-judge/20260910-authorized-workspace-shadow/shadow-report.json)。该结果只证明批准范围内的隔离 shadow 能力，不启用 guarded 或正常会话自动化。
+
 本轮验证：`222 passed, 96 subtests passed`；`compileall` 与 `git diff --check` 通过。新增测试覆盖精确最终消息、工具输出误判、随机 marker 摘要篡改、无注入对照、host version 漂移和 Judge 缺配置零调用。

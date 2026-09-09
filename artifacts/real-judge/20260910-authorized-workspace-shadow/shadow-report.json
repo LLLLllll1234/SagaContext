@@ -1,0 +1,41 @@
+{
+  "schema": "authorized-workspace-shadow-v1",
+  "workspace": "/Users/lqy0584/Downloads/SagaContext",
+  "workspace_id": "ce609940-64d3-4c1f-956a-50cbdf14eb2a",
+  "rollout_id": "56c5b496-cb5a-4042-9e7f-091536e27f66",
+  "mode": "shadow",
+  "formal_write": false,
+  "recall": false,
+  "injection": false,
+  "activation_status": "running",
+  "event_status": "accepted",
+  "candidate_id": "de2e62bb-d746-4560-a401-7b22bcabbfcd",
+  "batch_status": "proposed",
+  "before": {
+    "candidates": 1,
+    "events_retained_for_audit": 1,
+    "batches_retained_for_audit": 1,
+    "memory_targets": 0,
+    "projection_targets": 0,
+    "compensation_receipts": 0,
+    "residual_memories": 0,
+    "residual_candidates": 1,
+    "residual_operations": 0,
+    "residual_outbox": 0
+  },
+  "rollback_status": "completed",
+  "after": {
+    "candidates": 1,
+    "events_retained_for_audit": 1,
+    "batches_retained_for_audit": 1,
+    "memory_targets": 0,
+    "projection_targets": 0,
+    "compensation_receipts": 0,
+    "residual_memories": 0,
+    "residual_candidates": 0,
+    "residual_operations": 0,
+    "residual_outbox": 0
+  },
+  "temporary_memory_count": 0,
+  "temporary_events_retained": 1
+}
