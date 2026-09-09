@@ -106,6 +106,9 @@ def create_app(config: Config | None = None) -> FastAPI:
             "host_version": host_version or payload.get("host_version", ""),
             "source_generation": generation or payload.get("source_generation", ""),
         }
+        # Codex hooks do not always provide a source reference; derive a stable
+        # per-session/event key so the rollout journal can enforce idempotency.
+        record.setdefault("source_event_ref", payload.get("event_id") or f"{host}:{record['hook_event_name']}:{record.get('session_id', record.get('host_session_id', ''))}")
         if record["hook_event_name"] == "SessionStart":
             output, receipt = runtime.rollout.session_start(
                 record, runtime.rollout_backend, query=str(payload.get("query", "workspace"))
