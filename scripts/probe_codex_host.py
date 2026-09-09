@@ -194,11 +194,8 @@ def _last_agent_message(events: list[dict[str, Any]]) -> str:
 
 
 def _agent_received_marker(events: list[dict[str, Any]]) -> bool:
-    return any(
-        event.get("type") == "item.completed"
-        and SESSION_START_CONTEXT in json.dumps(event, ensure_ascii=True)
-        for event in events
-    )
+    # Tool output and hook receipts can contain the marker without model consumption.
+    return SESSION_START_CONTEXT in _last_agent_message(events)
 
 
 def _classify_blocker(stderr: str, timed_out: bool) -> str | None:
