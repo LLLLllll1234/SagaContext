@@ -4,7 +4,8 @@
 
 ## 当前验收
 
-最新：[2026-09-10 Guarded 真实运行闭环](2026-09-10-guarded-runtime-closure.md)。
+最新离线验收：[2026-09-11 Scheduler 与运维验收](2026-09-11-offline-scheduler-acceptance.md)：合成隔离运行 34/34、全量 246 tests / 96 subtests；Codex provider 超时暂缓，真实 scheduler-driven 宿主准入未完成。
+受控真实闭环：[2026-09-10 Guarded 真实运行闭环](2026-09-10-guarded-runtime-closure.md)。
 日常调度接线与故障矩阵：[2026-09-10 Daily Scheduler](2026-09-10-daily-scheduler.md)。
 已通过真实宿主、Judge、OpenViking 的受控写入/跨会话消费/回滚验收，零残留。
 当前 runtime 为 off，STOP 已置位；日常质量样本数为 0，不据此扩大范围。

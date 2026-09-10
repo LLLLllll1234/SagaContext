@@ -1,6 +1,8 @@
 """Read-only daily rollout review queue and denominators. No raw events."""
 import json
 
+from .rollback import RollbackRunner
+
 
 def pending(ledger):
     rows = ledger.db.execute(
@@ -8,7 +10,7 @@ def pending(ledger):
         "JOIN rollout_runs r USING(rollout_id) WHERE r.owner_id=? AND r.status IN ('running','draining') "
         "AND b.status='awaiting_review' ORDER BY b.created_at", (ledger.owner_id,)).fetchall()
     return [{**dict(row), 'proposals': [dict(p) for p in ledger.db.execute(
-        'SELECT proposal_id,operation,memory_type,scope_json,payload_patch_json,evidence_ids_json FROM proposals WHERE batch_id=?', (row['batch_id'],))]} for row in rows]
+        'SELECT proposal_id,candidate_id,operation,memory_type,scope_json,payload_patch_json,evidence_ids_json FROM proposals WHERE batch_id=?', (row['batch_id'],))]} for row in rows]
 
 
 def report(ledger, rollout_id):
@@ -24,6 +26,7 @@ def report(ledger, rollout_id):
     def quantile(p):
         import math
         return latencies[max(0,math.ceil(len(latencies)*p)-1)] if latencies else None
+    observations = observation_metrics(ledger, rollout_id)
     return {'rollout_id':rollout_id,'mode':row['mode'],'status':row['status'],'deadline':row['deadline'],
         'session_reservations':count('rollout_sessions'),'session_limit':row['max_sessions'],
         'candidate_reservations':count('rollout_candidate_reservations'),'candidate_limit':row['max_candidates'],
@@ -32,12 +35,33 @@ def report(ledger, rollout_id):
         'proposals':groups('SELECT p.operation,COUNT(*) FROM proposals p JOIN rollout_batches rb USING(batch_id) WHERE rb.rollout_id=? GROUP BY p.operation'),
         'judge_latency_ms':{'samples':len(latencies),'p50':quantile(.5),'p95':quantile(.95)},
         'consumption_reports':count('rollout_consumption_receipts'),
-        # No observational labels means unknown, not a zero error rate.
-        'candidate_effectiveness':None,'review_modification_rate':None,'wrong_recall_rate':None,
-        'consumption_rate':None,'quality_status':'requires_observational_labels',
+        'rate_basis':'operator_labeled_targets_only',
+        # These rates describe labeled targets only, never the unlabeled population.
+        'candidate_effectiveness':observations['candidate_valid']['yes_rate'],
+        'review_modification_rate':observations['review_modified']['yes_rate'],
+        'wrong_recall_rate':observations['wrong_recall']['yes_rate'],
+        'consumption_rate':observations['consumed']['yes_rate'],
+        'quality_status':'partial_observational_labels' if any(v['labeled_samples'] for v in observations.values()) else 'requires_observational_labels',
         'projection_states':groups('SELECT state,COUNT(*) FROM projection_operations WHERE rollout_id=? GROUP BY state'),
-        'observations':observation_metrics(ledger,rollout_id),
+        'rollback':{'states':groups('SELECT status,COUNT(*) FROM rollback_runs WHERE rollout_id=? GROUP BY status'),
+                    'audit':RollbackRunner(ledger).audit(rollout_id)},
+        'observations':observations,
+        'observation_targets':observation_targets(ledger, rollout_id),
         'scope_expansion_admitted':False}
+
+
+def observation_targets(ledger, rollout_id):
+    """Identifiers eligible for labels; exclude raw events and memory bodies."""
+    injections = []
+    for row in ledger.db.execute("SELECT receipt_id,payload_json FROM rollout_audit WHERE rollout_id=? AND kind='injection' ORDER BY receipt_id", (rollout_id,)):
+        payload = json.loads(row['payload_json'])
+        if payload.get('status') == 'emitted' and payload.get('memory_ids'):
+            injections.append(row['receipt_id'])
+    return {
+        'candidate_valid':[r[0] for r in ledger.db.execute('SELECT candidate_id FROM rollout_candidate_reservations WHERE rollout_id=? ORDER BY candidate_id', (rollout_id,))],
+        'review_modified':[r[0] for r in ledger.db.execute('SELECT DISTINCT batch_id FROM rollout_review_receipts WHERE rollout_id=? ORDER BY batch_id', (rollout_id,))],
+        'wrong_recall':injections, 'consumed':injections,
+    }
 
 
 def annotate(ledger, rollout_id, *, receipt_id, kind, target_id, value):
@@ -48,20 +72,29 @@ def annotate(ledger, rollout_id, *, receipt_id, kind, target_id, value):
     """
     allowed = {'candidate_valid':{'yes','no'}, 'review_modified':{'yes','no'},
                'wrong_recall':{'yes','no'}, 'consumed':{'yes','no','unknown'}}
-    if kind not in allowed or value not in allowed[kind] or not receipt_id:
+    if not all(isinstance(v, str) and v for v in (receipt_id, kind, target_id, value)):
+        raise ValueError('invalid_observation')
+    if kind not in allowed or value not in allowed[kind]:
         raise ValueError('invalid_observation')
     if not ledger.db.execute('SELECT 1 FROM rollout_runs WHERE rollout_id=? AND owner_id=?',(rollout_id,ledger.owner_id)).fetchone():
         raise ValueError('rollout_not_found')
     if kind == 'candidate_valid':
         valid = ledger.db.execute('SELECT 1 FROM rollout_candidate_reservations WHERE rollout_id=? AND candidate_id=?',(rollout_id,target_id)).fetchone()
     elif kind == 'review_modified':
-        valid = ledger.db.execute('SELECT 1 FROM rollout_batches WHERE rollout_id=? AND batch_id=?',(rollout_id,target_id)).fetchone()
+        valid = ledger.db.execute('SELECT 1 FROM rollout_review_receipts WHERE rollout_id=? AND batch_id=?',(rollout_id,target_id)).fetchone()
     else:
-        valid = ledger.db.execute("SELECT 1 FROM rollout_audit WHERE rollout_id=? AND receipt_id=? AND kind='injection'",(rollout_id,target_id)).fetchone()
+        valid = ledger.db.execute("SELECT payload_json FROM rollout_audit WHERE rollout_id=? AND receipt_id=? AND kind='injection'",(rollout_id,target_id)).fetchone()
+        if valid:
+            injection = json.loads(valid[0])
+            valid = injection.get('status') == 'emitted' and bool(injection.get('memory_ids'))
     if not valid:
         raise ValueError('observation_target_mismatch')
     payload={'kind':kind,'target_id':target_id,'value':value,'source':'operator_observation'}
     with ledger._write_transaction():
+        existing = ledger.db.execute('SELECT owner_id,rollout_id,kind,payload_json FROM rollout_audit WHERE receipt_id=?', (receipt_id,)).fetchone()
+        if existing and (existing['owner_id'] != ledger.owner_id or existing['rollout_id'] != rollout_id
+                or existing['kind'] != 'quality_observation' or json.loads(existing['payload_json']) != payload):
+            raise ValueError('observation_receipt_conflict')
         rows=ledger.db.execute("SELECT receipt_id,payload_json FROM rollout_audit WHERE rollout_id=? AND kind='quality_observation'",(rollout_id,)).fetchall()
         for row in rows:
             old=json.loads(row['payload_json'])
@@ -77,5 +110,6 @@ def observation_metrics(ledger, rollout_id):
     for row in ledger.db.execute("SELECT payload_json FROM rollout_audit WHERE rollout_id=? AND kind='quality_observation'",(rollout_id,)):
         label=json.loads(row[0]);groups[label['kind']].append(label['value'])
     return {kind:{'yes':values.count('yes'),'no':values.count('no'),'unknown':values.count('unknown'),
-                  'labeled_samples':len(values),'yes_rate':values.count('yes')/(values.count('yes')+values.count('no')) if any(v!='unknown' for v in values) else None}
+                  'labeled_samples':len(values),'evaluated_samples':values.count('yes')+values.count('no'),
+                  'yes_rate':values.count('yes')/(values.count('yes')+values.count('no')) if any(v!='unknown' for v in values) else None}
             for kind,values in groups.items()}

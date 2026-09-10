@@ -2,6 +2,8 @@
 
 已完成持久化日常调度实现，但真实后台调度验收仍被 Codex 模型运行环境阻断。
 
+后续离线故障恢复、运维命令和质量分母修复见 [2026-09-11 离线验收](2026-09-11-offline-scheduler-acceptance.md)：34/34 合成检查与 246 tests / 96 subtests 通过。本文数字保留为当时快照。
+
 ## 已实现
 
 - scheduler 使用 Ledger 中的 candidate、batch、lease、proposal 和 outbox；不使用内存队列作为事实来源。

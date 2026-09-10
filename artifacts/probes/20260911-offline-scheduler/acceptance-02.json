@@ -1,0 +1,495 @@
+{
+  "schema": "daily-scheduler-offline-v1",
+  "created_at": "2026-09-10T16:02:26.915279+00:00",
+  "evidence": "synthetic-isolated-only",
+  "judge": "ScriptedJudge",
+  "backend": "InMemoryBackend",
+  "provider_calls": 0,
+  "daily_quality_samples": 0,
+  "real_host_consumption": "not_exercised",
+  "real_workspace_configuration_touched": false,
+  "scope_expansion_admitted": false,
+  "review_source": "explicit synthetic operator action",
+  "retention": "control/event evidence and quarantined rows retained until temporary directory removal",
+  "scenarios": [
+    {
+      "mode": "shadow",
+      "checks": {
+        "initially_off": true,
+        "waits_for_checkpoint": true,
+        "creates_proposal": true,
+        "no_memory_before_review": true,
+        "restart_waits": true,
+        "restart_does_not_commit": true,
+        "shadow_has_no_review_queue": true,
+        "shadow_has_no_projections": true,
+        "shadow_cannot_inject": true,
+        "rollback_completed": true,
+        "duplicate_rollback_receipt": true,
+        "new_receipt_reverifies": true,
+        "zero_ledger_residuals": true,
+        "zero_backend_residuals": true,
+        "ends_off": true
+      },
+      "environment": "synthetic-isolated",
+      "rollout_id": "339f4b0b-be10-4b74-94d5-bf2775a0b67b",
+      "quality_report": {
+        "rollout_id": "339f4b0b-be10-4b74-94d5-bf2775a0b67b",
+        "mode": "shadow",
+        "status": "running",
+        "deadline": "2026-09-10T17:02:26.884601+00:00",
+        "session_reservations": 2,
+        "session_limit": 10,
+        "candidate_reservations": 1,
+        "candidate_limit": 20,
+        "batches": {
+          "proposed": 1
+        },
+        "reviews": {},
+        "proposals": {
+          "new": 1
+        },
+        "judge_latency_ms": {
+          "samples": 1,
+          "p50": 1,
+          "p95": 1
+        },
+        "consumption_reports": 0,
+        "rate_basis": "operator_labeled_targets_only",
+        "candidate_effectiveness": null,
+        "review_modification_rate": null,
+        "wrong_recall_rate": null,
+        "consumption_rate": null,
+        "quality_status": "requires_observational_labels",
+        "projection_states": {},
+        "rollback": {
+          "states": {},
+          "audit": {
+            "candidates": 1,
+            "events_retained_for_audit": 3,
+            "batches_retained_for_audit": 1,
+            "memory_targets": 0,
+            "projection_targets": 0,
+            "compensation_receipts": 0,
+            "residual_memories": 0,
+            "residual_candidates": 1,
+            "residual_operations": 0,
+            "residual_outbox": 0
+          }
+        },
+        "observations": {
+          "candidate_valid": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          },
+          "review_modified": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          },
+          "wrong_recall": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          },
+          "consumed": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          }
+        },
+        "observation_targets": {
+          "candidate_valid": [
+            "6229f206-a345-4b15-9a15-5c0a39f247a9"
+          ],
+          "review_modified": [],
+          "wrong_recall": [],
+          "consumed": []
+        },
+        "scope_expansion_admitted": false
+      },
+      "before_cleanup": {
+        "candidates": 1,
+        "events_retained_for_audit": 3,
+        "batches_retained_for_audit": 1,
+        "memory_targets": 0,
+        "projection_targets": 0,
+        "compensation_receipts": 0,
+        "residual_memories": 0,
+        "residual_candidates": 1,
+        "residual_operations": 0,
+        "residual_outbox": 0
+      },
+      "rollback_status": "completed",
+      "after_cleanup": {
+        "candidates": 1,
+        "events_retained_for_audit": 3,
+        "batches_retained_for_audit": 1,
+        "memory_targets": 0,
+        "projection_targets": 0,
+        "compensation_receipts": 0,
+        "residual_memories": 0,
+        "residual_candidates": 0,
+        "residual_operations": 0,
+        "residual_outbox": 0
+      },
+      "final_report": {
+        "rollout_id": "339f4b0b-be10-4b74-94d5-bf2775a0b67b",
+        "mode": "shadow",
+        "status": "stopped",
+        "deadline": "2026-09-10T17:02:26.884601+00:00",
+        "session_reservations": 2,
+        "session_limit": 10,
+        "candidate_reservations": 1,
+        "candidate_limit": 20,
+        "batches": {
+          "settled": 1
+        },
+        "reviews": {},
+        "proposals": {
+          "new": 1
+        },
+        "judge_latency_ms": {
+          "samples": 1,
+          "p50": 1,
+          "p95": 1
+        },
+        "consumption_reports": 0,
+        "rate_basis": "operator_labeled_targets_only",
+        "candidate_effectiveness": null,
+        "review_modification_rate": null,
+        "wrong_recall_rate": null,
+        "consumption_rate": null,
+        "quality_status": "requires_observational_labels",
+        "projection_states": {},
+        "rollback": {
+          "states": {
+            "completed": 1
+          },
+          "audit": {
+            "candidates": 1,
+            "events_retained_for_audit": 3,
+            "batches_retained_for_audit": 1,
+            "memory_targets": 0,
+            "projection_targets": 0,
+            "compensation_receipts": 0,
+            "residual_memories": 0,
+            "residual_candidates": 0,
+            "residual_operations": 0,
+            "residual_outbox": 0
+          }
+        },
+        "observations": {
+          "candidate_valid": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          },
+          "review_modified": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          },
+          "wrong_recall": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          },
+          "consumed": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          }
+        },
+        "observation_targets": {
+          "candidate_valid": [
+            "6229f206-a345-4b15-9a15-5c0a39f247a9"
+          ],
+          "review_modified": [],
+          "wrong_recall": [],
+          "consumed": []
+        },
+        "scope_expansion_admitted": false
+      },
+      "temporary_root_removed": true,
+      "passed": true
+    },
+    {
+      "mode": "guarded",
+      "checks": {
+        "initially_off": true,
+        "waits_for_checkpoint": true,
+        "creates_proposal": true,
+        "no_memory_before_review": true,
+        "restart_waits": true,
+        "restart_does_not_commit": true,
+        "pending_queue": true,
+        "review_commits_once": true,
+        "scheduler_projects": true,
+        "projection_not_repeated": true,
+        "simulated_recall": true,
+        "unknown_is_not_consumed": true,
+        "labels_do_not_admit_expansion": true,
+        "rollback_completed": true,
+        "duplicate_rollback_receipt": true,
+        "new_receipt_reverifies": true,
+        "zero_ledger_residuals": true,
+        "zero_backend_residuals": true,
+        "ends_off": true
+      },
+      "environment": "synthetic-isolated",
+      "rollout_id": "ef3be330-04a5-43c7-ae05-0263bd928188",
+      "quality_report": {
+        "rollout_id": "ef3be330-04a5-43c7-ae05-0263bd928188",
+        "mode": "guarded",
+        "status": "running",
+        "deadline": "2026-09-10T17:02:26.901847+00:00",
+        "session_reservations": 2,
+        "session_limit": 10,
+        "candidate_reservations": 1,
+        "candidate_limit": 20,
+        "batches": {
+          "settled": 1
+        },
+        "reviews": {
+          "approve": 1
+        },
+        "proposals": {
+          "new": 1
+        },
+        "judge_latency_ms": {
+          "samples": 1,
+          "p50": 1,
+          "p95": 1
+        },
+        "consumption_reports": 0,
+        "rate_basis": "operator_labeled_targets_only",
+        "candidate_effectiveness": 1.0,
+        "review_modification_rate": 0.0,
+        "wrong_recall_rate": 0.0,
+        "consumption_rate": null,
+        "quality_status": "partial_observational_labels",
+        "projection_states": {
+          "confirmed": 1
+        },
+        "rollback": {
+          "states": {},
+          "audit": {
+            "candidates": 1,
+            "events_retained_for_audit": 3,
+            "batches_retained_for_audit": 1,
+            "memory_targets": 1,
+            "projection_targets": 1,
+            "compensation_receipts": 0,
+            "residual_memories": 1,
+            "residual_candidates": 1,
+            "residual_operations": 1,
+            "residual_outbox": 1
+          }
+        },
+        "observations": {
+          "candidate_valid": {
+            "yes": 1,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 1,
+            "evaluated_samples": 1,
+            "yes_rate": 1.0
+          },
+          "review_modified": {
+            "yes": 0,
+            "no": 1,
+            "unknown": 0,
+            "labeled_samples": 1,
+            "evaluated_samples": 1,
+            "yes_rate": 0.0
+          },
+          "wrong_recall": {
+            "yes": 0,
+            "no": 1,
+            "unknown": 0,
+            "labeled_samples": 1,
+            "evaluated_samples": 1,
+            "yes_rate": 0.0
+          },
+          "consumed": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 1,
+            "labeled_samples": 1,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          }
+        },
+        "observation_targets": {
+          "candidate_valid": [
+            "105b446e-2821-4619-bb30-bee963492532"
+          ],
+          "review_modified": [
+            "70ce6887-8b16-497a-b83a-70b008f3a586"
+          ],
+          "wrong_recall": [
+            "10e096b2-92b6-46e2-85f2-486fdb71ccb5"
+          ],
+          "consumed": [
+            "10e096b2-92b6-46e2-85f2-486fdb71ccb5"
+          ]
+        },
+        "scope_expansion_admitted": false
+      },
+      "before_cleanup": {
+        "candidates": 1,
+        "events_retained_for_audit": 3,
+        "batches_retained_for_audit": 1,
+        "memory_targets": 1,
+        "projection_targets": 1,
+        "compensation_receipts": 0,
+        "residual_memories": 1,
+        "residual_candidates": 1,
+        "residual_operations": 1,
+        "residual_outbox": 1
+      },
+      "rollback_status": "completed",
+      "after_cleanup": {
+        "candidates": 1,
+        "events_retained_for_audit": 3,
+        "batches_retained_for_audit": 1,
+        "memory_targets": 1,
+        "projection_targets": 1,
+        "compensation_receipts": 1,
+        "residual_memories": 0,
+        "residual_candidates": 0,
+        "residual_operations": 0,
+        "residual_outbox": 0
+      },
+      "final_report": {
+        "rollout_id": "ef3be330-04a5-43c7-ae05-0263bd928188",
+        "mode": "guarded",
+        "status": "stopped",
+        "deadline": "2026-09-10T17:02:26.901847+00:00",
+        "session_reservations": 2,
+        "session_limit": 10,
+        "candidate_reservations": 1,
+        "candidate_limit": 20,
+        "batches": {
+          "settled": 1
+        },
+        "reviews": {
+          "approve": 1
+        },
+        "proposals": {
+          "new": 1
+        },
+        "judge_latency_ms": {
+          "samples": 1,
+          "p50": 1,
+          "p95": 1
+        },
+        "consumption_reports": 0,
+        "rate_basis": "operator_labeled_targets_only",
+        "candidate_effectiveness": 1.0,
+        "review_modification_rate": 0.0,
+        "wrong_recall_rate": 0.0,
+        "consumption_rate": null,
+        "quality_status": "partial_observational_labels",
+        "projection_states": {
+          "compensated": 1
+        },
+        "rollback": {
+          "states": {
+            "completed": 1
+          },
+          "audit": {
+            "candidates": 1,
+            "events_retained_for_audit": 3,
+            "batches_retained_for_audit": 1,
+            "memory_targets": 1,
+            "projection_targets": 1,
+            "compensation_receipts": 1,
+            "residual_memories": 0,
+            "residual_candidates": 0,
+            "residual_operations": 0,
+            "residual_outbox": 0
+          }
+        },
+        "observations": {
+          "candidate_valid": {
+            "yes": 1,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 1,
+            "evaluated_samples": 1,
+            "yes_rate": 1.0
+          },
+          "review_modified": {
+            "yes": 0,
+            "no": 1,
+            "unknown": 0,
+            "labeled_samples": 1,
+            "evaluated_samples": 1,
+            "yes_rate": 0.0
+          },
+          "wrong_recall": {
+            "yes": 0,
+            "no": 1,
+            "unknown": 0,
+            "labeled_samples": 1,
+            "evaluated_samples": 1,
+            "yes_rate": 0.0
+          },
+          "consumed": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 1,
+            "labeled_samples": 1,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          }
+        },
+        "observation_targets": {
+          "candidate_valid": [
+            "105b446e-2821-4619-bb30-bee963492532"
+          ],
+          "review_modified": [
+            "70ce6887-8b16-497a-b83a-70b008f3a586"
+          ],
+          "wrong_recall": [
+            "10e096b2-92b6-46e2-85f2-486fdb71ccb5"
+          ],
+          "consumed": [
+            "10e096b2-92b6-46e2-85f2-486fdb71ccb5"
+          ]
+        },
+        "scope_expansion_admitted": false
+      },
+      "temporary_root_removed": true,
+      "passed": true
+    }
+  ],
+  "passed": true
+}

@@ -32,11 +32,12 @@ def main():
         from .daily_report import annotate
         if not args.observation_file or not args.rollout_id:parser.error('--observation-file and --rollout-id required')
         observation=json.loads(args.observation_file.read_text())
-        if set(observation)!={'receipt_id','kind','target_id','value'}:raise ValueError('invalid_observation_fields')
+        if not isinstance(observation,dict) or set(observation)!={'receipt_id','kind','target_id','value'}:raise ValueError('invalid_observation_fields')
         with Application(config) as a:result=annotate(a.ledger,args.rollout_id,**observation)
         print(json.dumps(result));return
     if args.action in {'pending','report'}:
         from .daily_report import pending, report
+        if args.action=='report' and not args.rollout_id:parser.error('--rollout-id required')
         with Application(config) as a:
             result=pending(a.ledger) if args.action=='pending' else report(a.ledger,args.rollout_id)
         print(json.dumps(result,ensure_ascii=False,indent=2));return

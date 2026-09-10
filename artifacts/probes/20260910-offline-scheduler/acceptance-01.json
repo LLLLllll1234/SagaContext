@@ -1,0 +1,37 @@
+{
+  "schema": "daily-scheduler-offline-v1",
+  "created_at": "2026-09-10T15:58:41.368388+00:00",
+  "evidence": "synthetic-isolated-only",
+  "judge": "ScriptedJudge",
+  "backend": "InMemoryBackend",
+  "provider_calls": 0,
+  "daily_quality_samples": 0,
+  "real_host_consumption": "not_exercised",
+  "real_workspace_configuration_touched": false,
+  "scope_expansion_admitted": false,
+  "review_source": "explicit synthetic operator action",
+  "retention": "control/event evidence and quarantined rows retained until temporary directory removal",
+  "scenarios": [
+    {
+      "mode": "shadow",
+      "checks": {
+        "initially_off": true
+      },
+      "environment": "synthetic-isolated",
+      "error_class": "ValueError",
+      "temporary_root_removed": true,
+      "passed": false
+    },
+    {
+      "mode": "guarded",
+      "checks": {
+        "initially_off": true
+      },
+      "environment": "synthetic-isolated",
+      "error_class": "ValueError",
+      "temporary_root_removed": true,
+      "passed": false
+    }
+  ],
+  "passed": false
+}
