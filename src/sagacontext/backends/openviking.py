@@ -33,7 +33,8 @@ class OpenVikingBackendAdapter:
         self.owner_id = owner_id
         self.timeout = timeout
         self.client = httpx.Client(
-            base_url=base_url.rstrip("/"), headers={"X-API-Key": api_key},
+            base_url=base_url.rstrip("/"),
+            headers={"X-API-Key": api_key, "Authorization": f"Bearer {api_key}"},
             timeout=timeout, trust_env=False, transport=transport,
         )
 
