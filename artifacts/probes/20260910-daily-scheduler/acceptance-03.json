@@ -1,0 +1,76 @@
+{
+  "schema": "guarded-runtime-v1",
+  "payload_class": "controlled_test_decision",
+  "status": "failed",
+  "host_version": "codex-cli 0.153.4",
+  "host_model": "gpt-6-astra",
+  "scheduler_driven": true,
+  "host_sessions": [
+    {
+      "name": "no_memory_control",
+      "exit_code": -9,
+      "blocker": "model_request_timed_out",
+      "stderr_summary": {
+        "present": true,
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false
+      },
+      "latency_ms": 120014,
+      "final_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_match": false
+    }
+  ],
+  "steps": [
+    {
+      "name": "authenticated_backend",
+      "passed": true
+    },
+    {
+      "name": "no_memory_control",
+      "passed": false
+    }
+  ],
+  "quality_population": "not_daily_traffic",
+  "review_actor": "user_delegated_operator",
+  "active_enabled": false,
+  "command_digest": "64023bf66d605489c1a458287207d3204abc4a1a7fa8c78348b38c354ef83b6f",
+  "rollout_id": "d0ea3f12-01f8-489a-a538-b15be36b8b67",
+  "error_class": "ValueError",
+  "error_errno": null,
+  "error_frames": [
+    {
+      "file": "run_guarded_runtime.py",
+      "line": 105,
+      "function": "main"
+    },
+    {
+      "file": "run_guarded_runtime.py",
+      "line": 93,
+      "function": "host"
+    },
+    {
+      "file": "run_guarded_runtime.py",
+      "line": 53,
+      "function": "step"
+    }
+  ],
+  "rollback": {
+    "rollout_id": "d0ea3f12-01f8-489a-a538-b15be36b8b67",
+    "rollback_id": "d816dfcc-e88b-463c-8555-a61da8492f34",
+    "status": "completed",
+    "phase": "verify",
+    "audit": {
+      "candidates": 0,
+      "events_retained_for_audit": 2,
+      "batches_retained_for_audit": 0,
+      "memory_targets": 0,
+      "projection_targets": 0,
+      "compensation_receipts": 0,
+      "residual_memories": 0,
+      "residual_candidates": 0,
+      "residual_operations": 0,
+      "residual_outbox": 0
+    }
+  }
+}
