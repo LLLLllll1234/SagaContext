@@ -34,7 +34,7 @@ class OpenVikingBackendAdapter:
         self.timeout = timeout
         self.client = httpx.Client(
             base_url=base_url.rstrip("/"),
-            headers={"X-API-Key": api_key, "Authorization": f"Bearer {api_key}"},
+            headers={"X-API-Key": api_key},
             timeout=timeout, trust_env=False, transport=transport,
         )
 
@@ -54,7 +54,9 @@ class OpenVikingBackendAdapter:
             response = self.client.request(method, path, **kwargs)
         except httpx.TransportError:
             raise uncertain("backend_transport_unavailable") from None
-        if response.status_code in (401, 403):
+        if response.status_code == 403:
+            raise BackendDefiniteError("permission_denied")
+        if response.status_code == 401:
             raise BackendDefiniteError("authentication_failed")
         if response.status_code == 404 and (not mutation or method == "DELETE"):
             return None

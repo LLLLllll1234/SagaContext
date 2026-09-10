@@ -13,12 +13,13 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from .backends import BackendAdapter, BackendHit
+from .backends import BackendAdapter, BackendHit, BackendDefiniteError, BackendUnknownError, BackendVerificationTimeout
 from .config import Config
 from .ledger import Ledger, Scope, TaskContext
 from .maintenance import BatchService, BatchWorker, CandidateInput, DeltaProposal, EventJournal, JournalEvent
 from .recall_policy import RecallPolicy
 from .rollback import RollbackRunner
+from .event_content import event_payload
 
 
 class ProposalJudge(Protocol):
@@ -159,7 +160,7 @@ class NormalHostAdapter:
                 self.ledger.db.execute("INSERT INTO rollout_sessions VALUES (?,?,?,?,?,NULL)", (rollout["rollout_id"], session_id, host_session, "reserved", datetime.now(timezone.utc).isoformat()))
                 if count + 1 >= rollout["max_sessions"]:
                     self.ledger.db.execute("UPDATE rollout_runs SET status='draining' WHERE rollout_id=? AND status='running'", (rollout["rollout_id"],))
-            receipt = self.journal.append(JournalEvent(host=self.config.rollout_host, host_version=self.config.rollout_host_version, session_id=session_id, workspace_id=identity["workspace_id"], event_kind=EVENT_KIND[event], occurred_at=datetime.now(timezone.utc), trust_class="codex_verified_receipt", source_generation=generation, source_event_key=source_key, source_locator={"source_event_ref": source_key, "session_ref": host_session}, payload={"hook_event_name": event}, parser_version="normal-rollout-v1"))
+            receipt = self.journal.append(JournalEvent(host=self.config.rollout_host, host_version=self.config.rollout_host_version, session_id=session_id, workspace_id=identity["workspace_id"], event_kind=EVENT_KIND[event], occurred_at=datetime.now(timezone.utc), trust_class="codex_verified_receipt", source_generation=generation, source_event_key=source_key, source_locator={"source_event_ref": source_key, "session_ref": host_session}, payload=event_payload(record, event), parser_version="normal-rollout-v2"))
             self.ledger.db.execute("INSERT OR IGNORE INTO rollout_events VALUES (?,?)", (rollout["rollout_id"], receipt.event_id))
         audit = self.ledger.record_rollout_receipt("event", {"event": event, "event_id": receipt.event_id}, workspace_id=identity["workspace_id"], session_id=session_id, rollout_id=rollout["rollout_id"])
         return GateReceipt(status="accepted", event_id=receipt.event_id, session_id=session_id, workspace_id=identity["workspace_id"], audit_receipt_id=audit["receipt_id"])
@@ -411,9 +412,9 @@ class RolloutRuntime:
 
     def ingest(self, record: dict[str, Any]) -> GateReceipt:
         run = self._run(); receipt = self.host.ingest(record, rollout=run)
-        if receipt.status == "accepted" and receipt.event_id and receipt.session_id and isinstance(record.get("candidate"), dict) and record.get("hook_event_name") == "UserPromptSubmit":
+        if receipt.status == "accepted" and receipt.event_id and receipt.session_id and record.get("hook_event_name") == "UserPromptSubmit" and (isinstance(record.get("candidate"), dict) or "text" in event_payload(record, "UserPromptSubmit")):
             try:
-                self.schedule_candidate(receipt, record["candidate"], rollout=run)
+                self.schedule_candidate(receipt, record.get("candidate") or {"kind": "decision", "memory_type_hint": "decision", "topic_key": "workspace-decision"}, rollout=run)
             except ValueError as error:
                 self.ledger.record_rollout_receipt("candidate_error", {"event_id": receipt.event_id, "reason": str(error)}, rollout_id=run["rollout_id"], session_id=receipt.session_id)
         return receipt
@@ -422,6 +423,9 @@ class RolloutRuntime:
         rollout = rollout or self._run()
         if not rollout: raise ValueError("rollout_not_active")
         with self.ledger._write_transaction():
+            existing = self.ledger.db.execute("SELECT candidate_id FROM rollout_candidate_reservations WHERE rollout_id=? AND event_id=?", (rollout["rollout_id"], receipt.event_id)).fetchone()
+            if existing:
+                return {"candidate_id": existing["candidate_id"]}
             count = self.ledger.db.execute("SELECT COUNT(*) FROM rollout_candidate_reservations WHERE rollout_id=?", (rollout["rollout_id"],)).fetchone()[0]
             if count >= rollout["max_candidates"]:
                 self.ledger.record_rollout_receipt("candidate_quarantine", {"reason": "candidate_limit", "event_id": receipt.event_id}, rollout_id=rollout["rollout_id"])
@@ -498,7 +502,10 @@ class RolloutRuntime:
         identity=self.ledger.resolve_project(self.host.allowed_workspace() or Path(".")); context=context or TaskContext(owner_id=self.ledger.owner_id,project_id=identity["project_id"],workspace_id=gate.workspace_id)
         if hits is None:
             if backend is None: return self._blocked_injection("backend_not_configured",session_digest,gate)
-            hits=backend.search(query,self.config.rollout_generation,30)
+            try:
+                hits=backend.search(query,self.config.rollout_generation,30)
+            except (BackendDefiniteError, BackendUnknownError, BackendVerificationTimeout):
+                return self._blocked_injection("backend_unavailable",session_digest,gate)
         bundle=self.policy.assemble(hits,self.config.rollout_generation,context,budget=self.config.recall_budget_tokens); digest=_digest(bundle.model_dump(mode="json")); receipt=InjectionReceipt(status="emitted",bundle_digest=digest,ledger_sequence=bundle.ledger_sequence,owner_id=bundle.owner_id,generation=bundle.generation,session_digest=session_digest,memory_ids=tuple(i.memory_id for i in bundle.items),revisions=tuple(i.revision for i in bundle.items),omissions=tuple(i.model_dump(mode="json") for i in bundle.omissions),mode=self.mode)
         if not self.verify_bundle(receipt): return self._blocked_injection("bundle_verification_failed",session_digest,gate)
         self.ledger.record_rollout_receipt("injection",receipt.model_dump(mode="json"),rollout_id=(self._run() or {}).get("rollout_id"),workspace_id=gate.workspace_id,session_id=gate.session_id)

@@ -31,7 +31,7 @@ class OpenVikingContractTests(unittest.TestCase):
 
     def request(self, request):
         if self.fault == "auth":
-            return httpx.Response(403)
+            return httpx.Response(401)
         if self.fault == "schema":
             return httpx.Response(200, json={})
         if request.url.path.endswith("/write"):
@@ -85,6 +85,12 @@ class OpenVikingContractTests(unittest.TestCase):
         self.fault = "schema"
         with self.assertRaises(BackendVerificationTimeout):
             self.backend.locate_projection("a", 1, "g1")
+
+    def test_root_or_acl_denial_is_not_invalid_key(self):
+        self.backend.client.close()
+        self.backend.client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(403)), base_url="http://backend.invalid")
+        with self.assertRaisesRegex(BackendDefiniteError, "permission_denied"):
+            self.backend.search("text", "g1")
 
     def test_delete_racing_with_another_delete_is_idempotent(self):
         locator = self.backend.materialize(self.projection, "op")

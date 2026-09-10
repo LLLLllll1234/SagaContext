@@ -1,24 +1,5 @@
 #!/bin/sh
 set -eu
-ROOT="${SAGACONTEXT_HOME:-$HOME/.sagacontext}"
-PIDFILE="$ROOT/daemon.pid"
-case "${1:-status}" in
- start)
-   mkdir -p "$ROOT"
-   if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then echo '{"status":"already_running"}'; exit 0; fi
-   if command -v sagacontext-daemon >/dev/null 2>&1; then
-     DAEMON=$(command -v sagacontext-daemon)
-   elif command -v uv >/dev/null 2>&1; then
-     DAEMON="uv run --project /Users/lqy0584/Downloads/SagaContext sagacontext-daemon"
-   else
-     DAEMON="python3 -m sagacontext.daemon"
-   fi
-   nohup sh -c "$DAEMON" >"$ROOT/daemon.log" 2>&1 & echo $! >"$PIDFILE"
-   echo "{\"status\":\"started\",\"pid\":$(cat "$PIDFILE")}";;
- stop)
-   if [ -f "$PIDFILE" ]; then kill "$(cat "$PIDFILE")" 2>/dev/null || true; rm -f "$PIDFILE"; fi
-   echo '{"status":"stopped"}';;
- status)
-   if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then echo "{\"status\":\"running\",\"pid\":$(cat "$PIDFILE")}"; else echo '{"status":"stopped"}'; fi;;
- *) echo 'usage: sagacontext-daemon-control {start|stop|status}' >&2; exit 2;;
-esac
+[ "$#" -gt 0 ] || set -- status
+REPO=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}" exec "$REPO/.venv/bin/python" -m sagacontext.operator "$@"

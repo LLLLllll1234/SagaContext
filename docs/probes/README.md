@@ -4,12 +4,10 @@
 
 ## 当前验收
 
-正常 workspace rollout 仍处于实现和隔离测试阶段，默认及运行配置保持 `off`。
-本轮已验证控制面 grant、轮换、事务幂等、并发审核和 schema 升级；完整数据回滚、
-Projector 补偿闭环及真实宿主准入尚未完成，不能据本地测试启用正常 workspace。
-详见 [2026-09-09 控制面修复与验证](2026-09-09-rollout-control-auth.md)。
-
-下一阶段的 runner、配置清单与授权边界见 [S3-5/G6 执行准备](2026-09-07-g6-lifecycle-preparation.md)。这属于本地准备，不改变 S3-4 为当前已通过阶段的结论。
+最新：[2026-09-10 Guarded 真实运行闭环](2026-09-10-guarded-runtime-closure.md)。
+已通过真实宿主、Judge、OpenViking 的受控写入/跨会话消费/回滚验收，零残留。
+当前 runtime 为 off，STOP 已置位；日常质量样本数为 0，不据此扩大范围。
+历史阶段报告保留以下各自的实验边界。
 
 | 范围 | 报告 | 对应结果 |
 |---|---|---|

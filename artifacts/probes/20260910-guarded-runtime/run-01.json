@@ -1,0 +1,37 @@
+{
+  "schema": "guarded-runtime-v1",
+  "payload_class": "controlled_test_decision",
+  "status": "failed",
+  "host_version": "codex-cli 0.153.4",
+  "host_sessions": [],
+  "steps": [
+    {
+      "name": "authenticated_backend",
+      "passed": true
+    }
+  ],
+  "quality_population": "not_daily_traffic",
+  "review_actor": "user_delegated_operator",
+  "active_enabled": false,
+  "marker_digest": "1c51133fb62c9eb6af854c03bd4751a9c86cca808e6bffdf2dddac5f1e72be7e",
+  "rollout_id": "e92f8c31-b21f-4df7-be5e-254722f855b8",
+  "error_class": "TimeoutExpired",
+  "rollback": {
+    "rollout_id": "e92f8c31-b21f-4df7-be5e-254722f855b8",
+    "rollback_id": "2b822850-f06c-4878-ae01-c904530fee2c",
+    "status": "completed",
+    "phase": "verify",
+    "audit": {
+      "candidates": 0,
+      "events_retained_for_audit": 4,
+      "batches_retained_for_audit": 0,
+      "memory_targets": 0,
+      "projection_targets": 0,
+      "compensation_receipts": 0,
+      "residual_memories": 0,
+      "residual_candidates": 0,
+      "residual_operations": 0,
+      "residual_outbox": 0
+    }
+  }
+}

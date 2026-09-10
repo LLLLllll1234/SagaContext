@@ -1,0 +1,56 @@
+{
+  "schema": "guarded-runtime-v1",
+  "payload_class": "controlled_test_decision",
+  "status": "failed",
+  "host_version": "codex-cli 0.153.4",
+  "host_sessions": [
+    {
+      "name": "no_memory_control",
+      "exit_code": 1,
+      "blocker": "model_unavailable",
+      "stderr_summary": {
+        "present": true,
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false
+      },
+      "latency_ms": 17658,
+      "final_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "expected_match": false
+    }
+  ],
+  "steps": [
+    {
+      "name": "authenticated_backend",
+      "passed": true
+    },
+    {
+      "name": "no_memory_control",
+      "passed": false
+    }
+  ],
+  "quality_population": "not_daily_traffic",
+  "review_actor": "user_delegated_operator",
+  "active_enabled": false,
+  "marker_digest": "92599da8d2f7e899fb5e4fed8b99756f3c779d2c1e7cb4ee24e96440ff09f131",
+  "rollout_id": "ee3acb4a-6aa6-43e2-b89f-fec6bbee2dad",
+  "error_class": "ValueError",
+  "rollback": {
+    "rollout_id": "ee3acb4a-6aa6-43e2-b89f-fec6bbee2dad",
+    "rollback_id": "32487e89-4078-483b-bf9b-bd59ebf88371",
+    "status": "completed",
+    "phase": "verify",
+    "audit": {
+      "candidates": 0,
+      "events_retained_for_audit": 3,
+      "batches_retained_for_audit": 0,
+      "memory_targets": 0,
+      "projection_targets": 0,
+      "compensation_receipts": 0,
+      "residual_memories": 0,
+      "residual_candidates": 0,
+      "residual_operations": 0,
+      "residual_outbox": 0
+    }
+  }
+}

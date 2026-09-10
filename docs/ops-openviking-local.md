@@ -1,6 +1,10 @@
 # 本地 OpenViking 部署记录
 
-**更新时间：** 2026-09-05
+**更新时间：** 2026-09-10
+
+**最新订正：** 下文为 G1 部署历史。当前已完成 [guarded 受控闭环](probes/2026-09-10-guarded-runtime-closure.md)。
+root key 只用于管理 API，不能访问 tenant data；SagaContext 现使用专用普通用户 key，经受保护文件加载。
+此前的 authentication_failed 实际为 root 数据访问返回的 403，重启不是修复方法。
 **用途：** SagaContext S3-0/G1 的本地后端旁路探针
 **当前状态：** G1 已通过；17/17 必需断言为 `pass`，完整证据见 `artifacts/probes/g1-20260905T122242Z-6c4ee756/`
 

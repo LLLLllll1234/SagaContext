@@ -53,6 +53,31 @@ class RolloutTests(unittest.TestCase):
             "payload_shape_digest": "sha256:shape", **extra,
         })
 
+    def test_prompt_reaches_judge_once_and_sensitive_prompt_is_not_retained(self):
+        self.activate()
+        event = self.record(prompt="For this project, remember to use uv run pytest.")
+        self.record(prompt="For this project, remember to use uv run pytest.")
+        self.assertEqual(self.ledger.db.execute("SELECT COUNT(*) FROM rollout_candidates").fetchone()[0], 1)
+        payload = json.loads(self.ledger.db.execute("SELECT payload_json FROM events WHERE event_id=?", (event.event_id,)).fetchone()[0])
+        self.assertIn("uv run pytest", payload["text"])
+        blocked = self.record(key="secret", prompt="Remember api_key=synthetic-secret")
+        payload = self.ledger.db.execute("SELECT payload_json FROM events WHERE event_id=?", (blocked.event_id,)).fetchone()[0]
+        self.assertNotIn("synthetic-secret", payload)
+        self.assertEqual(self.ledger.db.execute("SELECT COUNT(*) FROM rollout_candidates").fetchone()[0], 1)
+
+    def test_backend_denial_emits_blocked_receipt_not_http_error(self):
+        from sagacontext.backends import BackendDefiniteError
+        self.activate()
+        class Denied:
+            def search(self, *args):
+                raise BackendDefiniteError("permission_denied")
+        output, receipt = self.runtime.session_start({
+            "cwd": str(self.root), "host": "codex", "host_version": self.config.rollout_host_version,
+            "source_generation": "g1", "session_id": "host", "source_event_ref": "start",
+        }, Denied(), query="workspace")
+        self.assertEqual(output, {})
+        self.assertEqual(receipt.reason, "backend_unavailable")
+
     def test_default_off_and_scope_or_kill_switch_fail_closed(self):
         self.config.rollout_mode = "off"
         receipt = self.record()
