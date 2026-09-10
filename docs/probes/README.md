@@ -5,6 +5,7 @@
 ## 当前验收
 
 最新：[2026-09-10 Guarded 真实运行闭环](2026-09-10-guarded-runtime-closure.md)。
+日常调度接线与故障矩阵：[2026-09-10 Daily Scheduler](2026-09-10-daily-scheduler.md)。
 已通过真实宿主、Judge、OpenViking 的受控写入/跨会话消费/回滚验收，零残留。
 当前 runtime 为 off，STOP 已置位；日常质量样本数为 0，不据此扩大范围。
 历史阶段报告保留以下各自的实验边界。

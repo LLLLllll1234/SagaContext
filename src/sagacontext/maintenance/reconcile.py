@@ -139,6 +139,8 @@ class BatchWorker:
                 return BatchRunResult(status="proposed", batch_id=batch_id)
             existing = self._proposed(batch_id)
 
+        if stop_after_proposals:
+            return BatchRunResult(status="proposed", batch_id=batch_id)
         plan = self._plan(batch_id, existing)
         try:
             result = self.ledger.commit_batch(plan, claim.lease_token, now=now)

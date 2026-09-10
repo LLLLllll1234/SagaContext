@@ -66,9 +66,16 @@ def create_app(config: Config | None = None) -> FastAPI:
     async def lifespan(api: FastAPI):
         runtime = Application(config or Config.load())
         api.state.runtime = runtime
+        from .scheduler import SchedulerThread
+        scheduler = SchedulerThread(runtime.config) if runtime.config.rollout_worker_enabled else None
+        api.state.scheduler = scheduler
+        if scheduler:
+            scheduler.start()
         try:
             yield
         finally:
+            if scheduler:
+                scheduler.stop()
             runtime.close()
 
     api = FastAPI(title="SagaContext", version="0.1.0", lifespan=lifespan)
@@ -80,7 +87,9 @@ def create_app(config: Config | None = None) -> FastAPI:
             "status": "ok",
             "schema_version": SCHEMA_VERSION,
             "ledger_path": str(runtime.ledger.path),
-            "host_ingestion": "disabled",
+            "host_ingestion": "disabled" if runtime.rollout.mode.value == "off" else runtime.rollout.mode.value,
+            "scheduler": "disabled" if request.app.state.scheduler is None else (
+                "error" if request.app.state.scheduler.error_class else "running"),
         }
 
     @api.post("/events")
@@ -121,6 +130,8 @@ def create_app(config: Config | None = None) -> FastAPI:
     @api.post("/rollout/batches/run")
     def rollout_run_batch(payload: dict[str, Any], request: Request):
         runtime = _runtime(request)
+        if runtime.config.rollout_worker_enabled:
+            raise HTTPException(status_code=409, detail={"status": "managed_by_scheduler"})
         if not runtime.config.llm_base_url or not runtime.config.llm_api_key or not runtime.config.llm_model:
             raise HTTPException(status_code=503, detail={"status": "judge_configuration_missing"})
         session_id = str(payload.get("session_id", ""))

@@ -30,6 +30,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--model', default=PINNED_MODEL)
+    parser.add_argument('--scheduled', action='store_true')
     args = parser.parse_args()
     if not args.execute:
         parser.error('--execute is required')
@@ -41,7 +42,7 @@ def main():
     run_id = None
     report = {'schema':'guarded-runtime-v1', 'payload_class':'controlled_test_decision',
               'status':'running', 'host_version':config.rollout_host_version,
-              'host_model':args.model, 'host_sessions':[], 'steps':[], 'quality_population':'not_daily_traffic',
+              'host_model':args.model, 'scheduler_driven':args.scheduled, 'host_sessions':[], 'steps':[], 'quality_population':'not_daily_traffic',
               'review_actor':'user_delegated_operator', 'active_enabled':False}
     marker = 'uv run --locked pytest -q'
     report['command_digest'] = hashlib.sha256(marker.encode()).hexdigest()
@@ -77,6 +78,10 @@ def main():
                     timed_out=True
                     os.killpg(proc.pid,signal.SIGKILL)
                     stdout,stderr=proc.communicate()
+                try:
+                    os.killpg(proc.pid,signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
                 blocker=_classify_blocker(stderr,timed_out) if proc.returncode != 0 else None
 
                 events=[]
@@ -103,10 +108,22 @@ def main():
                 candidates=a.ledger.db.execute('SELECT c.* FROM candidates c JOIN rollout_candidates rc USING(candidate_id) WHERE rc.rollout_id=?',(run_id,)).fetchall()
                 step('real_host_candidate',len(candidates)==1)
                 session_id=candidates[0]['session_id']
-                a.ledger.register_backend_generation('openviking',config.rollout_generation)
+                if not args.scheduled:
+                    a.ledger.register_backend_generation('openviking',config.rollout_generation)
             started=time.monotonic()
-            batch=post('/rollout/batches/run',{'session_id':session_id})
-            report['judge_latency_ms']=round((time.monotonic()-started)*1000)
+            if args.scheduled:
+                until=time.monotonic()+100
+                batch={}
+                while time.monotonic()<until:
+                    with Application(config) as a:
+                        row=a.ledger.db.execute("SELECT b.batch_id,b.status FROM batches b JOIN rollout_batches rb USING(batch_id) WHERE rb.rollout_id=? ORDER BY b.created_at DESC LIMIT 1",(run_id,)).fetchone()
+                    if row:
+                        batch=dict(row)
+                        if row['status'] in {'awaiting_review','blocked'}:break
+                    time.sleep(1)
+            else:
+                batch=post('/rollout/batches/run',{'session_id':session_id})
+            report['proposal_wait_ms' if args.scheduled else 'judge_latency_ms']=round((time.monotonic()-started)*1000)
             report['batch_id']=batch['batch_id']
             step('judge_proposal',batch['status']=='awaiting_review')
             with Application(config) as a:
@@ -119,8 +136,18 @@ def main():
             report['memory_ids']=commit['memory_ids']
             with Application(config) as a:
                 started=time.monotonic()
-                projection=a.projector.drain_once(a.rollout_backend,worker_id='guarded-acceptance',now=datetime.now(timezone.utc),backend_timeout=timedelta(seconds=5),local_completion_margin=timedelta(seconds=2),lease_duration=timedelta(seconds=90),verification_timeout=timedelta(seconds=30),rollout_id=run_id)
-                step('projection',projection.status=='confirmed',status=projection.status)
+                if args.scheduled:
+                    until=time.monotonic()+60
+                    confirmed=False
+                    while time.monotonic()<until:
+                        row=a.ledger.db.execute("SELECT state FROM projection_operations WHERE rollout_id=?",(run_id,)).fetchone()
+                        if row and row['state']=='confirmed':
+                            confirmed=True;break
+                        time.sleep(1)
+                    step('projection',confirmed)
+                else:
+                    projection=a.projector.drain_once(a.rollout_backend,worker_id='guarded-acceptance',now=datetime.now(timezone.utc),backend_timeout=timedelta(seconds=5),local_completion_margin=timedelta(seconds=2),lease_duration=timedelta(seconds=90),verification_timeout=timedelta(seconds=30),rollout_id=run_id)
+                    step('projection',projection.status=='confirmed',status=projection.status)
                 report['projection_latency_ms']=round((time.monotonic()-started)*1000)
                 until=time.monotonic()+45
                 hits=[]
@@ -139,6 +166,9 @@ def main():
             report['quality']={'candidates':1,'accepted_candidates':1,'review_modified':0,'consumed_injections':1,'unexpected_recall_controls':0,'daily_quality_sample_size':0}
         except Exception as error:
             report['status']='failed';report['error_class']=type(error).__name__
+            report['error_errno']=getattr(error,'errno',None)
+            import traceback
+            report['error_frames']=[{'file':Path(f.filename).name,'line':f.lineno,'function':f.name} for f in traceback.extract_tb(error.__traceback__)]
             print('runtime_failed',type(error).__name__,flush=True)
         finally:
             if run_id:

@@ -23,6 +23,7 @@ class Config:
     llm_api_key: str = ""
     llm_model: str = ""
     rollout_mode: Literal["off", "shadow", "guarded"] = "off"
+    rollout_worker_enabled: bool = False
     rollout_workspaces: tuple[str, ...] = ()
     rollout_host: str = "codex"
     rollout_host_version: str = "codex-cli 0.153.4"
@@ -104,6 +105,7 @@ class Config:
             llm_api_key=str(llm_api_key),
             llm_model=str(llm_model),
             rollout_mode=str(mode),
+            rollout_worker_enabled=rollout.get("worker_enabled", False) is True,
             rollout_workspaces=workspaces,
             rollout_host=str(rollout.get("host", defaults.rollout_host)),
             rollout_host_version=str(rollout.get("host_version", defaults.rollout_host_version)),

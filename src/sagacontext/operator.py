@@ -18,13 +18,42 @@ from .config import Config
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('action',choices=['start','status','stop','rollback'])
+    parser.add_argument('action',choices=['start','status','stop','rollback','pending','review','report','annotate'])
     parser.add_argument('--rollout-id')
+    parser.add_argument('--batch-id')
+    parser.add_argument('--decision', choices=['approve','reject'])
+    parser.add_argument('--observation-file', type=Path)
     args=parser.parse_args()
     config=Config.load()
     root=config.ledger_path.parent
     root.mkdir(parents=True,exist_ok=True)
     pidfile=root/'daemon.pid'
+    if args.action=='annotate':
+        from .daily_report import annotate
+        if not args.observation_file or not args.rollout_id:parser.error('--observation-file and --rollout-id required')
+        observation=json.loads(args.observation_file.read_text())
+        if set(observation)!={'receipt_id','kind','target_id','value'}:raise ValueError('invalid_observation_fields')
+        with Application(config) as a:result=annotate(a.ledger,args.rollout_id,**observation)
+        print(json.dumps(result));return
+    if args.action in {'pending','report'}:
+        from .daily_report import pending, report
+        with Application(config) as a:
+            result=pending(a.ledger) if args.action=='pending' else report(a.ledger,args.rollout_id)
+        print(json.dumps(result,ensure_ascii=False,indent=2));return
+    if args.action=='review':
+        if not args.batch_id or not args.decision:parser.error('--batch-id and --decision required')
+        import tomllib
+        settings=tomllib.loads((root/'config.toml').read_text())
+        token=Path(settings['rollout']['token_file']).expanduser().read_text().strip()
+        now=datetime.now(timezone.utc)
+        with httpx.Client(trust_env=False,timeout=30) as c:
+            response=c.post(f'http://{config.host}:{config.port}/rollout/batches/{args.batch_id}/review',
+                json={'decision':args.decision,'reviewer':config.rollout_approver},
+                headers={'Authorization':'Bearer '+token,'X-SagaContext-Approver':config.rollout_approver,
+                    'X-SagaContext-Key-Id':config.rollout_key_id,'X-SagaContext-Approval-Receipt':str(uuid.uuid4()),
+                    'X-SagaContext-Issued-At':now.isoformat(),'X-SagaContext-Expires-At':(now+timedelta(minutes=3)).isoformat()})
+            if response.status_code!=200:raise ValueError('review_rejected')
+            print(json.dumps(response.json()));return
     if args.action=='rollback':
         if not args.rollout_id:parser.error('--rollout-id required')
         now=datetime.now(timezone.utc)
