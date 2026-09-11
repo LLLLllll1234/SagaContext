@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+[ "$#" -gt 0 ] || set -- status
+REPO=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}" exec "$REPO/.venv/bin/python" -m sagacontext.observation "$@"

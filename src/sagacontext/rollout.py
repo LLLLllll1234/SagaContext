@@ -477,6 +477,22 @@ class RolloutRuntime:
             else:
                 if self.host.kill_switch_active() or _utc(run["deadline"]) <= datetime.now(timezone.utc):
                     raise ValueError("kill_switch" if self.host.kill_switch_active() else "deadline_exceeded")
+                observation = json.loads(run['rollback_plan_json']).get('observation')
+                if observation:
+                    # First daily cohort must remain undoable by exclusive-new rollback.
+                    from .observation import PLAN
+                    if json.loads(run['rollback_plan_json']) != PLAN:
+                        raise ValueError('observation_plan_mismatch')
+                    project = self.ledger.resolve_project(self.host.allowed_workspace())
+                    proposals = self.ledger.db.execute(
+                        "SELECT operation,scope_json FROM proposals WHERE batch_id=? AND status='awaiting_review'", (batch_id,)).fetchall()
+                    if not proposals:
+                        raise ValueError('observation_empty_review')
+                    for proposal in proposals:
+                        scope = json.loads(proposal['scope_json'] or '{}')
+                        if (proposal['operation'] != 'new' or scope.get('kind') != 'project'
+                                or scope.get('project_id') != project['project_id']):
+                            raise ValueError('observation_requires_new_project_memory')
                 token=str(uuid.uuid4()); self.ledger.db.execute("UPDATE proposals SET status='proposed' WHERE batch_id=? AND status='awaiting_review'", (batch_id,)); self.ledger.db.execute("UPDATE candidates SET status='processing' WHERE active_batch_id=?", (batch_id,)); self.ledger.db.execute("UPDATE batches SET status='review_committing',lease_owner=?,lease_token=?,lease_until=? WHERE batch_id=?", (reviewer,token,(now+timedelta(seconds=30)).isoformat(),batch_id)); plan=self.worker._plan(batch_id,self.worker._proposed(batch_id)); committed=self.ledger.commit_batch(plan,token,now=now,rollout_authorization=(run["rollout_id"],run["control_epoch"])); result={"status":committed.status,"batch_id":batch_id,"memory_ids":list(committed.memory_ids)}
             if self.host.kill_switch_active() or _utc(run["deadline"]) <= datetime.now(timezone.utc):
                 raise ValueError("rollout_stopped_during_review")
