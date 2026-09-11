@@ -4,13 +4,13 @@
 
 ## 当前阅读入口
 
-- 可视化方案：[工作区控制台设计定稿](superpowers/specs/2026-09-11-workspace-console-design.md) → [第一期实施计划](superpowers/plans/2026-09-11-workspace-console.md)：用户已批准工作区网格首页与先只读、后审核的分期；产品实现尚未开始。
-- 最新准入进展：[Codex marker 消费与 Judge 准入复核](probes/2026-09-09-marker-consumption-admission.md)：Codex v5 21/21 passed；Judge 缺配置阻断，正常 workspace 保持 off。
-- 查看当前实现与验收结论：[v6 Judge 基线与 S3-3/S3-4 隔离验收](probes/2026-09-07-v6-judge-baseline.md) → [Judge Pro/Flash 双模型与隔离 Shadow](probes/2026-09-06-dual-model-acceptance.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
-- 复查测试记录：[验收报告索引](probes/README.md) → [S3 原始运行清单](../artifacts/probes/S3-RESULTS.md)。
-- 理解实现约束：[v0.3 总设计](superpowers/specs/2026-09-05-sagacontext-v0.3-design.md) → [S1](superpowers/specs/2026-09-05-s1-data-closure-design.md) → [S2](superpowers/specs/2026-09-05-s2-continuous-maintenance-design.md) → [S3](superpowers/specs/2026-09-05-s3-admission-and-longitudinal-design.md)。
-- 本地部署与操作：[OpenViking 部署记录](ops-openviking-local.md)。
- - 当前阶段：[S3-5/G6 真实隔离纵向验收](probes/2026-09-08-g6-lifecycle-acceptance.md) 已通过；正常 workspace 自动化仍关闭。
+- **V1.0 发布范围**：[发布说明](releases/v1.0.0.md)：需要审核的本地 Codex 记忆系统；默认 off，active 不开放。
+- 真实闭环：[Scheduler 真实验收](probes/2026-09-11-scheduler-real-acceptance.md)，11/11 步骤、17/17 独立复核通过；真实日常质量与长期 provider 稳定性尚待观察。
+- 日常观察：[范围、审核、台账、STOP 和独立收尾](probes/2026-09-11-daily-observation.md)。报告记录一次限时授权，实时状态以本机 Ledger 为准。
+- 故障与运维：[离线 Scheduler 验收](probes/2026-09-11-offline-scheduler-acceptance.md) → [验收报告索引](probes/README.md)。历史数字不是当前测试总数。
+- 后续工作：[工作区控制台设计](superpowers/specs/2026-09-11-workspace-console-design.md) → [实施计划](superpowers/plans/2026-09-11-workspace-console.md)。控制台在独立分支开发，不属于本次 V1 合并的实现。
+- 实现约束：[Guarded rollout 设计](superpowers/specs/2026-09-08-normal-workspace-guarded-rollout-design.md) → [日常观察设计](superpowers/specs/2026-09-11-daily-observation-design.md)。
+- 本地部署：[OpenViking 部署记录](ops-openviking-local.md)。
 
 ## 全量文档目录
 

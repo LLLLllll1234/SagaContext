@@ -78,7 +78,7 @@ def create_app(config: Config | None = None) -> FastAPI:
                 scheduler.stop()
             runtime.close()
 
-    api = FastAPI(title="SagaContext", version="0.1.0", lifespan=lifespan)
+    api = FastAPI(title="SagaContext", version="1.0.0", lifespan=lifespan)
 
     @api.get("/health")
     def health(request: Request):
