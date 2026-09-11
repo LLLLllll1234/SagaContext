@@ -66,6 +66,8 @@ def create_app(config: Config | None = None) -> FastAPI:
     async def lifespan(api: FastAPI):
         runtime = Application(config or Config.load())
         api.state.runtime = runtime
+        from .console.service import ConsoleReadService
+        api.state.console = ConsoleReadService(runtime.ledger.path, runtime.owner_id)
         from .scheduler import SchedulerThread
         scheduler = SchedulerThread(runtime.config) if runtime.config.rollout_worker_enabled else None
         api.state.scheduler = scheduler
@@ -79,6 +81,25 @@ def create_app(config: Config | None = None) -> FastAPI:
             runtime.close()
 
     api = FastAPI(title="SagaContext", version="0.1.0", lifespan=lifespan)
+    from .console.router import create_console_router
+    from .console.db import ConsoleReadError
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.exception_handlers import request_validation_exception_handler
+    import uuid
+
+    @api.exception_handler(ConsoleReadError)
+    async def console_error(request: Request, error: ConsoleReadError):
+        status = 404 if error.code == "not_found" else 400 if error.code == "invalid_request" else 503
+        return JSONResponse(status_code=status, content={"error": {"code": error.code,
+            "retryable": error.code == "ledger_busy"}, "request_id": str(uuid.uuid4())})
+
+    @api.exception_handler(RequestValidationError)
+    async def validation_error(request: Request, error: RequestValidationError):
+        if request.url.path.startswith("/console/v1/"):
+            return await console_error(request, ConsoleReadError("invalid_request"))
+        return await request_validation_exception_handler(request, error)
+
+    api.include_router(create_console_router())
 
     @api.get("/health")
     def health(request: Request):

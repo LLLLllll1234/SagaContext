@@ -48,10 +48,10 @@ def effective_state(
 ) -> dict[str, object]:
     """Compute displayed runtime state without invoking the mutating runtime."""
     persisted_status = run.get("status") if isinstance(run, dict) else None
-    if configured_mode not in _CONFIGURED_MODES:
-        return _result(configured_mode, persisted_status, "unknown", "data_invalid")
     if run is None:
         return _result(configured_mode, None, "off", "no_run")
+    if configured_mode not in _CONFIGURED_MODES:
+        return _result(configured_mode, persisted_status, "unknown", "data_invalid")
     if not isinstance(run, dict) or not isinstance(persisted_status, str):
         return _result(configured_mode, persisted_status, "unknown", "data_invalid")
     if configured_mode == "off":
