@@ -4,6 +4,7 @@
 
 ## 当前阅读入口
 
+- 可视化方案：[工作区控制台设计定稿](superpowers/specs/2026-09-11-workspace-console-design.md) → [第一期实施计划](superpowers/plans/2026-09-11-workspace-console.md)：用户已批准工作区网格首页与先只读、后审核的分期；产品实现尚未开始。
 - 最新准入进展：[Codex marker 消费与 Judge 准入复核](probes/2026-09-09-marker-consumption-admission.md)：Codex v5 21/21 passed；Judge 缺配置阻断，正常 workspace 保持 off。
 - 查看当前实现与验收结论：[v6 Judge 基线与 S3-3/S3-4 隔离验收](probes/2026-09-07-v6-judge-baseline.md) → [Judge Pro/Flash 双模型与隔离 Shadow](probes/2026-09-06-dual-model-acceptance.md) → [S3 策略与纵向验收](probes/2026-09-06-s3-policy-shadow-g5-g6.md)。
 - 复查测试记录：[验收报告索引](probes/README.md) → [S3 原始运行清单](../artifacts/probes/S3-RESULTS.md)。
