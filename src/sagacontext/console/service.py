@@ -27,6 +27,8 @@ class ConsoleReadService:
                 return {"meta":meta,"data":data}
         except sqlite3.Error as error:
             raise ConsoleReadError("ledger_busy" if "locked" in str(error).lower() or "busy" in str(error).lower() else "data_invalid") from None
+        except (ValueError,TypeError):
+            raise ConsoleReadError("data_invalid") from None
 
     def projects(self):
         def operation(db):

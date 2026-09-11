@@ -207,6 +207,11 @@ class MemoryRow(_StrictModel):
     payload: JsonValue
 
 
+class MemoryRelation(_StrictModel):
+    memory_id: str
+    relation: Literal['replaces','replaced_by']
+
+
 class MemoryDetail(_StrictModel):
     memory_id: str
     current_revision: int
@@ -214,6 +219,7 @@ class MemoryDetail(_StrictModel):
     state: str
     conflict_state: str
     scope: MemoryScope
+    relations: list[MemoryRelation]
     revisions: list[Revision]
 
 
@@ -295,6 +301,7 @@ class SessionDetail(SessionRow):
     candidates: list[Candidate]
     injections: list[Injection]
     bindings: list[Binding]
+    truncated: list[str]
 
 
 SessionPage = Page[SessionRow]

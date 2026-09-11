@@ -48,8 +48,22 @@ def memory(db,owner_id,workspace_id,memory_id,context=None):
         eids=[r[0] for r in db.execute('SELECT evidence_id FROM revision_evidence WHERE memory_id=? AND revision=?',(memory_id,rev['revision']))]
         revisions.append({'revision':rev['revision'],'operation':rev['operation'],'created_at':rev['created_at'],
             'payload':safe_payload(json.loads(rev['payload_json'])),'evidence':evidence(db,owner_id,workspace_id,eids)})
+    relations=[]
+    related=db.execute("""SELECT DISTINCT other.memory_id,
+        CASE WHEN own.operation='supersede' THEN 'replaced_by' ELSE 'replaces' END AS relation,
+        m.scope_json FROM rollout_commits own
+        JOIN rollout_commits other ON other.rollout_id=own.rollout_id AND other.proposal_id=own.proposal_id
+          AND other.memory_id!=own.memory_id
+        JOIN memories m ON m.memory_id=other.memory_id AND m.owner_id=? AND m.state!='deleted'
+        WHERE own.memory_id=? AND ((own.operation='supersede' AND other.operation='new')
+          OR (own.operation='new' AND other.operation='supersede'))
+        ORDER BY other.memory_id""",(owner_id,memory_id)).fetchall()
+    for item in related:
+        if scope_allows(Scope.model_validate_json(item['scope_json']),context):
+            relations.append({'memory_id':safe_text(item['memory_id']),'relation':item['relation']})
     return {'memory_id':memory_id,'current_revision':row['current_revision'],'memory_type':row['memory_type'],
-        'scope':json.loads(row['scope_json']),'state':row['state'],'conflict_state':row['conflict_state'],'revisions':revisions}
+        'scope':safe_payload(json.loads(row['scope_json'])),'state':row['state'],'conflict_state':row['conflict_state'],
+        'relations':relations,'revisions':revisions}
 
 
 def memories(db,owner_id,project_id,workspace_id,context=None,cursor=None,limit=50,view='applicable'):
@@ -109,6 +123,8 @@ def batch(db,owner_id,workspace_id,batch_id,context=None):
             if output['state']=='deleted' or not scope_allows(Scope.model_validate_json(output['scope_json']),context):
                 allowed=False
                 break
+        if not allowed:
+            old=None
         proposals.append({'proposal_id':p['proposal_id'],'candidate_id':p['candidate_id'],'operation':p['operation'],
             'target_id':p['target_id'] if allowed else None,'expected_revision':p['expected_revision'] if allowed else None,
             'status':p['status'],'scope':scope.model_dump() if allowed else None,'old_payload':old,
@@ -124,11 +140,18 @@ def session(db,owner_id,workspace_id,session_id):
     row=db.execute('SELECT session_id,host,opened_at,closed_at FROM sessions WHERE session_id=? AND owner_id=? AND workspace_id=?',(session_id,owner_id,workspace_id)).fetchone()
     if not row:
         raise ConsoleReadError('not_found')
-    events=[dict(r) for r in db.execute('SELECT event_id,event_kind,occurred_at,received_at FROM events WHERE owner_id=? AND session_id=? ORDER BY received_at DESC,event_id DESC LIMIT 100',(owner_id,session_id))]
-    batches=[dict(r) for r in db.execute('SELECT batch_id,status,created_at FROM batches WHERE owner_id=? AND session_id=? ORDER BY created_at DESC,batch_id DESC LIMIT 100',(owner_id,session_id))]
-    candidates=[dict(r) for r in db.execute('SELECT candidate_id,kind,status,active_batch_id FROM candidates WHERE owner_id=? AND session_id=? ORDER BY created_sequence DESC,candidate_id DESC LIMIT 100',(owner_id,session_id))]
+    truncated=[]
+    def limited(name,sql,params):
+        rows=[dict(r) for r in db.execute(sql+' LIMIT 101',params)]
+        if len(rows)>100:
+            truncated.append(name)
+        return rows[:100]
+    events=limited('events','SELECT event_id,event_kind,occurred_at,received_at FROM events WHERE owner_id=? AND session_id=? ORDER BY received_at DESC,event_id DESC',(owner_id,session_id))
+    batches=limited('batches','SELECT batch_id,status,created_at FROM batches WHERE owner_id=? AND session_id=? ORDER BY created_at DESC,batch_id DESC',(owner_id,session_id))
+    candidates=limited('candidates','SELECT candidate_id,kind,status,active_batch_id FROM candidates WHERE owner_id=? AND session_id=? ORDER BY created_sequence DESC,candidate_id DESC',(owner_id,session_id))
     injections=[]
-    for receipt in db.execute("SELECT receipt_id,payload_json,created_at FROM rollout_audit WHERE owner_id=? AND workspace_id=? AND session_id=? AND kind='injection' ORDER BY created_at DESC,receipt_id DESC LIMIT 100",(owner_id,workspace_id,session_id)):
+    receipts=limited('injections',"SELECT receipt_id,payload_json,created_at FROM rollout_audit WHERE owner_id=? AND workspace_id=? AND session_id=? AND kind='injection' ORDER BY created_at DESC,receipt_id DESC",(owner_id,workspace_id,session_id))
+    for receipt in receipts:
         payload=json.loads(receipt['payload_json'])
         fields=('status','reason','memory_ids','revisions','generation','ledger_sequence','omissions','bundle_digest','session_digest')
         safe={key:payload.get(key) for key in fields}
@@ -138,4 +161,5 @@ def session(db,owner_id,workspace_id,session_id):
         safe['consumption_records']=[dict(r) for r in db.execute('SELECT receipt_id,status,created_at FROM rollout_consumption_receipts WHERE owner_id=? AND session_digest=? AND bundle_digest=? ORDER BY created_at,receipt_id',(owner_id,payload.get('session_digest'),payload.get('bundle_digest')))] if payload.get('bundle_digest') else []
         injections.append(safe_payload({'receipt_id':receipt['receipt_id'],'created_at':receipt['created_at'],**safe}))
     bindings=[dict(r) for r in db.execute('SELECT task_id,start_event_id,end_event_id FROM task_bindings WHERE owner_id=? AND session_id=? ORDER BY created_at, binding_id',(owner_id,session_id))]
-    return safe_payload({**dict(row),'events':events,'batches':batches,'candidates':candidates,'injections':injections,'bindings':bindings})
+    return safe_payload({**dict(row),'events':events,'batches':batches,'candidates':candidates,
+        'injections':injections,'bindings':bindings,'truncated':truncated})

@@ -48,3 +48,13 @@ def test_access_and_errors(client,console_case):
     assert client.get(f'/console/v1/projects/{c.project_b}/tasks/{c.task_id}?workspace_id={c.workspace_a}').status_code==404
     assert client.get(f'/console/v1/projects/{c.project_a}/tasks/missing?workspace_id={c.workspace_a}').status_code==404
     assert client.get('/console/v1/no-such-api').status_code==404
+
+
+def test_corrupt_stored_json_returns_data_invalid(client,console_case):
+    c=console_case
+    with sqlite3.connect(c.path) as db:
+        db.execute("UPDATE revisions SET payload_json='{private-data' WHERE memory_id=?",(c.memory_id,))
+    response=client.get(f'/console/v1/workspaces/{c.workspace_a}/memories/{c.memory_id}')
+    assert response.status_code==503
+    assert response.json()['error']['code']=='data_invalid'
+    assert 'private-data' not in response.text
