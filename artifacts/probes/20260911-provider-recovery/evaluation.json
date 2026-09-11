@@ -1,0 +1,149 @@
+{
+  "schema": "scheduler-runtime-evaluation-v1",
+  "created_at": "2026-09-11T06:17:10.125410+00:00",
+  "source": "scheduled-01.json",
+  "source_sha256": "316a816d4bcf15dd34d59888abfa21e4be511920b3abd20e43b78acabd0de9dd",
+  "implementation_commit": "13f0bc668e730a1873ffb571055b3cd801c97c43",
+  "rollout_id": "5b725e16-85a7-4286-bed6-f1e80cc59ff8",
+  "checks": {
+    "same_rollout_consumption_receipt": true,
+    "consumption_matches_emitted_bundle": true,
+    "consumption_matches_final_result_digest": true,
+    "scheduler_judge_receipt": true,
+    "review_bound_to_batch": true,
+    "commit_bound_to_memory": true,
+    "projection_compensated": true,
+    "remote_exact_absence": true,
+    "remote_search_absence": true,
+    "ledger_zero_residuals": true,
+    "one_compensation_receipt": true,
+    "rollout_stopped": true,
+    "runtime_off_stop_set": true,
+    "no_live_rollouts": true,
+    "all_real_host_sessions_passed": true,
+    "source_steps_passed": true,
+    "source_successful_rollback": true
+  },
+  "passed": true,
+  "checks_passed": 17,
+  "checks_total": 17,
+  "judge_latency_ms": 11556,
+  "rollback_audit": {
+    "candidates": 1,
+    "events_retained_for_audit": 12,
+    "batches_retained_for_audit": 1,
+    "memory_targets": 1,
+    "projection_targets": 1,
+    "compensation_receipts": 1,
+    "residual_memories": 0,
+    "residual_candidates": 0,
+    "residual_operations": 0,
+    "residual_outbox": 0
+  },
+  "remote_search_remaining": 0,
+  "daily_quality_samples": 0,
+  "daily_report": {
+    "rollout_id": "5b725e16-85a7-4286-bed6-f1e80cc59ff8",
+    "mode": "guarded",
+    "status": "stopped",
+    "deadline": "2026-09-11T07:07:04.619421+00:00",
+    "session_reservations": 3,
+    "session_limit": 10,
+    "candidate_reservations": 1,
+    "candidate_limit": 20,
+    "batches": {
+      "settled": 1
+    },
+    "reviews": {
+      "approve": 1
+    },
+    "proposals": {
+      "new": 1
+    },
+    "judge_latency_ms": {
+      "samples": 1,
+      "p50": 11556,
+      "p95": 11556
+    },
+    "consumption_reports": 1,
+    "rate_basis": "operator_labeled_targets_only",
+    "candidate_effectiveness": null,
+    "review_modification_rate": null,
+    "wrong_recall_rate": null,
+    "consumption_rate": null,
+    "quality_status": "requires_observational_labels",
+    "projection_states": {
+      "compensated": 1
+    },
+    "rollback": {
+      "states": {
+        "completed": 1
+      },
+      "audit": {
+        "candidates": 1,
+        "events_retained_for_audit": 12,
+        "batches_retained_for_audit": 1,
+        "memory_targets": 1,
+        "projection_targets": 1,
+        "compensation_receipts": 1,
+        "residual_memories": 0,
+        "residual_candidates": 0,
+        "residual_operations": 0,
+        "residual_outbox": 0
+      }
+    },
+    "observations": {
+      "candidate_valid": {
+        "yes": 0,
+        "no": 0,
+        "unknown": 0,
+        "labeled_samples": 0,
+        "evaluated_samples": 0,
+        "yes_rate": null
+      },
+      "review_modified": {
+        "yes": 0,
+        "no": 0,
+        "unknown": 0,
+        "labeled_samples": 0,
+        "evaluated_samples": 0,
+        "yes_rate": null
+      },
+      "wrong_recall": {
+        "yes": 0,
+        "no": 0,
+        "unknown": 0,
+        "labeled_samples": 0,
+        "evaluated_samples": 0,
+        "yes_rate": null
+      },
+      "consumed": {
+        "yes": 0,
+        "no": 0,
+        "unknown": 0,
+        "labeled_samples": 0,
+        "evaluated_samples": 0,
+        "yes_rate": null
+      }
+    },
+    "observation_targets": {
+      "candidate_valid": [
+        "a3a1af0c-c4e7-48aa-ace5-d0b90678f9f9"
+      ],
+      "review_modified": [
+        "4a35e9d4-7811-4de5-a9d6-be6a0b17e264"
+      ],
+      "wrong_recall": [
+        "b8f8dbb6-3889-4f9e-a1b9-e4660071a635"
+      ],
+      "consumed": [
+        "b8f8dbb6-3889-4f9e-a1b9-e4660071a635"
+      ]
+    },
+    "scope_expansion_admitted": false
+  },
+  "provider_configuration_changed": false,
+  "timeout_limit_changed": false,
+  "automatic_retries_added": false,
+  "limitation": "controlled decision only; not daily traffic quality or long-term provider stability"
+}

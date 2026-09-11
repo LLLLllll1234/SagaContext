@@ -1,0 +1,30 @@
+{
+  "model": "gpt-6-astra",
+  "exit_code": 0,
+  "timed_out": false,
+  "blocker": null,
+  "stderr_summary": {
+    "present": true,
+    "authentication_signal": true,
+    "hook_failure_signal": false,
+    "hook_timeout_signal": false
+  },
+  "expected_match": true,
+  "latency_ms": 14281,
+  "event_types": [
+    "thread.started",
+    "turn.started",
+    "item.completed",
+    "turn.completed"
+  ],
+  "isolation": {
+    "mode": "temporary_minimal_codex_home",
+    "provider_configured": true,
+    "auth_material_available": true,
+    "provider_value_saved": false,
+    "provider_endpoint_saved": false,
+    "auth_material_saved": false,
+    "temporary_project_trusted": true
+  },
+  "stderr_interpretation": "authentication signal was nonfatal; exit 0 and final response matched"
+}

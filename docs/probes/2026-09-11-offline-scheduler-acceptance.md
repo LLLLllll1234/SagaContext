@@ -1,5 +1,7 @@
 # 2026-09-11 离线 Scheduler 与运维验收
 
+后续更新：[真实 Scheduler 闭环](2026-09-11-scheduler-real-acceptance.md) 已在同一 Codex 模型下通过；本报告保留跳过 provider 时的离线验收范围和状态快照。
+
 本轮按授权跳过 Codex provider 超时排查，完成不依赖模型服务的 scheduler 故障恢复与 operator 验收。最终离线运行 **34/34** 检查通过，全量回归 **246 tests、96 subtests** 通过。真实 workspace 保持 `off + STOP`，未扩配额、未进入 `active`。
 
 这份证据只覆盖临时 workspace、合成事件、ScriptedJudge 和 InMemoryBackend。人工审核操作由验收脚本显式模拟，下一会话召回由 runtime API 模拟；没有运行 Codex，也没有新增真实宿主消费回执。provider 请求数、真实日常质量样本数均为 **0**。已有受控真实闭环和尚未完成的 scheduler-driven 宿主验收，仍以各自报告为准。
