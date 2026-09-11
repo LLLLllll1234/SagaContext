@@ -4,6 +4,8 @@
 
 ## 当前验收
 
+控制台实现：[2026-09-11 工作区只读控制台](2026-09-11-workspace-console-acceptance.md)：读取 API、四卡页面、证据导航与 wheel 验证；使用临时合成数据，不代表真实运行质量。
+
 最新真实验收：[2026-09-11 Scheduler 真实闭环](2026-09-11-scheduler-real-acceptance.md)：同一 Codex 模型本轮恢复可用；后台调度真实受控链路 11/11、独立复核 17/17 通过，回滚零残留。真实日常质量尚未验收。
 离线验收：[2026-09-11 Scheduler 与运维验收](2026-09-11-offline-scheduler-acceptance.md)：合成隔离运行 34/34、全量 246 tests / 96 subtests；当时的 provider 阻塞见最新真实运行结果。
 受控真实闭环：[2026-09-10 Guarded 真实运行闭环](2026-09-10-guarded-runtime-closure.md)。
