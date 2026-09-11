@@ -74,8 +74,9 @@ def memories(db,owner_id,project_id,workspace_id,context=None,cursor=None,limit=
     if view=='changes':
         sql+=' AND EXISTS (SELECT 1 FROM rollout_commits c JOIN rollout_runs u USING(rollout_id) WHERE c.memory_id=m.memory_id AND u.owner_id=? AND u.workspace_id=?)'
         params+=(owner_id,workspace_id)
-    result=queries.page(db,sql,params,keys=('created_at','memory_id'),scope=('memories',context.model_dump(),view),cursor=cursor,limit=limit)
+    result=queries.page(db,sql,params,keys=('created_at','memory_id'),scope=('memories',context.model_dump(),view),cursor=cursor,limit=limit,sanitize=False)
     for item in result['items']:
+        item.update(safe_payload({key:value for key,value in item.items() if key!='payload_json'}))
         item['payload']=safe_payload(json.loads(item.pop('payload_json')))
     return result
 
@@ -97,6 +98,17 @@ def batch(db,owner_id,workspace_id,batch_id,context=None):
                 old=safe_payload(json.loads(target[0])) if target else None
             else:
                 allowed=False
+        outputs=db.execute("""SELECT c.memory_id,m.state,m.scope_json FROM rollout_commits c
+            JOIN rollout_runs r ON r.rollout_id=c.rollout_id
+            JOIN memories m ON m.memory_id=c.memory_id AND m.owner_id=r.owner_id
+            WHERE c.proposal_id=? AND r.owner_id=? AND r.workspace_id=?""",
+            (p['proposal_id'],owner_id,workspace_id)).fetchall()
+        if p['status']=='committed' and not outputs:
+            allowed=False
+        for output in outputs:
+            if output['state']=='deleted' or not scope_allows(Scope.model_validate_json(output['scope_json']),context):
+                allowed=False
+                break
         proposals.append({'proposal_id':p['proposal_id'],'candidate_id':p['candidate_id'],'operation':p['operation'],
             'target_id':p['target_id'] if allowed else None,'expected_revision':p['expected_revision'] if allowed else None,
             'status':p['status'],'scope':scope.model_dump() if allowed else None,'old_payload':old,

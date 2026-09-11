@@ -61,6 +61,50 @@ def test_snapshot_rejects_incomplete_schema(tmp_path):
     assert caught.value.code == "schema_unsupported"
 
 
+def test_snapshot_rejects_schema_with_invalid_migration_sequence(tmp_path):
+    path = tmp_path / "ledger.db"
+    ledger = Ledger(path, owner_id="owner-a")
+    ledger.db.execute("DELETE FROM schema_migrations WHERE version=2")
+    ledger.close()
+
+    with pytest.raises(ConsoleReadError) as caught:
+        with read_snapshot(path):
+            pass
+
+    assert caught.value.code == "schema_unsupported"
+
+
+@pytest.mark.parametrize("value", ["invalid", "-1"])
+def test_snapshot_rejects_invalid_ledger_sequence(tmp_path, value):
+    path = tmp_path / "ledger.db"
+    ledger = Ledger(path, owner_id="owner-a")
+    ledger.db.execute("UPDATE ledger_meta SET value=? WHERE key='sequence'", (value,))
+    ledger.close()
+
+    with pytest.raises(ConsoleReadError) as caught:
+        with read_snapshot(path):
+            pass
+
+    assert caught.value.code == "data_invalid"
+
+
+def test_snapshot_reports_busy_database(tmp_path):
+    path = tmp_path / "ledger.db"
+    ledger = Ledger(path, owner_id="owner-a")
+    ledger.close()
+    blocker = sqlite3.connect(path, isolation_level=None)
+    blocker.execute("PRAGMA journal_mode=DELETE")
+    blocker.execute("BEGIN EXCLUSIVE")
+    try:
+        with pytest.raises(ConsoleReadError) as caught:
+            with read_snapshot(path):
+                pass
+        assert caught.value.code == "ledger_busy"
+    finally:
+        blocker.rollback()
+        blocker.close()
+
+
 def test_read_models_are_strict_and_read_ledger_has_no_write_surface(tmp_path):
     path = tmp_path / "ledger.db"
     ledger = Ledger(path, owner_id="owner-a")

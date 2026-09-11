@@ -25,7 +25,7 @@ def test_all_console_gets_are_readonly(console_case,client,monkeypatch):
         before=list(db.iterdump())
     window=urlencode({'start':c.start.isoformat(),'end':c.end.isoformat()})
     paths=['projects',f'workspaces/{c.workspace_a}/overview?{window}',f'workspaces/{c.workspace_a}/sessions',
-        f'projects/{c.project_a}/tasks',f'workspaces/{c.workspace_a}/activity?{window}',
+        f'projects/{c.project_a}/tasks',f'projects/{c.project_a}/tasks/{c.task_id}?workspace_id={c.workspace_a}',f'workspaces/{c.workspace_a}/activity?{window}',
         f'workspaces/{c.workspace_a}/batches',f'workspaces/{c.workspace_a}/rollouts/{c.rollout_id}',
         f'workspaces/{c.workspace_a}/sessions/{c.session_a}',f'workspaces/{c.workspace_a}/batches/{c.batch_id}',
         f'projects/{c.project_a}/memories?workspace_id={c.workspace_a}',f'workspaces/{c.workspace_a}/memories/{c.memory_id}']
@@ -45,4 +45,6 @@ def test_access_and_errors(client,console_case):
     assert client.get('/console/v1/workspaces/missing/sessions').status_code==404
     assert client.get(f'/console/v1/workspaces/{c.workspace_a}/sessions?limit=101').status_code==400
     assert client.get(f'/console/v1/workspaces/{c.workspace_a}/overview?start=2026-01-01&end=2027-01-01').status_code==400
+    assert client.get(f'/console/v1/projects/{c.project_b}/tasks/{c.task_id}?workspace_id={c.workspace_a}').status_code==404
+    assert client.get(f'/console/v1/projects/{c.project_a}/tasks/missing?workspace_id={c.workspace_a}').status_code==404
     assert client.get('/console/v1/no-such-api').status_code==404

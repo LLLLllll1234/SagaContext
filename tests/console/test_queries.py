@@ -1,3 +1,4 @@
+import sqlite3
 import pytest
 from sagacontext.console.db import ConsoleReadError
 
@@ -31,3 +32,27 @@ def test_overview_only_counts_committed_changes(console_case):
     other=c.service.overview(c.workspace_b,c.start,c.end,{'configured_mode':'guarded','stop_active':False})['data']
     assert other['runtime']['value']['other_workspace_id']==c.workspace_a
     assert other['rollout']['value'] is None
+
+
+def test_overview_tasks_require_current_workspace_binding(console_case):
+    c=console_case
+    assert [row['task_id'] for row in c.service.overview(
+        c.workspace_a,c.start,c.end,{'configured_mode':'guarded','stop_active':False}
+    )['data']['tasks']['value']['items']] == [c.task_id]
+    assert c.service.overview(
+        c.workspace_b,c.start,c.end,{'configured_mode':'guarded','stop_active':False}
+    )['data']['tasks']['value']['items'] == []
+    with sqlite3.connect(c.path) as db:
+        db.execute("UPDATE tasks SET status='completed' WHERE task_id=?",(c.task_id,))
+    assert c.service.overview(
+        c.workspace_a,c.start,c.end,{'configured_mode':'guarded','stop_active':False}
+    )['data']['tasks']['value']['items'] == []
+
+
+def test_task_checkpoint_stays_with_binding_interval(console_case):
+    c=console_case
+    with sqlite3.connect(c.path) as db:
+        checkpoint=db.execute("SELECT event_id FROM events WHERE session_id=? AND event_kind='checkpoint_requested'",(c.session_a,)).fetchone()[0]
+        db.execute("UPDATE task_bindings SET end_event_id=? WHERE task_id=?",(checkpoint,c.task_id))
+    row=c.service.tasks(c.project_a,c.workspace_a)['data']['items'][0]
+    assert row['checkpoint_at'] is None

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from sagacontext.ledger import TaskContext
 from .security import check_console_access
 from .db import ConsoleReadError
-from .models import (Envelope,ProjectDirectory,WorkspaceOverview,SessionPage,TaskPage,ActivityPage,
+from .models import (Envelope,ProjectDirectory,WorkspaceOverview,SessionPage,TaskPage,TaskRow,ActivityPage,
     BatchPage,MemoryPage,SessionDetail,BatchDetail,MemoryDetail,RolloutDetail)
 
 Limit=Annotated[int,Query(ge=1,le=100)]
@@ -44,6 +44,10 @@ def create_console_router():
     @router.get('/projects/{project_id}/tasks',response_model=Envelope[TaskPage])
     def tasks(project_id: str,request: Request,workspace_id: str | None=None,cursor: str | None=None,limit: Limit=50):
         return _service(request).tasks(project_id,workspace_id,cursor,limit)
+
+    @router.get('/projects/{project_id}/tasks/{task_id}',response_model=Envelope[TaskRow])
+    def task(project_id: str,task_id: str,request: Request,workspace_id: str):
+        return _service(request).task(project_id,workspace_id,task_id)
 
     @router.get('/workspaces/{workspace_id}/activity',response_model=Envelope[ActivityPage])
     def activity(workspace_id: str,request: Request,start: datetime,end: datetime,kinds: Annotated[list[str],Query()]=[],cursor: str | None=None,limit: Limit=50):

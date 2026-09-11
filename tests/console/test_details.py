@@ -27,6 +27,22 @@ def test_deleted_body_cannot_be_read_via_memory_or_proposal(console_case):
     assert c.service.memories(c.project_a,c.workspace_a)['data']['items']==[]
     proposal=next(p for p in c.service.batch(c.workspace_a,c.batch_id)['data']['proposals'] if p['proposal_id']=='demo-proposal')
     assert proposal['old_payload'] is None and proposal['new_payload'] is None
+    committed=next(p for p in c.service.batch(c.workspace_a,c.batch_id)['data']['proposals'] if p['proposal_id']=='demo-committed')
+    assert committed['target_id'] is None
+    assert committed['new_payload'] is None
+    assert committed['rationale'] is None
+    assert committed['evidence'] == []
+    assert committed['availability'] == 'unavailable'
+
+
+@pytest.mark.parametrize('rule', ['token=abc', 'Bearer abc', '-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----'])
+def test_memory_list_parses_json_before_redaction(console_case, rule):
+    c=console_case
+    with sqlite3.connect(c.path) as db:
+        db.execute('UPDATE revisions SET payload_json=? WHERE memory_id=? AND revision=1',
+                   (json.dumps({'rule':rule}),c.memory_id))
+    response=c.service.memories(c.project_a,c.workspace_a)
+    assert response['data']['items'][0]['payload']['rule'] != rule
 
 
 def test_context_and_cross_workspace_sources(console_case):

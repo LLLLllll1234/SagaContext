@@ -48,6 +48,9 @@ class ConsoleReadService:
     def tasks(self, project_id, workspace_id=None, cursor=None, limit=50):
         return self._read(lambda db:queries.tasks(db,self.owner_id,project_id,workspace_id,cursor,limit))
 
+    def task(self, project_id, workspace_id, task_id):
+        return self._read(lambda db:queries.task(db,self.owner_id,project_id,workspace_id,task_id))
+
     def batches(self, workspace_id, status=None, cursor=None, limit=50):
         return self._read(lambda db:queries.batches(db,self.owner_id,workspace_id,status,cursor,limit))
 
@@ -108,7 +111,7 @@ class ConsoleReadService:
                 return {"operations":operations,"projection_states":projection,"start":start.isoformat(),"end":end.isoformat()}
             return {"workspace_id":workspace_id,"project_id":identity["project_id"],
                 "runtime":module(lambda:state),
-                "tasks":module(lambda:queries.tasks(db,self.owner_id,identity["project_id"],workspace_id,limit=5)),
+                "tasks":module(lambda:queries.tasks(db,self.owner_id,identity["project_id"],workspace_id,limit=5,current_only=True)),
                 "sessions":module(lambda:queries.sessions(db,self.owner_id,workspace_id,limit=5)),
                 "rollout":module(lambda:self._rollout(db,workspace_id,run["rollout_id"]) if run else None),
                 "memory_changes":module(changes),

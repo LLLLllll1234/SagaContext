@@ -71,6 +71,4 @@ def effective_state(
     persisted_mode = run.get("mode")
     if persisted_mode not in _EFFECTIVE_MODES:
         return _result(configured_mode, persisted_status, "unknown", "data_invalid")
-    if configured_mode == "shadow" and persisted_mode == "guarded":
-        return _result(configured_mode, persisted_status, "off", "run_not_allowed")
     return _result(configured_mode, persisted_status, persisted_mode, None)

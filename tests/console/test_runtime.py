@@ -29,6 +29,7 @@ def run(*, status="running", mode="guarded", deadline=None):
         (run(status="cleanup_required"), "guarded", False, "off", "run_not_allowed"),
         (run(mode="shadow"), "guarded", False, "shadow", None),
         (run(mode="guarded"), "guarded", False, "guarded", None),
+        (run(mode="guarded"), "shadow", False, "guarded", None),
     ],
 )
 def test_effective_state_precedence(record, configured, stop, effective, reason):

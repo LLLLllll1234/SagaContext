@@ -24,7 +24,7 @@ def project(db, owner_id, project_id):
 
 
 def page(db: sqlite3.Connection, sql: str, params: tuple, *, keys: tuple[str, ...],
-         scope: object, cursor: str | None, limit: int) -> dict:
+         scope: object, cursor: str | None, limit: int, sanitize: bool = True) -> dict:
     if not 1 <= limit <= 100:
         raise ConsoleReadError("invalid_request")
     digest = hashlib.sha256(json.dumps(scope, sort_keys=True, default=str).encode()).hexdigest()
@@ -48,7 +48,7 @@ def page(db: sqlite3.Connection, sql: str, params: tuple, *, keys: tuple[str, ..
     if len(rows) > limit:
         rows = rows[:limit]
         next_cursor = base64.urlsafe_b64encode(json.dumps({"scope":digest,"after":[rows[-1][key] for key in keys]}).encode()).decode()
-    return {"items":safe_payload(rows), "next_cursor":next_cursor}
+    return {"items":safe_payload(rows) if sanitize else rows, "next_cursor":next_cursor}
 
 
 def sessions(db, owner_id, workspace_id, cursor=None, limit=50):
@@ -60,19 +60,48 @@ def sessions(db, owner_id, workspace_id, cursor=None, limit=50):
         keys=("opened_at","session_id"),scope=("sessions",owner_id,workspace_id),cursor=cursor,limit=limit)
 
 
-def tasks(db, owner_id, project_id, workspace_id=None, cursor=None, limit=50):
+def _task_sql(*, current_only=False):
+    current = """AND EXISTS (SELECT 1 FROM task_bindings current
+          JOIN sessions current_session ON current_session.session_id=current.session_id
+          WHERE current.owner_id=t.owner_id AND current.task_id=t.task_id
+          AND current.end_event_id IS NULL AND current_session.owner_id=t.owner_id
+          AND current_session.workspace_id=?) AND t.status='active'""" if current_only else ""
+    return """SELECT t.task_id,t.project_id,t.goal,t.status,t.created_at,t.last_active,
+        (SELECT s.session_id FROM task_bindings b JOIN sessions s ON s.session_id=b.session_id
+          WHERE b.owner_id=t.owner_id AND s.owner_id=t.owner_id AND b.task_id=t.task_id
+          AND (? IS NULL OR s.workspace_id=?) ORDER BY (b.end_event_id IS NULL) DESC,s.opened_at DESC,s.session_id DESC LIMIT 1) AS session_id,
+        (SELECT MAX(e.received_at) FROM task_bindings b
+          JOIN sessions s ON s.session_id=b.session_id AND s.owner_id=b.owner_id
+          JOIN events e ON e.session_id=b.session_id AND e.owner_id=b.owner_id AND e.workspace_id=s.workspace_id
+          JOIN events first ON first.event_id=b.start_event_id AND first.owner_id=b.owner_id AND first.session_id=b.session_id
+          LEFT JOIN events last ON last.event_id=b.end_event_id AND last.owner_id=b.owner_id AND last.session_id=b.session_id
+          WHERE b.owner_id=t.owner_id AND b.task_id=t.task_id AND e.event_kind='checkpoint_requested'
+          AND e.ingest_sequence>=first.ingest_sequence AND (last.event_id IS NULL OR e.ingest_sequence<last.ingest_sequence)
+          AND (? IS NULL OR s.workspace_id=?)) AS checkpoint_at
+        FROM tasks t WHERE t.owner_id=? AND t.project_id=? """ + current
+
+
+def tasks(db, owner_id, project_id, workspace_id=None, cursor=None, limit=50, current_only=False):
     project(db,owner_id,project_id)
     if workspace_id and workspace(db,owner_id,workspace_id)["project_id"] != project_id:
         raise ConsoleReadError("not_found")
-    return page(db, """SELECT t.task_id,t.project_id,t.goal,t.status,t.created_at,t.last_active,
-        (SELECT s.session_id FROM task_bindings b JOIN sessions s USING(session_id)
-          WHERE b.owner_id=t.owner_id AND s.owner_id=t.owner_id AND b.task_id=t.task_id
-          AND (? IS NULL OR s.workspace_id=?) ORDER BY s.opened_at DESC,s.session_id DESC LIMIT 1) AS session_id,
-        (SELECT MAX(e.received_at) FROM task_bindings b JOIN events e ON e.session_id=b.session_id
-          WHERE b.task_id=t.task_id AND e.owner_id=t.owner_id AND e.event_kind='checkpoint_requested'
-          AND (? IS NULL OR e.workspace_id=?)) AS checkpoint_at
-        FROM tasks t WHERE t.owner_id=? AND t.project_id=?""", (workspace_id,workspace_id,workspace_id,workspace_id,owner_id,project_id),
+    params=(workspace_id,workspace_id,workspace_id,workspace_id,owner_id,project_id)
+    if current_only:
+        if workspace_id is None:
+            raise ConsoleReadError("invalid_request")
+        params+=(workspace_id,)
+    return page(db, _task_sql(current_only=current_only), params,
         keys=("last_active","task_id"),scope=("tasks",owner_id,project_id,workspace_id),cursor=cursor,limit=limit)
+
+
+def task(db, owner_id, project_id, workspace_id, task_id):
+    project(db,owner_id,project_id)
+    if workspace(db,owner_id,workspace_id)["project_id"] != project_id:
+        raise ConsoleReadError("not_found")
+    row=db.execute(_task_sql()+" AND t.task_id=?",(workspace_id,workspace_id,workspace_id,workspace_id,owner_id,project_id,task_id)).fetchone()
+    if row is None:
+        raise ConsoleReadError("not_found")
+    return safe_payload(dict(row))
 
 
 def batches(db, owner_id, workspace_id, status=None, cursor=None, limit=50):

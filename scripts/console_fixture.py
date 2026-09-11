@@ -109,7 +109,7 @@ def create_fixture(root: Path, *, populated: bool = True) -> ConsoleFixture:
         ledger.db.execute("UPDATE candidates SET status='awaiting_review' WHERE candidate_id=?", (candidate.candidate_id,))
         # Separate historical committed operation; the awaiting proposal above remains uncommitted.
         insert("proposals", proposal_id="demo-committed", batch_id=case.batch_id,
-            candidate_id=candidate.candidate_id, operation="new", target_id=case.memory_id,
+            candidate_id=candidate.candidate_id, operation="new", target_id=None,
             memory_type="convention", scope_json=scope.model_dump_json(),
             payload_patch_json=json.dumps({"rule": "记录失败原因"}, ensure_ascii=False),
             evidence_ids_json=json.dumps(["demo-evidence"]), input_digest="old", output_digest="old",
