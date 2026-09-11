@@ -36,7 +36,7 @@ class ConsoleReadService:
             for row in db.execute("SELECT project_id,name FROM projects WHERE owner_id=? ORDER BY name,project_id", (self.owner_id,)):
                 items=[]
                 seen=set()
-                for location in db.execute("SELECT workspace_id,realpath FROM project_locations WHERE owner_id=? AND project_id=? ORDER BY workspace_id",(self.owner_id,row["project_id"])):
+                for location in db.execute("SELECT workspace_id,realpath FROM project_locations WHERE owner_id=? AND project_id=? ORDER BY realpath,workspace_id",(self.owner_id,row["project_id"])):
                     if location["workspace_id"] not in seen:
                         items.append({"workspace_id":location["workspace_id"],"name":safe_text(Path(location["realpath"]).name)})
                         seen.add(location["workspace_id"])

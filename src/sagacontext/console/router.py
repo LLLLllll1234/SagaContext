@@ -34,7 +34,8 @@ def create_console_router():
         scheduler=request.app.state.scheduler
         state={'configured_mode':config.rollout_mode,
             'stop_active':config.rollout_stop_file.exists() if config.rollout_stop_file else False,
-            'scheduler':'disabled' if scheduler is None else 'error' if scheduler.error_class else 'running'}
+            'scheduler':'disabled' if scheduler is None else 'error' if scheduler.error_class else
+                'running' if scheduler.thread.is_alive() else 'unknown'}
         return _service(request).overview(workspace_id,start,end,state)
 
     @router.get('/workspaces/{workspace_id}/sessions',response_model=Envelope[SessionPage])

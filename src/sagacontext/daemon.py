@@ -325,6 +325,8 @@ def create_app(config: Config | None = None) -> FastAPI:
     def outbox(request: Request):
         return _runtime(request).ledger.list_outbox()
 
+    from .console.static import mount_console_static
+    mount_console_static(api, Path(__file__).parent / 'console' / '_static')
     return api
 
 

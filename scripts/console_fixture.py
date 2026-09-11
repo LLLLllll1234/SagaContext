@@ -41,7 +41,7 @@ def create_fixture(root: Path, *, populated: bool = True) -> ConsoleFixture:
         a, b, other = (root / name for name in ("main", "worktree", "other"))
         for path in (a, b, other):
             path.mkdir()
-        identity = ledger.register_project("示例项目", a)
+        identity = ledger.register_project("SagaContext · 示例项目", a)
         case.project_a, case.workspace_a = identity["project_id"], identity["workspace_id"]
         case.workspace_b = ledger.bind_location(case.project_a, b)
         identity = ledger.register_project("独立项目", other)
