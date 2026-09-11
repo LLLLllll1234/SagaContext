@@ -1,0 +1,16 @@
+import type { components } from "./schema";
+type Models = components["schemas"];
+export type Directory = Models["ProjectDirectory"];
+export type Overview = Models["WorkspaceOverview"];
+export type Rollout = Models["RolloutDetail"];
+export type Batch = Models["BatchDetail"];
+export type Memory = Models["MemoryDetail"];
+export type Session = Models["SessionDetail"];
+export type TaskRow = Models["TaskRow"];
+export type SessionRow = Models["SessionRow"];
+export type MemoryRow = Models["MemoryRow"];
+export type BatchRow = Models["BatchRow"];
+export type ActivityRow = Models["ActivityRow"];
+export type Evidence = Models["Evidence"];
+export type Envelope<T> = { meta: Models["SnapshotMeta"]; data: T };
+export type Page<T> = { items: T[]; next_cursor?: string | null };
