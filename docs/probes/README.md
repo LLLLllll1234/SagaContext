@@ -4,12 +4,14 @@
 
 ## 当前验收
 
+当前观察：[2026-09-11 日常观察](2026-09-11-daily-observation.md)。已授权开启一次 guarded 窗口，限本仓库 10 session / 20 candidate，截止 2026-09-12 14:39 北京时间；独立每分钟巡检收尾、每 30 分钟代理审核。启动样本为 0，未验收日常质量，未启用 active。实时状态以本机台账为准。
+
 最新真实验收：[2026-09-11 Scheduler 真实闭环](2026-09-11-scheduler-real-acceptance.md)：同一 Codex 模型本轮恢复可用；后台调度真实受控链路 11/11、独立复核 17/17 通过，回滚零残留。真实日常质量尚未验收。
 离线验收：[2026-09-11 Scheduler 与运维验收](2026-09-11-offline-scheduler-acceptance.md)：合成隔离运行 34/34、全量 246 tests / 96 subtests；当时的 provider 阻塞见最新真实运行结果。
 受控真实闭环：[2026-09-10 Guarded 真实运行闭环](2026-09-10-guarded-runtime-closure.md)。
 日常调度接线与故障矩阵：[2026-09-10 Daily Scheduler](2026-09-10-daily-scheduler.md)。
 已通过真实宿主、Judge、OpenViking 的受控写入/跨会话消费/回滚验收，零残留。
-当前 runtime 为 off，STOP 已置位；日常质量样本数为 0，不据此扩大范围。
+上述受控验收结束时 runtime 为 off、STOP 已置位；之后开启了上方独立日常观察窗口，不据此扩大范围。
 历史阶段报告保留以下各自的实验边界。
 
 | 范围 | 报告 | 对应结果 |

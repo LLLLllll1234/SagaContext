@@ -1,0 +1,131 @@
+{
+  "schema": "daily-observation-activation-v1",
+  "recorded_at": "2026-09-11T06:41:13.344370+00:00",
+  "implementation_commit": "0e1b358bc38f6e5854407841ca0b54bdd16d6729",
+  "rollout_id": "5d6b4431-4db3-423e-9b21-e2723fdb174a",
+  "workspace": "/Users/lqy0584/Downloads/SagaContext",
+  "deadline": "2026-09-12T06:39:10.910869+00:00",
+  "checks": {
+    "runtime_guarded": true,
+    "stop_cleared": true,
+    "frozen_plan_matches": true,
+    "limits_fixed": true,
+    "no_seeded_events": true,
+    "watchdog_observes_this_rollout": true
+  },
+  "passed": true,
+  "initial_snapshot": {
+    "schema": "daily-observation-v1",
+    "updated_at": "2026-09-11T06:41:13.344029+00:00",
+    "rollout_id": "5d6b4431-4db3-423e-9b21-e2723fdb174a",
+    "deadline": "2026-09-12T06:39:10.910869+00:00",
+    "source": "new-workspace-events",
+    "pending_batch_ids": [],
+    "review_actor": "user_delegated_operator",
+    "automatic_review": false,
+    "report": {
+      "rollout_id": "5d6b4431-4db3-423e-9b21-e2723fdb174a",
+      "mode": "guarded",
+      "status": "running",
+      "deadline": "2026-09-12T06:39:10.910869+00:00",
+      "session_reservations": 0,
+      "session_limit": 10,
+      "candidate_reservations": 0,
+      "candidate_limit": 20,
+      "batches": {},
+      "reviews": {},
+      "proposals": {},
+      "judge_latency_ms": {
+        "samples": 0,
+        "p50": null,
+        "p95": null
+      },
+      "consumption_reports": 0,
+      "rate_basis": "operator_labeled_targets_only",
+      "candidate_effectiveness": null,
+      "review_modification_rate": null,
+      "wrong_recall_rate": null,
+      "consumption_rate": null,
+      "quality_status": "requires_observational_labels",
+      "projection_states": {},
+      "rollback": {
+        "states": {},
+        "audit": {
+          "candidates": 0,
+          "events_retained_for_audit": 0,
+          "batches_retained_for_audit": 0,
+          "memory_targets": 0,
+          "projection_targets": 0,
+          "compensation_receipts": 0,
+          "residual_memories": 0,
+          "residual_candidates": 0,
+          "residual_operations": 0,
+          "residual_outbox": 0
+        }
+      },
+      "observations": {
+        "candidate_valid": {
+          "yes": 0,
+          "no": 0,
+          "unknown": 0,
+          "labeled_samples": 0,
+          "evaluated_samples": 0,
+          "yes_rate": null
+        },
+        "review_modified": {
+          "yes": 0,
+          "no": 0,
+          "unknown": 0,
+          "labeled_samples": 0,
+          "evaluated_samples": 0,
+          "yes_rate": null
+        },
+        "wrong_recall": {
+          "yes": 0,
+          "no": 0,
+          "unknown": 0,
+          "labeled_samples": 0,
+          "evaluated_samples": 0,
+          "yes_rate": null
+        },
+        "consumed": {
+          "yes": 0,
+          "no": 0,
+          "unknown": 0,
+          "labeled_samples": 0,
+          "evaluated_samples": 0,
+          "yes_rate": null
+        }
+      },
+      "observation_targets": {
+        "candidate_valid": [],
+        "review_modified": [],
+        "wrong_recall": [],
+        "consumed": []
+      },
+      "scope_expansion_admitted": false
+    }
+  },
+  "watchdog": {
+    "checked_at": "2026-09-11T06:40:39.984875+00:00",
+    "status": "ok",
+    "windows": [
+      {
+        "rollout_id": "5d6b4431-4db3-423e-9b21-e2723fdb174a",
+        "status": "running"
+      }
+    ]
+  },
+  "watchdog_interval_seconds": 60,
+  "review_heartbeat_id": "sagacontext",
+  "review_interval_minutes": 30,
+  "tests": {
+    "passed": 264,
+    "subtests_passed": 96,
+    "warnings": 2
+  },
+  "compileall": "passed",
+  "diff_check": "passed",
+  "real_quality_admitted": false,
+  "active_enabled": false
+}

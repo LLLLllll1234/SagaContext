@@ -44,4 +44,10 @@ bin/sagacontext-observe finish --rollout-id ROLLOUT_ID
 
 ## 观察状态
 
-启动结果与期限将以本机 Ledger 和本轮 activation artifact 为准。质量结论必须等待真实事件；本实现和先前受控闭环不构成日常质量已达标证据。
+已启动 rollout `5d6b4431-4db3-423e-9b21-e2723fdb174a`，模式 guarded，截止 **2026-09-12 14:39:10 北京时间**（UTC 06:39:10）。启动时 0 个 session、0 个 candidate、0 个真实事件，没有预填测试数据。
+
+[activation artifact](../../artifacts/probes/20260911-daily-observation/activation.json) 的 6 项检查全部通过：runtime guarded、STOP 解除、冻结 plan 一致、10/20 配额固定、无预置事件、独立巡检已读取本 rollout。该文件是启动快照；后续状态以本机 Ledger 和 latest.json 为准。
+
+Codex 当前线程已建立每 30 分钟的代理审核 heartbeat（ID `sagacontext`），仅管理本 rollout；只在有审核结果、异常、完成或需要用户行动时通知，没有变化保持安静。窗口关闭后停止此 heartbeat。它不会续期、重启 rollout、扩大范围或制造消费证据。独立每分钟 launchd 巡检负责停止/收尾，避免把清理依赖于模型是否可用。
+
+质量结论必须等待真实事件；本实现和先前受控闭环不构成日常质量已达标证据。使用已接入 hooks 的 Codex 在本仓库处理实际工作即可；本次 API 会话没有产生已观测的原生 hook 事件，不把当前讨论算作采样。
