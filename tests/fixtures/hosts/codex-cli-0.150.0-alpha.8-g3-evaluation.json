@@ -1,0 +1,248 @@
+{
+  "assertions": [
+    {
+      "evidence": {
+        "expected": "codex-cli 0.150.0-alpha.8",
+        "observed": "codex-cli 0.150.0-alpha.8"
+      },
+      "name": "executable_version_pinned",
+      "status": "pass"
+    },
+    {
+      "evidence": {
+        "config_fingerprint": "sha256:9f252e8a99b19ac754ba0b163a604765b20cbc7f32bc2dcdb94c8c3fbf8571d0"
+      },
+      "name": "config_fingerprint_recorded",
+      "status": "pass"
+    },
+    {
+      "evidence": {
+        "hooks": true
+      },
+      "name": "hooks_runtime_enabled",
+      "status": "pass"
+    },
+    {
+      "evidence": {
+        "cleanup": {
+          "global_config_modified": false,
+          "private_transcript_read": false,
+          "raw_reference_mapping_saved": false,
+          "temporary_root_removed": true,
+          "temporary_workspace_policy": "delete_after_capture"
+        },
+        "model_runtime": {
+          "auth_material_available": true,
+          "auth_material_saved": false,
+          "mode": "temporary_minimal_codex_home",
+          "provider_configured": true,
+          "provider_endpoint_saved": false,
+          "provider_value_saved": false
+        },
+        "payload_policy": "synthetic_only_redacted_receipts"
+      },
+      "name": "synthetic_isolation",
+      "status": "pass"
+    },
+    {
+      "evidence": {
+        "artifact_refs": []
+      },
+      "name": "event_SessionStart",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "artifact_refs": []
+      },
+      "name": "event_UserPromptSubmit",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "artifact_refs": []
+      },
+      "name": "event_PreToolUse",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "artifact_refs": []
+      },
+      "name": "event_PostToolUse",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "artifact_refs": []
+      },
+      "name": "event_Stop",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "artifact_refs": []
+      },
+      "name": "event_SessionEnd",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "linked_receipts": [],
+        "tool_receipts": []
+      },
+      "name": "stable_event_linkage",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "duplicate_group_refs": []
+      },
+      "name": "duplicate_event_observed",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "receipt_occurrences": [],
+        "scenario": {
+          "agent_received_injected_context": false,
+          "blocker": "model_authentication_failed",
+          "cli_event_types": {
+            "error": 6,
+            "item.completed": 2,
+            "thread.started": 1,
+            "turn.failed": 1,
+            "turn.started": 1
+          },
+          "elapsed_ms": 14850.962,
+          "event_counts": {},
+          "exit_code": 1,
+          "finished_at": "2026-09-05T12:46:15.424579+00:00",
+          "name": "hook_nonzero_exit",
+          "outer_timeout": false,
+          "receipt_occurrences": [],
+          "started_at": "2026-09-05T12:46:00.573521+00:00",
+          "stderr_summary": {
+            "authentication_signal": true,
+            "hook_failure_signal": false,
+            "hook_timeout_signal": false,
+            "present": true
+          }
+        }
+      },
+      "name": "hook_nonzero_exit_observed",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "configured_seconds": 1,
+        "receipt_occurrences": [],
+        "scenario": {
+          "agent_received_injected_context": false,
+          "blocker": "model_authentication_failed",
+          "cli_event_types": {
+            "error": 6,
+            "item.completed": 2,
+            "thread.started": 1,
+            "turn.failed": 1,
+            "turn.started": 1
+          },
+          "elapsed_ms": 14215.0,
+          "event_counts": {},
+          "exit_code": 1,
+          "finished_at": "2026-09-05T12:46:29.642200+00:00",
+          "name": "hook_timeout",
+          "outer_timeout": false,
+          "receipt_occurrences": [],
+          "started_at": "2026-09-05T12:46:15.426435+00:00",
+          "stderr_summary": {
+            "authentication_signal": true,
+            "hook_failure_signal": false,
+            "hook_timeout_signal": false,
+            "present": true
+          }
+        }
+      },
+      "name": "hook_timeout_observed",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "scenario": {
+          "agent_received_injected_context": false,
+          "blocker": "model_authentication_failed",
+          "cli_event_types": {
+            "error": 6,
+            "item.completed": 2,
+            "thread.started": 1,
+            "turn.failed": 1,
+            "turn.started": 1
+          },
+          "elapsed_ms": 14176.412,
+          "event_counts": {},
+          "exit_code": 1,
+          "finished_at": "2026-09-05T12:46:43.820071+00:00",
+          "name": "restart_recovery",
+          "outer_timeout": false,
+          "receipt_occurrences": [],
+          "started_at": "2026-09-05T12:46:29.643533+00:00",
+          "stderr_summary": {
+            "authentication_signal": true,
+            "hook_failure_signal": false,
+            "hook_timeout_signal": false,
+            "present": true
+          }
+        }
+      },
+      "name": "restart_recovery_observed",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "baseline_agent_received": false,
+        "mode": []
+      },
+      "name": "marker_context_injection",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "nonzero_hook_host_exit": 1,
+        "recovery_host_exit": 1,
+        "timeout_hook_host_exit": 1
+      },
+      "name": "failure_degrades_and_recovers",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "forbidden_saved_key_paths": [],
+        "raw_reference_mapping_saved": false,
+        "receipt_count": 0
+      },
+      "name": "redacted_receipts",
+      "status": "not_observed"
+    },
+    {
+      "evidence": {
+        "cleanup": {
+          "global_config_modified": false,
+          "private_transcript_read": false,
+          "raw_reference_mapping_saved": false,
+          "temporary_root_removed": true,
+          "temporary_workspace_policy": "delete_after_capture"
+        }
+      },
+      "name": "temporary_cleanup",
+      "status": "pass"
+    }
+  ],
+  "capture_artifact_digest": "sha256:386b91fd23191a1cc40aaf415df91bfaea1a6cdd43f10ef3d7f6d2a812ad5eff",
+  "capture_status": "blocked_environment",
+  "decision_rule": "passed only when every required assertion is pass",
+  "gate": "G3",
+  "passed_assertions": 5,
+  "probe_id": "g3-20260905T124544Z-bd2b4ed7",
+  "required_assertions": 19,
+  "status": "blocked_environment"
+}

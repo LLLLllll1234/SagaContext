@@ -1,0 +1,7 @@
+{
+  "schema": "judge-shadow-preflight-v1",
+  "status": "ready",
+  "missing_fields": [],
+  "model_requests_started": 0,
+  "semantic_admission": "not_evaluated"
+}

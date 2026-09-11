@@ -2,9 +2,30 @@
 
 **让 Coding Agent 记住你，也记住你的项目。**
 
-SagaContext 是叠在 [OpenViking](https://github.com/volcengine/OpenViking) 之上的开发者个性化记忆层。它让 Claude Code 与 Codex 在你所有的项目里越用越懂你：知道你希望代码怎么写，知道这个仓库里做过哪些决定、踩过哪些坑，知道你上次做到哪。而且不只是"记得"，还会真的照做。
+SagaContext 是基于本地 Ledger 和独立 [OpenViking](https://github.com/volcengine/OpenViking) 后端的 Coding Agent 记忆系统。**V1.0 提供 Codex 新事件采集、Judge 提案、审核写入、跨会话召回与消费证据、定向回滚。**
 
-> **状态：** 设计阶段，尚无可运行代码。设计文档已公开，欢迎讨论。
+默认模式为 `off`，安装不会自动采集或注入。启用需要固定 workspace、授权主体、期限与配额；日常观察最多 10 个 session、20 个 candidate、24 小时，逐条审核通过才写入。首轮观察仅允许本项目的新记忆，确保现有回滚能够撤销。
+
+真实后台调度闭环 **11/11**、独立消费与远端清理复核 **17/17** 已通过。全量回归 **264 tests、96 subtests**；这些证据证明受控链路可运行，真实日常质量仍在观察，不能据此承诺准确率、长期稳定性或扩大范围。
+
+- [V1.0 发布说明与能力边界](docs/releases/v1.0.0.md)
+- [真实 Scheduler 闭环](docs/probes/2026-09-11-scheduler-real-acceptance.md)
+- [有限期日常观察与操作](docs/probes/2026-09-11-daily-observation.md)
+- [文档索引](docs/README.md)
+
+## 从源码验证
+
+需要 Python 3.11+ 和 uv。在仓库根目录执行：
+
+```sh
+uv sync --locked --group dev
+uv run --locked pytest -q
+uv run --locked python -m compileall -q src scripts tests
+```
+
+运行集成还需独立 OpenViking、已授权 Judge 配置和固定验证过的 Codex CLI。操作脚本依赖源码 checkout 的 `bin/` 与 `.venv/`；配置与凭据仅保存在本机，参见 [部署记录](docs/ops-openviking-local.md) 和 [观察说明](docs/probes/2026-09-11-daily-observation.md)。本版不宣称安装 Python wheel 即可自动接入宿主。
+
+以下场景和分层能力描述是长期产品方向；跨 Claude Code/Codex 共享、遵守约束、反馈学习与团队层没有获得 V1 的完整真实日常验收。
 
 ---
 
@@ -60,7 +81,7 @@ OpenViking 已经把记忆系统的基础设施做得很扎实：类型化 schem
 ## 了解更多
 
 - [分层模型与对账循环](docs/05-分层模型与对账循环.md)：项目定位与核心机制
-- [设计规格](docs/04-设计规格-v0.2.md)：记忆类型、对账流程、评测方案
+- [当前设计基线 v0.3](docs/superpowers/specs/2026-09-05-sagacontext-v0.3-design.md)：Ledger 权威边界、持续维护与分阶段验收
 - [重新定位：个性化记忆](docs/03-重新定位-个性化记忆.md)：为什么是"个性化"，与现有方案的差异
 - [审核意见](docs/02-审核意见.md)：竞品与先例的源码级对照
 - [全部文档索引](docs/README.md)

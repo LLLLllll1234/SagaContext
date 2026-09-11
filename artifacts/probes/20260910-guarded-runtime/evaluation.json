@@ -1,0 +1,32 @@
+{
+  "schema": "guarded-runtime-evaluation-v1",
+  "source": "run-04.json",
+  "rollout_id": "2b8291de-b30b-4b14-ade5-fc5ec174afab",
+  "status": "passed",
+  "source_steps_passed": 11,
+  "controls_passed": true,
+  "stderr_classification_correction": "Successful host runs had nonfatal authentication signals on stderr; these are not model execution blockers. Original evidence is retained.",
+  "remote_exact_absence": true,
+  "search_remaining": 0,
+  "runtime_mode": "off",
+  "quality": {
+    "candidates": 1,
+    "accepted_candidates": 1,
+    "review_modified": 0,
+    "consumed_injections": 1,
+    "unexpected_recall_controls": 0,
+    "daily_quality_sample_size": 0
+  },
+  "rollback_audit": {
+    "candidates": 1,
+    "events_retained_for_audit": 12,
+    "batches_retained_for_audit": 1,
+    "memory_targets": 1,
+    "projection_targets": 1,
+    "compensation_receipts": 1,
+    "residual_memories": 0,
+    "residual_candidates": 0,
+    "residual_operations": 0,
+    "residual_outbox": 0
+  }
+}

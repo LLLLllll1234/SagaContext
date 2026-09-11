@@ -1,0 +1,1205 @@
+{
+  "adapter_version": "g3-probe-v4",
+  "cleanup": {
+    "global_config_modified": false,
+    "private_transcript_read": false,
+    "raw_reference_mapping_saved": false,
+    "temporary_root_removed": true,
+    "temporary_workspace_policy": "delete_after_capture"
+  },
+  "config_fingerprint": "sha256:9f252e8a99b19ac754ba0b163a604765b20cbc7f32bc2dcdb94c8c3fbf8571d0",
+  "executable_version": "codex-cli 0.153.4",
+  "finished_at": "2026-09-05T14:01:37.420645+00:00",
+  "host_form": "cli-exec",
+  "host_name": "codex",
+  "injection_modes": [
+    "SessionStart.additionalContext"
+  ],
+  "model_runtime": {
+    "auth_material_available": true,
+    "auth_material_saved": false,
+    "mode": "temporary_minimal_codex_home",
+    "provider_configured": true,
+    "provider_endpoint_saved": false,
+    "provider_value_saved": false,
+    "temporary_project_trusted": true
+  },
+  "official_references": [
+    "https://developers.openai.com/codex/hooks",
+    "https://developers.openai.com/codex/config-file/config-reference",
+    "https://developers.openai.com/codex/cli/reference"
+  ],
+  "payload_policy": "synthetic_only_redacted_receipts",
+  "payload_shapes": [
+    {
+      "duplicate_group_ref": "duplicate-group-1",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "SessionStart",
+      "monotonic_offset_ms": 138.525,
+      "occurrence_no": 1,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload_shape_digest": "sha256:8da3e664f3549d6e9b78ffc402d27369f57b8dd26cc9988fd4ec334baf4cc09f",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "SessionStart",
+        "permission_mode": "other",
+        "source": "startup"
+      },
+      "scenario": "baseline_with_duplicate",
+      "session_ref": "session-1",
+      "source_event_ref": "source-event-1",
+      "task_ref": null,
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-2",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "UserPromptSubmit",
+      "monotonic_offset_ms": 184.351,
+      "occurrence_no": 2,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "prompt",
+        "session_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:7c3dcd8c39975db7257227d5c5fbfca5a59e2be0da47d712c6c959ebfc0eafaf",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "UserPromptSubmit",
+        "permission_mode": "other"
+      },
+      "scenario": "baseline_with_duplicate",
+      "session_ref": "session-1",
+      "source_event_ref": "source-event-2",
+      "task_ref": "task-1",
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-3",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "PreToolUse",
+      "monotonic_offset_ms": 48506.655,
+      "occurrence_no": 3,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:6ae2ca23c459798dbc5edc8366574490ad815c90d91b4b2326304ec59ca3101f",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "PreToolUse",
+        "permission_mode": "other",
+        "tool_name": "Bash"
+      },
+      "scenario": "baseline_with_duplicate",
+      "session_ref": "session-1",
+      "source_event_ref": "source-event-3",
+      "task_ref": "task-1",
+      "timeout_class": "none",
+      "tool_call_ref": "tool_call-1",
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-4",
+      "exit_class": "normal",
+      "handler_ref": "duplicate",
+      "has_transcript_path": false,
+      "hook_event_name": "PostToolUse",
+      "monotonic_offset_ms": 48603.11,
+      "occurrence_no": 4,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:6cec46eb22d28543fff414984244995ad4cdf5ec67100206aeb7d114048b85cf",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "PostToolUse",
+        "permission_mode": "other",
+        "tool_name": "Bash"
+      },
+      "scenario": "baseline_with_duplicate",
+      "session_ref": "session-1",
+      "source_event_ref": "source-event-4",
+      "task_ref": "task-1",
+      "timeout_class": "none",
+      "tool_call_ref": "tool_call-1",
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-4",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "PostToolUse",
+      "monotonic_offset_ms": 48603.552,
+      "occurrence_no": 5,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:6cec46eb22d28543fff414984244995ad4cdf5ec67100206aeb7d114048b85cf",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "PostToolUse",
+        "permission_mode": "other",
+        "tool_name": "Bash"
+      },
+      "scenario": "baseline_with_duplicate",
+      "session_ref": "session-1",
+      "source_event_ref": "source-event-4",
+      "task_ref": "task-1",
+      "timeout_class": "none",
+      "tool_call_ref": "tool_call-1",
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-5",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "Stop",
+      "monotonic_offset_ms": 65754.717,
+      "occurrence_no": 6,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "last_assistant_message",
+        "model",
+        "permission_mode",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:6bde271eb5ac873ee173c1727ad2304118b2ada617810d6b55fc876a6e7b29b9",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "Stop",
+        "permission_mode": "other"
+      },
+      "scenario": "baseline_with_duplicate",
+      "session_ref": "session-1",
+      "source_event_ref": "source-event-5",
+      "task_ref": "task-1",
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-6",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "SessionEnd",
+      "monotonic_offset_ms": 65806.99,
+      "occurrence_no": 7,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "reason",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload_shape_digest": "sha256:a043db228550c4f8053dcec709428e3f6a8260c9ba798b41cfc5620f706649d6",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "SessionEnd"
+      },
+      "scenario": "baseline_with_duplicate",
+      "session_ref": "session-1",
+      "source_event_ref": "source-event-6",
+      "task_ref": null,
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-7",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "SessionStart",
+      "monotonic_offset_ms": 80192.984,
+      "occurrence_no": 8,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload_shape_digest": "sha256:a306afe2a3f3bf6bb795ae3a481fef552317cca7e337bc79522301853526eef4",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "SessionStart",
+        "permission_mode": "other",
+        "source": "startup"
+      },
+      "scenario": "hook_nonzero_exit",
+      "session_ref": "session-2",
+      "source_event_ref": "source-event-7",
+      "task_ref": null,
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-8",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "UserPromptSubmit",
+      "monotonic_offset_ms": 80241.776,
+      "occurrence_no": 9,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "prompt",
+        "session_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:40573fa77ca338fea5fa1c4daff7279d8fe9f64cb20df0395569e1a511dcf942",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "UserPromptSubmit",
+        "permission_mode": "other"
+      },
+      "scenario": "hook_nonzero_exit",
+      "session_ref": "session-2",
+      "source_event_ref": "source-event-8",
+      "task_ref": "task-2",
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-9",
+      "exit_class": "scheduled_nonzero_7",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "PreToolUse",
+      "monotonic_offset_ms": 86383.726,
+      "occurrence_no": 10,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:99c4e49a50dcafb0902d602f3a5e6f05b9ab82903a98678ff1a4d1a0cf5f1011",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "PreToolUse",
+        "permission_mode": "other",
+        "tool_name": "Bash"
+      },
+      "scenario": "hook_nonzero_exit",
+      "session_ref": "session-2",
+      "source_event_ref": "source-event-9",
+      "task_ref": "task-2",
+      "timeout_class": "none",
+      "tool_call_ref": "tool_call-2",
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-10",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "PostToolUse",
+      "monotonic_offset_ms": 86476.396,
+      "occurrence_no": 11,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:31a1ee919a8d067221b5554241d142ee3b5b39d29e274139a2f2fb725aebc9d7",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "PostToolUse",
+        "permission_mode": "other",
+        "tool_name": "Bash"
+      },
+      "scenario": "hook_nonzero_exit",
+      "session_ref": "session-2",
+      "source_event_ref": "source-event-10",
+      "task_ref": "task-2",
+      "timeout_class": "none",
+      "tool_call_ref": "tool_call-2",
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-11",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "Stop",
+      "monotonic_offset_ms": 89931.366,
+      "occurrence_no": 12,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "last_assistant_message",
+        "model",
+        "permission_mode",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:cc451cb257906b9cac3ce8bfd411eb7cb3635c7ffe44767e0b702a73b5a8d5ed",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "Stop",
+        "permission_mode": "other"
+      },
+      "scenario": "hook_nonzero_exit",
+      "session_ref": "session-2",
+      "source_event_ref": "source-event-11",
+      "task_ref": "task-2",
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-12",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "SessionEnd",
+      "monotonic_offset_ms": 89983.42,
+      "occurrence_no": 13,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "reason",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload_shape_digest": "sha256:d7cea8d50168a3061a7748afb56d70b0875c9362f92281616e5967b1f393dfee",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "SessionEnd"
+      },
+      "scenario": "hook_nonzero_exit",
+      "session_ref": "session-2",
+      "source_event_ref": "source-event-12",
+      "task_ref": null,
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-13",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "SessionStart",
+      "monotonic_offset_ms": 100100.583,
+      "occurrence_no": 14,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload_shape_digest": "sha256:de516f7aa721f5f29a0438128f08b7d6804f4cf948b5e6fa7b4e76dc1eeb9ffc",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "SessionStart",
+        "permission_mode": "other",
+        "source": "startup"
+      },
+      "scenario": "hook_timeout",
+      "session_ref": "session-3",
+      "source_event_ref": "source-event-13",
+      "task_ref": null,
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-14",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "UserPromptSubmit",
+      "monotonic_offset_ms": 100145.236,
+      "occurrence_no": 15,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "prompt",
+        "session_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:b9180473cb1fd06f7d41b52087d5d2640d2bb0c206b1bc8608525854d6fc5a51",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "UserPromptSubmit",
+        "permission_mode": "other"
+      },
+      "scenario": "hook_timeout",
+      "session_ref": "session-3",
+      "source_event_ref": "source-event-14",
+      "task_ref": "task-3",
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-15",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "PreToolUse",
+      "monotonic_offset_ms": 118918.447,
+      "occurrence_no": 16,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:0c5bf365aeaef51001395f97bc54a318a402e4a435a3cf70aab3bb372a8caec3",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "PreToolUse",
+        "permission_mode": "other",
+        "tool_name": "Bash"
+      },
+      "scenario": "hook_timeout",
+      "session_ref": "session-3",
+      "source_event_ref": "source-event-15",
+      "task_ref": "task-3",
+      "timeout_class": "configured_timeout_target",
+      "tool_call_ref": "tool_call-3",
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-16",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "PostToolUse",
+      "monotonic_offset_ms": 119973.475,
+      "occurrence_no": 17,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:bcb5e1863f4ccf33adff934bc5cc85996ad6be85deb63e6e58904ac315283f86",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "PostToolUse",
+        "permission_mode": "other",
+        "tool_name": "Bash"
+      },
+      "scenario": "hook_timeout",
+      "session_ref": "session-3",
+      "source_event_ref": "source-event-16",
+      "task_ref": "task-3",
+      "timeout_class": "none",
+      "tool_call_ref": "tool_call-3",
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-17",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "Stop",
+      "monotonic_offset_ms": 158767.602,
+      "occurrence_no": 18,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "last_assistant_message",
+        "model",
+        "permission_mode",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:b274dde1ad8a602e90e62cb214d8bc421e08a6464b482a07d6a8b316fd698ed1",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "Stop",
+        "permission_mode": "other"
+      },
+      "scenario": "hook_timeout",
+      "session_ref": "session-3",
+      "source_event_ref": "source-event-17",
+      "task_ref": "task-3",
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-18",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "SessionEnd",
+      "monotonic_offset_ms": 158817.241,
+      "occurrence_no": 19,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "reason",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload_shape_digest": "sha256:ef6b10b9a84459bf59defe53cd8709a49f60d2a3fced08be40e1e8f2e6310dbf",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "SessionEnd"
+      },
+      "scenario": "hook_timeout",
+      "session_ref": "session-3",
+      "source_event_ref": "source-event-18",
+      "task_ref": null,
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-19",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "SessionStart",
+      "monotonic_offset_ms": 168960.733,
+      "occurrence_no": 20,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "payload_shape_digest": "sha256:def41958993f3ae880ce0cd40ebbf58287a602e76bac3f19ccb9cae86e680ab8",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "SessionStart",
+        "permission_mode": "other",
+        "source": "startup"
+      },
+      "scenario": "restart_recovery",
+      "session_ref": "session-4",
+      "source_event_ref": "source-event-19",
+      "task_ref": null,
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-20",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "UserPromptSubmit",
+      "monotonic_offset_ms": 169009.064,
+      "occurrence_no": 21,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "prompt",
+        "session_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:890ade0e09ba114649407933a0ac8ba1ea9bb5fc18799240b36644a7b285ba34",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "UserPromptSubmit",
+        "permission_mode": "other"
+      },
+      "scenario": "restart_recovery",
+      "session_ref": "session-4",
+      "source_event_ref": "source-event-20",
+      "task_ref": "task-4",
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-21",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "PreToolUse",
+      "monotonic_offset_ms": 187775.692,
+      "occurrence_no": 22,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:e224cb9450fe57d7c1664fcb44aa1aa76a320443b2390e22ee6eac6a314df2d1",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "PreToolUse",
+        "permission_mode": "other",
+        "tool_name": "Bash"
+      },
+      "scenario": "restart_recovery",
+      "session_ref": "session-4",
+      "source_event_ref": "source-event-21",
+      "task_ref": "task-4",
+      "timeout_class": "none",
+      "tool_call_ref": "tool_call-4",
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-22",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "PostToolUse",
+      "monotonic_offset_ms": 187876.312,
+      "occurrence_no": 23,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:ab2e2e0094c66478343c39e2c13a5acfa92cf99ff02b39f3de48dce0312c6aa0",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "PostToolUse",
+        "permission_mode": "other",
+        "tool_name": "Bash"
+      },
+      "scenario": "restart_recovery",
+      "session_ref": "session-4",
+      "source_event_ref": "source-event-22",
+      "task_ref": "task-4",
+      "timeout_class": "none",
+      "tool_call_ref": "tool_call-4",
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-23",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "Stop",
+      "monotonic_offset_ms": 205354.301,
+      "occurrence_no": 24,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "last_assistant_message",
+        "model",
+        "permission_mode",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path",
+        "turn_id"
+      ],
+      "payload_shape_digest": "sha256:1cb88a512aeea73672a31f5b1c27ca8fb1d7406b4fe5c0283cf06bbcaf2e7d85",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "Stop",
+        "permission_mode": "other"
+      },
+      "scenario": "restart_recovery",
+      "session_ref": "session-4",
+      "source_event_ref": "source-event-23",
+      "task_ref": "task-4",
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    },
+    {
+      "duplicate_group_ref": "duplicate-group-24",
+      "exit_class": "normal",
+      "handler_ref": "primary",
+      "has_transcript_path": false,
+      "hook_event_name": "SessionEnd",
+      "monotonic_offset_ms": 205403.59,
+      "occurrence_no": 25,
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "reason",
+        "session_id",
+        "transcript_path"
+      ],
+      "payload_shape_digest": "sha256:240f910d5f1d88cdfb8578f71c173a8087b7a9c4a898ebd195a73979d3e21fc6",
+      "probe_id": "g3-20260905T135808Z-dbc31c09",
+      "receipt_status": "written_before_handler_action",
+      "safe_enums": {
+        "hook_event_name": "SessionEnd"
+      },
+      "scenario": "restart_recovery",
+      "session_ref": "session-4",
+      "source_event_ref": "source-event-24",
+      "task_ref": null,
+      "timeout_class": "none",
+      "tool_call_ref": null,
+      "workspace_ref": "workspace-1"
+    }
+  ],
+  "pinned_executable_version": "codex-cli 0.153.4",
+  "probe_date": "2026-09-05",
+  "probe_id": "g3-20260905T135808Z-dbc31c09",
+  "probe_result": {
+    "agent_received_injected_context": true,
+    "blocker": null,
+    "exit_code": 0,
+    "status": "completed",
+    "stderr_present": true
+  },
+  "requested_model": "gpt-5.6-terra",
+  "required_runtime_events": [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "Stop",
+    "SessionEnd"
+  ],
+  "runtime_feature_flags": {
+    "hooks": true
+  },
+  "scenarios": [
+    {
+      "agent_received_injected_context": true,
+      "blocker": null,
+      "cli_event_types": {
+        "item.completed": 5,
+        "item.started": 1,
+        "thread.started": 1,
+        "turn.completed": 1,
+        "turn.started": 1
+      },
+      "elapsed_ms": 80043.131,
+      "event_counts": {
+        "PostToolUse": 2,
+        "PreToolUse": 1,
+        "SessionEnd": 1,
+        "SessionStart": 1,
+        "Stop": 1,
+        "UserPromptSubmit": 1
+      },
+      "exit_code": 0,
+      "finished_at": "2026-09-05T13:59:28.591773+00:00",
+      "name": "baseline_with_duplicate",
+      "outer_timeout": false,
+      "receipt_occurrences": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "started_at": "2026-09-05T13:58:08.547538+00:00",
+      "stderr_summary": {
+        "authentication_signal": false,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false,
+        "present": true
+      }
+    },
+    {
+      "agent_received_injected_context": false,
+      "blocker": null,
+      "cli_event_types": {
+        "item.completed": 6,
+        "item.started": 1,
+        "thread.started": 1,
+        "turn.completed": 1,
+        "turn.started": 1
+      },
+      "elapsed_ms": 19935.12,
+      "event_counts": {
+        "PostToolUse": 1,
+        "PreToolUse": 1,
+        "SessionEnd": 1,
+        "SessionStart": 1,
+        "Stop": 1,
+        "UserPromptSubmit": 1
+      },
+      "exit_code": 0,
+      "finished_at": "2026-09-05T13:59:48.529706+00:00",
+      "name": "hook_nonzero_exit",
+      "outer_timeout": false,
+      "receipt_occurrences": [
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "started_at": "2026-09-05T13:59:28.594184+00:00",
+      "stderr_summary": {
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false,
+        "present": true
+      }
+    },
+    {
+      "agent_received_injected_context": false,
+      "blocker": null,
+      "cli_event_types": {
+        "item.completed": 6,
+        "item.started": 1,
+        "thread.started": 1,
+        "turn.completed": 1,
+        "turn.started": 1
+      },
+      "elapsed_ms": 68841.572,
+      "event_counts": {
+        "PostToolUse": 1,
+        "PreToolUse": 1,
+        "SessionEnd": 1,
+        "SessionStart": 1,
+        "Stop": 1,
+        "UserPromptSubmit": 1
+      },
+      "exit_code": 0,
+      "finished_at": "2026-09-05T14:00:57.374076+00:00",
+      "name": "hook_timeout",
+      "outer_timeout": false,
+      "receipt_occurrences": [
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "started_at": "2026-09-05T13:59:48.531624+00:00",
+      "stderr_summary": {
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false,
+        "present": true
+      }
+    },
+    {
+      "agent_received_injected_context": true,
+      "blocker": null,
+      "cli_event_types": {
+        "item.completed": 6,
+        "item.started": 1,
+        "thread.started": 1,
+        "turn.completed": 1,
+        "turn.started": 1
+      },
+      "elapsed_ms": 40042.494,
+      "event_counts": {
+        "PostToolUse": 1,
+        "PreToolUse": 1,
+        "SessionEnd": 1,
+        "SessionStart": 1,
+        "Stop": 1,
+        "UserPromptSubmit": 1
+      },
+      "exit_code": 0,
+      "finished_at": "2026-09-05T14:01:37.418795+00:00",
+      "name": "restart_recovery",
+      "outer_timeout": false,
+      "receipt_occurrences": [
+        20,
+        21,
+        22,
+        23,
+        24,
+        25
+      ],
+      "started_at": "2026-09-05T14:00:57.375730+00:00",
+      "stderr_summary": {
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false,
+        "present": true
+      }
+    }
+  ],
+  "source_declared_events": [
+    "PreToolUse",
+    "PermissionRequest",
+    "PostToolUse",
+    "PreCompact",
+    "PostCompact",
+    "SessionStart",
+    "SessionEnd",
+    "UserPromptSubmit",
+    "SubagentStart",
+    "SubagentStop",
+    "Stop",
+    "Interrupt"
+  ],
+  "source_revision": "728cb12fe5794b0c3a8e776fb4994b1650b973a8",
+  "started_at": "2026-09-05T13:58:08.530453+00:00",
+  "timeout_behavior": {
+    "host_timeout_signal_observed": false,
+    "pre_tool_sleep_seconds": 2.5,
+    "pre_tool_timeout_configured_seconds": 1,
+    "session_end_configured_seconds": 1
+  },
+  "transcript_support": {
+    "content_saved": false,
+    "path_field_observed": false
+  },
+  "verified_events": [
+    {
+      "event": "PreToolUse",
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "status": "observed"
+    },
+    {
+      "event": "PermissionRequest",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "PostToolUse",
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "tool_input",
+        "tool_name",
+        "tool_response",
+        "tool_use_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "status": "observed"
+    },
+    {
+      "event": "PreCompact",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "PostCompact",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "SessionStart",
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "session_id",
+        "source",
+        "transcript_path"
+      ],
+      "status": "observed"
+    },
+    {
+      "event": "SessionEnd",
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "reason",
+        "session_id",
+        "transcript_path"
+      ],
+      "status": "observed"
+    },
+    {
+      "event": "UserPromptSubmit",
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "model",
+        "permission_mode",
+        "prompt",
+        "session_id",
+        "transcript_path",
+        "turn_id"
+      ],
+      "status": "observed"
+    },
+    {
+      "event": "SubagentStart",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "SubagentStop",
+      "payload_keys": [],
+      "status": "not_observed"
+    },
+    {
+      "event": "Stop",
+      "payload_keys": [
+        "cwd",
+        "hook_event_name",
+        "last_assistant_message",
+        "model",
+        "permission_mode",
+        "session_id",
+        "stop_hook_active",
+        "transcript_path",
+        "turn_id"
+      ],
+      "status": "observed"
+    },
+    {
+      "event": "Interrupt",
+      "payload_keys": [],
+      "status": "not_observed"
+    }
+  ]
+}

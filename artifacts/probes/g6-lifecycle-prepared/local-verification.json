@@ -1,0 +1,1328 @@
+{
+  "g5": {
+    "status": "passed"
+  },
+  "assertions": [
+    {
+      "name": "G6_lifecycle_requires_G5",
+      "status": "pass"
+    },
+    {
+      "name": "G6_host_call_budget",
+      "status": "pass"
+    },
+    {
+      "name": "G6_control_completed",
+      "status": "pass"
+    },
+    {
+      "name": "G6_control_four_events",
+      "status": "pass"
+    },
+    {
+      "name": "G6_control_hook_output",
+      "status": "pass"
+    },
+    {
+      "name": "G6_control_independent_session",
+      "status": "pass"
+    },
+    {
+      "name": "G6_control_task_result",
+      "status": "pass"
+    },
+    {
+      "name": "G6_control_source_event",
+      "status": "pass"
+    },
+    {
+      "name": "G6_host_call_budget",
+      "status": "pass"
+    },
+    {
+      "name": "G6_source_completed",
+      "status": "pass"
+    },
+    {
+      "name": "G6_source_four_events",
+      "status": "pass"
+    },
+    {
+      "name": "G6_source_hook_output",
+      "status": "pass"
+    },
+    {
+      "name": "G6_source_independent_session",
+      "status": "pass"
+    },
+    {
+      "name": "G6_source_task_result",
+      "status": "pass"
+    },
+    {
+      "name": "G6_source_source_event",
+      "status": "pass"
+    },
+    {
+      "name": "G6_source_settled",
+      "status": "pass"
+    },
+    {
+      "name": "G6_source_proposal",
+      "status": "pass"
+    },
+    {
+      "name": "G6_source_memory",
+      "status": "pass"
+    },
+    {
+      "name": "G6_projection_1",
+      "status": "pass"
+    },
+    {
+      "name": "G6_source_search",
+      "status": "pass"
+    },
+    {
+      "name": "G6_host_call_budget",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-new_completed",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-new_four_events",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-new_hook_output",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-new_independent_session",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-new_task_result",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-new_source_event",
+      "status": "pass"
+    },
+    {
+      "name": "G6_host_call_budget",
+      "status": "pass"
+    },
+    {
+      "name": "G6_update_completed",
+      "status": "pass"
+    },
+    {
+      "name": "G6_update_four_events",
+      "status": "pass"
+    },
+    {
+      "name": "G6_update_hook_output",
+      "status": "pass"
+    },
+    {
+      "name": "G6_update_independent_session",
+      "status": "pass"
+    },
+    {
+      "name": "G6_update_task_result",
+      "status": "pass"
+    },
+    {
+      "name": "G6_update_source_event",
+      "status": "pass"
+    },
+    {
+      "name": "G6_update_settled",
+      "status": "pass"
+    },
+    {
+      "name": "G6_update_proposal",
+      "status": "pass"
+    },
+    {
+      "name": "G6_update_memory",
+      "status": "pass"
+    },
+    {
+      "name": "G6_projection_2",
+      "status": "pass"
+    },
+    {
+      "name": "G6_projection_3",
+      "status": "pass"
+    },
+    {
+      "name": "G6_update_search",
+      "status": "pass"
+    },
+    {
+      "name": "G6_successor_replaces_retired_memory",
+      "status": "pass"
+    },
+    {
+      "name": "G6_old_revision_denied",
+      "status": "pass"
+    },
+    {
+      "name": "G6_host_call_budget",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-update_completed",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-update_four_events",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-update_hook_output",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-update_independent_session",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-update_task_result",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-update_source_event",
+      "status": "pass"
+    },
+    {
+      "name": "G6_forget_requested",
+      "status": "pass"
+    },
+    {
+      "name": "G6_deleted_stale_hits_denied",
+      "status": "pass"
+    },
+    {
+      "name": "G6_host_call_budget",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-delete_completed",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-delete_four_events",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-delete_hook_output",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-delete_independent_session",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-delete_task_result",
+      "status": "pass"
+    },
+    {
+      "name": "G6_consume-delete_source_event",
+      "status": "pass"
+    },
+    {
+      "name": "G6_projection_4",
+      "status": "pass"
+    },
+    {
+      "name": "G6_deleted_projections_absent",
+      "status": "pass"
+    },
+    {
+      "name": "G6_deleted_after_reopen",
+      "status": "pass"
+    }
+  ],
+  "g6_lifecycle": {
+    "status": "passed",
+    "plan_digest": "fixture",
+    "mode": "test_doubles",
+    "judge_version": "openai-proposal-v1",
+    "prompt_contract": "test-double",
+    "judge_model": "test-double",
+    "host_sessions": [
+      {
+        "completed": true,
+        "records": [
+          {
+            "duplicate_group_ref": "duplicate-group-1",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionStart",
+            "monotonic_offset_ms": 0.112,
+            "occurrence_no": 1,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:1abd304a43093c95548f4c2b0868322f77cae4040147b36a450d77d8acca7a0b",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionStart"
+            },
+            "scenario": "control",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-1",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-2",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "UserPromptSubmit",
+            "monotonic_offset_ms": 0.058,
+            "occurrence_no": 2,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:aea39269693ce7738744c6fa8c763d528e2f86794a3e1c6d14f9999755581f3c",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "UserPromptSubmit"
+            },
+            "scenario": "control",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-2",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-3",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "Stop",
+            "monotonic_offset_ms": 0.063,
+            "occurrence_no": 3,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:d0907c60fdc11ab44ace6a2f5e0b13af1e69f3a08fafc6421c17babb9b277de1",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "Stop"
+            },
+            "scenario": "control",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-3",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-4",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionEnd",
+            "monotonic_offset_ms": 0.051,
+            "occurrence_no": 4,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:e52a6ba623833f9f29a46d14eb081bce1c3d152af21d12b91a8c00d8e7861199",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionEnd"
+            },
+            "scenario": "control",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-4",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          }
+        ],
+        "receipt": {
+          "status": "emitted",
+          "event": "SessionStart",
+          "bundle": {
+            "owner_id": "synthetic-owner",
+            "generation": "g1",
+            "ledger_sequence": 0,
+            "items": [],
+            "omissions": [],
+            "text": "",
+            "budget": 2000,
+            "used": 0,
+            "accounting": "utf8_bytes_conservative_estimate"
+          },
+          "host_session_digest": "0fcd568a5cb9bdb4677b69354b11ee415af8f784519cff3da49a26f84eaee7f2"
+        },
+        "scenario": "control",
+        "prompt": "What is the saved repository verification command? Do not infer a default or inspect files. Reply only JSON with key command; use null if no saved decision is available.",
+        "final_digest": "0490fce8bc59a080a3c036b86a6702abd4c38dfca927d7f3222eb0432cf09e84",
+        "task_result_matches": true,
+        "verified_result": {
+          "command": null
+        }
+      },
+      {
+        "completed": true,
+        "records": [
+          {
+            "duplicate_group_ref": "duplicate-group-1",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionStart",
+            "monotonic_offset_ms": 0.09,
+            "occurrence_no": 1,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:1abd304a43093c95548f4c2b0868322f77cae4040147b36a450d77d8acca7a0b",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionStart"
+            },
+            "scenario": "source",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-1",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-2",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "UserPromptSubmit",
+            "monotonic_offset_ms": 0.057,
+            "occurrence_no": 2,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:aea39269693ce7738744c6fa8c763d528e2f86794a3e1c6d14f9999755581f3c",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "UserPromptSubmit"
+            },
+            "scenario": "source",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-2",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-3",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "Stop",
+            "monotonic_offset_ms": 0.048,
+            "occurrence_no": 3,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:d0907c60fdc11ab44ace6a2f5e0b13af1e69f3a08fafc6421c17babb9b277de1",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "Stop"
+            },
+            "scenario": "source",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-3",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-4",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionEnd",
+            "monotonic_offset_ms": 0.046,
+            "occurrence_no": 4,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:e52a6ba623833f9f29a46d14eb081bce1c3d152af21d12b91a8c00d8e7861199",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionEnd"
+            },
+            "scenario": "source",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-4",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          }
+        ],
+        "receipt": {
+          "status": "emitted",
+          "event": "SessionStart",
+          "bundle": {
+            "owner_id": "synthetic-owner",
+            "generation": "g1",
+            "ledger_sequence": 0,
+            "items": [],
+            "omissions": [],
+            "text": "",
+            "budget": 2000,
+            "used": 0,
+            "accounting": "utf8_bytes_conservative_estimate"
+          },
+          "host_session_digest": "41cf6794ba4200b839c53531555f0f3998df4cbb01a4d5cb0b94e3ca5e23947d"
+        },
+        "scenario": "source",
+        "prompt": "For this project, use pytest as the repository verification command. Remember this decision. Reply ACK only.",
+        "final_digest": "8ae18128586fbd0f953fde4a4c9e5784438bcb0336e5dd583b7bc64fdef118da",
+        "task_result_matches": true,
+        "verified_result": "ACK"
+      },
+      {
+        "completed": true,
+        "records": [
+          {
+            "duplicate_group_ref": "duplicate-group-1",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionStart",
+            "monotonic_offset_ms": 0.077,
+            "occurrence_no": 1,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:1abd304a43093c95548f4c2b0868322f77cae4040147b36a450d77d8acca7a0b",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionStart"
+            },
+            "scenario": "consume-new",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-1",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-2",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "UserPromptSubmit",
+            "monotonic_offset_ms": 0.047,
+            "occurrence_no": 2,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:aea39269693ce7738744c6fa8c763d528e2f86794a3e1c6d14f9999755581f3c",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "UserPromptSubmit"
+            },
+            "scenario": "consume-new",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-2",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-3",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "Stop",
+            "monotonic_offset_ms": 0.043,
+            "occurrence_no": 3,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:d0907c60fdc11ab44ace6a2f5e0b13af1e69f3a08fafc6421c17babb9b277de1",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "Stop"
+            },
+            "scenario": "consume-new",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-3",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-4",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionEnd",
+            "monotonic_offset_ms": 0.041,
+            "occurrence_no": 4,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:e52a6ba623833f9f29a46d14eb081bce1c3d152af21d12b91a8c00d8e7861199",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionEnd"
+            },
+            "scenario": "consume-new",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-4",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          }
+        ],
+        "receipt": {
+          "status": "emitted",
+          "event": "SessionStart",
+          "bundle": {
+            "owner_id": "synthetic-owner",
+            "generation": "g1",
+            "ledger_sequence": 1,
+            "items": [
+              {
+                "owner_id": "synthetic-owner",
+                "memory_id": "fa378189-e44c-57f3-ab8d-bcd821f5dd26",
+                "revision": 1,
+                "memory_type": "decision",
+                "scope": {
+                  "kind": "project",
+                  "project_id": "77bd4222-eaf3-4a4d-9b08-989e56c7a1d7",
+                  "path_pattern": null,
+                  "task_id": null
+                },
+                "state": "active",
+                "conflict_state": "none",
+                "payload": {
+                  "command": "pytest",
+                  "key": "verification-command"
+                },
+                "ledger_sequence": 1
+              }
+            ],
+            "omissions": [],
+            "text": "{\"conflict_state\": \"none\", \"ledger_sequence\": 1, \"memory_id\": \"fa378189-e44c-57f3-ab8d-bcd821f5dd26\", \"memory_type\": \"decision\", \"owner_id\": \"synthetic-owner\", \"payload\": {\"command\": \"pytest\", \"key\": \"verification-command\"}, \"revision\": 1, \"scope\": {\"kind\": \"project\", \"path_pattern\": null, \"project_id\": \"77bd4222-eaf3-4a4d-9b08-989e56c7a1d7\", \"task_id\": null}, \"state\": \"active\"}",
+            "budget": 2000,
+            "used": 381,
+            "accounting": "utf8_bytes_conservative_estimate"
+          },
+          "host_session_digest": "ce04a3ab3650bf8bcd156f374bd0a230bbe7fa2e991f471242821b487f60f0fd"
+        },
+        "scenario": "consume-new",
+        "prompt": "What is the saved repository verification command? Do not infer a default or inspect files. Reply only JSON with key command; use null if no saved decision is available.",
+        "final_digest": "82ccaf06166063a75c22407e37d2886177653eea1624363d5d2fde7f6583e6b5",
+        "task_result_matches": true,
+        "verified_result": {
+          "command": "pytest"
+        }
+      },
+      {
+        "completed": true,
+        "records": [
+          {
+            "duplicate_group_ref": "duplicate-group-1",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionStart",
+            "monotonic_offset_ms": 0.066,
+            "occurrence_no": 1,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:1abd304a43093c95548f4c2b0868322f77cae4040147b36a450d77d8acca7a0b",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionStart"
+            },
+            "scenario": "update",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-1",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-2",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "UserPromptSubmit",
+            "monotonic_offset_ms": 0.043,
+            "occurrence_no": 2,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:aea39269693ce7738744c6fa8c763d528e2f86794a3e1c6d14f9999755581f3c",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "UserPromptSubmit"
+            },
+            "scenario": "update",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-2",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-3",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "Stop",
+            "monotonic_offset_ms": 0.062,
+            "occurrence_no": 3,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:d0907c60fdc11ab44ace6a2f5e0b13af1e69f3a08fafc6421c17babb9b277de1",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "Stop"
+            },
+            "scenario": "update",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-3",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-4",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionEnd",
+            "monotonic_offset_ms": 0.05,
+            "occurrence_no": 4,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:e52a6ba623833f9f29a46d14eb081bce1c3d152af21d12b91a8c00d8e7861199",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionEnd"
+            },
+            "scenario": "update",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-4",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          }
+        ],
+        "receipt": {
+          "status": "emitted",
+          "event": "SessionStart",
+          "bundle": {
+            "owner_id": "synthetic-owner",
+            "generation": "g1",
+            "ledger_sequence": 1,
+            "items": [],
+            "omissions": [],
+            "text": "",
+            "budget": 2000,
+            "used": 0,
+            "accounting": "utf8_bytes_conservative_estimate"
+          },
+          "host_session_digest": "2937013f2181810606b2a799b05bda2849f3e369a20982a4138f0e0a55984ce4"
+        },
+        "scenario": "update",
+        "prompt": "From now on, use python -m unittest instead of pytest as the repository verification command. Remember this replacement. Reply ACK only.",
+        "final_digest": "8ae18128586fbd0f953fde4a4c9e5784438bcb0336e5dd583b7bc64fdef118da",
+        "task_result_matches": true,
+        "verified_result": "ACK"
+      },
+      {
+        "completed": true,
+        "records": [
+          {
+            "duplicate_group_ref": "duplicate-group-1",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionStart",
+            "monotonic_offset_ms": 0.073,
+            "occurrence_no": 1,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:1abd304a43093c95548f4c2b0868322f77cae4040147b36a450d77d8acca7a0b",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionStart"
+            },
+            "scenario": "consume-update",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-1",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-2",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "UserPromptSubmit",
+            "monotonic_offset_ms": 0.044,
+            "occurrence_no": 2,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:aea39269693ce7738744c6fa8c763d528e2f86794a3e1c6d14f9999755581f3c",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "UserPromptSubmit"
+            },
+            "scenario": "consume-update",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-2",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-3",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "Stop",
+            "monotonic_offset_ms": 0.047,
+            "occurrence_no": 3,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:d0907c60fdc11ab44ace6a2f5e0b13af1e69f3a08fafc6421c17babb9b277de1",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "Stop"
+            },
+            "scenario": "consume-update",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-3",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-4",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionEnd",
+            "monotonic_offset_ms": 0.044,
+            "occurrence_no": 4,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:e52a6ba623833f9f29a46d14eb081bce1c3d152af21d12b91a8c00d8e7861199",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionEnd"
+            },
+            "scenario": "consume-update",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-4",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          }
+        ],
+        "receipt": {
+          "status": "emitted",
+          "event": "SessionStart",
+          "bundle": {
+            "owner_id": "synthetic-owner",
+            "generation": "g1",
+            "ledger_sequence": 3,
+            "items": [
+              {
+                "owner_id": "synthetic-owner",
+                "memory_id": "5cc2b324-83cd-5649-932d-22e58159adc7",
+                "revision": 1,
+                "memory_type": "decision",
+                "scope": {
+                  "kind": "project",
+                  "project_id": "77bd4222-eaf3-4a4d-9b08-989e56c7a1d7",
+                  "path_pattern": null,
+                  "task_id": null
+                },
+                "state": "active",
+                "conflict_state": "none",
+                "payload": {
+                  "command": "python -m unittest",
+                  "key": "verification-command"
+                },
+                "ledger_sequence": 3
+              }
+            ],
+            "omissions": [
+              {
+                "memory_id": "fa378189-e44c-57f3-ab8d-bcd821f5dd26",
+                "revision": 1,
+                "reason": "inactive"
+              }
+            ],
+            "text": "{\"conflict_state\": \"none\", \"ledger_sequence\": 3, \"memory_id\": \"5cc2b324-83cd-5649-932d-22e58159adc7\", \"memory_type\": \"decision\", \"owner_id\": \"synthetic-owner\", \"payload\": {\"command\": \"python -m unittest\", \"key\": \"verification-command\"}, \"revision\": 1, \"scope\": {\"kind\": \"project\", \"path_pattern\": null, \"project_id\": \"77bd4222-eaf3-4a4d-9b08-989e56c7a1d7\", \"task_id\": null}, \"state\": \"active\"}",
+            "budget": 2000,
+            "used": 393,
+            "accounting": "utf8_bytes_conservative_estimate"
+          },
+          "host_session_digest": "754e24122e8f719482d050d8c347d5a807079cf20bead3b970081b30e89fa887"
+        },
+        "scenario": "consume-update",
+        "prompt": "What is the saved repository verification command? Do not infer a default or inspect files. Reply only JSON with key command; use null if no saved decision is available.",
+        "final_digest": "a227687ceb2d5896162b4ecee5170f98d894d78a6c455d0c50ce58b44e4cd4a2",
+        "task_result_matches": true,
+        "verified_result": {
+          "command": "python -m unittest"
+        }
+      },
+      {
+        "completed": true,
+        "records": [
+          {
+            "duplicate_group_ref": "duplicate-group-1",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionStart",
+            "monotonic_offset_ms": 0.066,
+            "occurrence_no": 1,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:1abd304a43093c95548f4c2b0868322f77cae4040147b36a450d77d8acca7a0b",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionStart"
+            },
+            "scenario": "consume-delete",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-1",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-2",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "UserPromptSubmit",
+            "monotonic_offset_ms": 0.042,
+            "occurrence_no": 2,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:aea39269693ce7738744c6fa8c763d528e2f86794a3e1c6d14f9999755581f3c",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "UserPromptSubmit"
+            },
+            "scenario": "consume-delete",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-2",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-3",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "Stop",
+            "monotonic_offset_ms": 0.045,
+            "occurrence_no": 3,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:d0907c60fdc11ab44ace6a2f5e0b13af1e69f3a08fafc6421c17babb9b277de1",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "Stop"
+            },
+            "scenario": "consume-delete",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-3",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          },
+          {
+            "duplicate_group_ref": "duplicate-group-4",
+            "exit_class": "normal",
+            "handler_ref": "g6-lifecycle",
+            "has_transcript_path": false,
+            "hook_event_name": "SessionEnd",
+            "monotonic_offset_ms": 0.043,
+            "occurrence_no": 4,
+            "payload_keys": [
+              "cwd",
+              "hook_event_name",
+              "session_id",
+              "turn_id"
+            ],
+            "payload_shape_digest": "sha256:e52a6ba623833f9f29a46d14eb081bce1c3d152af21d12b91a8c00d8e7861199",
+            "probe_id": "fixture",
+            "receipt_status": "written_before_handler_action",
+            "safe_enums": {
+              "hook_event_name": "SessionEnd"
+            },
+            "scenario": "consume-delete",
+            "session_ref": "session-1",
+            "source_event_ref": "source-event-4",
+            "task_ref": "task-1",
+            "timeout_class": "none",
+            "tool_call_ref": null,
+            "workspace_ref": "workspace-1"
+          }
+        ],
+        "receipt": {
+          "status": "emitted",
+          "event": "SessionStart",
+          "bundle": {
+            "owner_id": "synthetic-owner",
+            "generation": "g1",
+            "ledger_sequence": 4,
+            "items": [],
+            "omissions": [
+              {
+                "memory_id": "fa378189-e44c-57f3-ab8d-bcd821f5dd26",
+                "revision": 1,
+                "reason": "inactive"
+              },
+              {
+                "memory_id": "5cc2b324-83cd-5649-932d-22e58159adc7",
+                "revision": 1,
+                "reason": "inactive"
+              }
+            ],
+            "text": "",
+            "budget": 2000,
+            "used": 0,
+            "accounting": "utf8_bytes_conservative_estimate"
+          },
+          "host_session_digest": "d282bd83cd04fea132a084f48c9589db151647598fe4ba2fc3a4b923db2931ce"
+        },
+        "scenario": "consume-delete",
+        "prompt": "What is the saved repository verification command? Do not infer a default or inspect files. Reply only JSON with key command; use null if no saved decision is available.",
+        "final_digest": "0490fce8bc59a080a3c036b86a6702abd4c38dfca927d7f3222eb0432cf09e84",
+        "task_result_matches": true,
+        "verified_result": {
+          "command": null
+        }
+      }
+    ],
+    "chains": [
+      {
+        "kind": "new",
+        "source_event_id": "13805f90-e7a8-4af2-92aa-588ae52e25e5",
+        "candidate_id": "3520f636-983f-4abe-a220-d5ca102d04f1",
+        "batch_id": "c28cc3c1-ad40-472e-8d63-88cfdaad91c3",
+        "proposal_id": "550bdb9d-6c87-4661-8d15-3dd62f7dc1d7",
+        "memory_id": "fa378189-e44c-57f3-ab8d-bcd821f5dd26",
+        "revision": 1,
+        "input_digest": "13e31607b1ed12fe88969688d3b174e5e86bd951f8974c312e1705068e80255d",
+        "predecessor_memory_id": null,
+        "projection_receipts": [
+          {
+            "operation_key": "1c3ffff9d9c42f10b51f3022d6d2312ed45c8f6c02c0e60cc43b15a5870fc5f0",
+            "backend_locator": "memory://g1/fa378189-e44c-57f3-ab8d-bcd821f5dd26/1",
+            "payload_digest": "a043047543e6f9cee4aa0e35c7be6363bad5e15c630abeaa5ce665a83baf085e"
+          }
+        ]
+      },
+      {
+        "kind": "supersede",
+        "source_event_id": "b668b199-8f0d-4aae-bd9f-406cc9ed650f",
+        "candidate_id": "a65a4b58-88b7-4d5f-a9a4-83e921cdf14f",
+        "batch_id": "d0aab1cb-cfd4-484e-8e02-69df2f353b36",
+        "proposal_id": "d138b0f8-c7a8-4a92-b8ec-f6fb74dda2c4",
+        "memory_id": "5cc2b324-83cd-5649-932d-22e58159adc7",
+        "revision": 1,
+        "input_digest": "1903786230217a0f2f703c0493fde77f982428edc98399cc6b745ca413633aec",
+        "predecessor_memory_id": "fa378189-e44c-57f3-ab8d-bcd821f5dd26",
+        "projection_receipts": [
+          {
+            "operation_key": "5efb9bf52e14da140fbf2cba52bcb1c8c9d678bbad0f36794425ad8ac6db98fe",
+            "backend_locator": "memory://g1/5cc2b324-83cd-5649-932d-22e58159adc7/1",
+            "payload_digest": "21c0f11b99d831c0d3376f36d76e87e284da735b04895c93c35b56617a8fbefa"
+          }
+        ]
+      },
+      {
+        "kind": "forget",
+        "memory_id": "5cc2b324-83cd-5649-932d-22e58159adc7",
+        "delete_receipt": "fixture-forget",
+        "delete_result": {
+          "status": "remote_pending",
+          "job_id": "f6beca6f-5a23-4d02-9118-918914bcecc3",
+          "memory_id": "5cc2b324-83cd-5649-932d-22e58159adc7"
+        },
+        "stale_decision": {
+          "owner_id": "synthetic-owner",
+          "generation": "g1",
+          "ledger_sequence": 4,
+          "items": [],
+          "omissions": [
+            {
+              "memory_id": "fa378189-e44c-57f3-ab8d-bcd821f5dd26",
+              "revision": 1,
+              "reason": "inactive"
+            },
+            {
+              "memory_id": "5cc2b324-83cd-5649-932d-22e58159adc7",
+              "revision": 1,
+              "reason": "inactive"
+            }
+          ],
+          "text": "",
+          "budget": 2000,
+          "used": 0,
+          "accounting": "utf8_bytes_conservative_estimate"
+        },
+        "reopened_decision": {
+          "owner_id": "synthetic-owner",
+          "generation": "g1",
+          "ledger_sequence": 4,
+          "items": [],
+          "omissions": [
+            {
+              "memory_id": "fa378189-e44c-57f3-ab8d-bcd821f5dd26",
+              "revision": 1,
+              "reason": "inactive"
+            },
+            {
+              "memory_id": "5cc2b324-83cd-5649-932d-22e58159adc7",
+              "revision": 1,
+              "reason": "inactive"
+            }
+          ],
+          "text": "",
+          "budget": 2000,
+          "used": 0,
+          "accounting": "utf8_bytes_conservative_estimate"
+        }
+      }
+    ],
+    "judge_attempts": [
+      {
+        "batch_id": "c28cc3c1-ad40-472e-8d63-88cfdaad91c3",
+        "attempt": 1,
+        "trace": {
+          "status": "ok",
+          "latency_ms": 0,
+          "response_digest": "801230a2c8449acf8af9645005e94fe054b07c88fb244f5d71d76fae7b26f2b1",
+          "error_class": null,
+          "timeout_phase": null,
+          "status_code": null,
+          "auxiliary": [],
+          "deltas": [
+            {
+              "layer": "project",
+              "type": "decision",
+              "relation": "new",
+              "candidate_id": "3520f636-983f-4abe-a220-d5ca102d04f1",
+              "anchor_uri": null,
+              "key": "verification-command",
+              "fields": {
+                "command": "pytest"
+              },
+              "evidence_ids": [
+                "13805f90-e7a8-4af2-92aa-588ae52e25e5"
+              ],
+              "strong_signal": false,
+              "confidence_hint": 0.5,
+              "rationale": ""
+            }
+          ]
+        },
+        "result": {
+          "status": "settled",
+          "batch_id": "c28cc3c1-ad40-472e-8d63-88cfdaad91c3"
+        }
+      },
+      {
+        "batch_id": "d0aab1cb-cfd4-484e-8e02-69df2f353b36",
+        "attempt": 1,
+        "trace": {
+          "status": "ok",
+          "latency_ms": 0,
+          "response_digest": "9d3ac9db1d7ca4b56d3442915f59715aed1c9749da7549ad15bae6d24be4a934",
+          "error_class": null,
+          "timeout_phase": null,
+          "status_code": null,
+          "auxiliary": [],
+          "deltas": [
+            {
+              "layer": "project",
+              "type": "decision",
+              "relation": "supersede",
+              "candidate_id": "a65a4b58-88b7-4d5f-a9a4-83e921cdf14f",
+              "anchor_uri": "fa378189-e44c-57f3-ab8d-bcd821f5dd26",
+              "key": "verification-command",
+              "fields": {
+                "command": "python -m unittest"
+              },
+              "evidence_ids": [
+                "b668b199-8f0d-4aae-bd9f-406cc9ed650f"
+              ],
+              "strong_signal": false,
+              "confidence_hint": 0.5,
+              "rationale": ""
+            }
+          ]
+        },
+        "result": {
+          "status": "settled",
+          "batch_id": "d0aab1cb-cfd4-484e-8e02-69df2f353b36"
+        }
+      }
+    ],
+    "normal_hooks_enabled": false,
+    "private_data_imported": false
+  },
+  "status": "local_verification_passed",
+  "live_g6_executed": false,
+  "llm_called": false,
+  "real_host_called": false,
+  "real_backend_called": false,
+  "temporary_runtime_removed": true
+}

@@ -1,0 +1,556 @@
+dataset_id: real-judge-v2
+schema_version: real-judge-dataset-v2
+body_schema_version: body-schema-v1
+body_normalizer_version: body-normalizer-v1
+dataset_digest: 254c47f4554c3d506e419200203e96f1f6c7e05386c370d7cab7e614e9b6cfce
+cases:
+  - id: v2-smoke-new-decision
+    group: smoke
+    category: new
+    expected_relation: new
+    should_ignore: false
+    batch:
+      batch_id: v2-new
+      input_digest: v2-frozen-new
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-new]
+      candidate_ids: [candidate-new]
+      anchor_revisions: []
+      summary: "We decided to use pytest for the repository verification command."
+      judge_candidates:
+        - candidate_id: candidate-new
+          kind: decision
+          memory_type_hint: decision
+          scope_hint: {kind: project, project_id: project-demo}
+          topic_key: verification-command
+          event_ids: [event-new]
+          text: "We decided to use pytest for the repository verification command."
+      judge_anchors: []
+    body_schema: {required: [key, command]}
+    expected_body: {key: verification-command, command: pytest}
+    expected_evidence_ids: [event-new]
+    expected_context:
+      target_id: null
+      expected_revision: null
+      memory_type: decision
+      scope: {kind: project, project_id: project-demo}
+    field_evidence:
+      key:
+        - {source: /batch/judge_candidates/0/topic_key, kind: value, expected: verification-command}
+      command:
+        - {source: /batch/judge_candidates/0/text, kind: quote, expected: pytest}
+
+  - id: v2-smoke-confirm-convention
+    group: smoke
+    category: confirm
+    expected_relation: confirm
+    should_ignore: false
+    batch:
+      batch_id: v2-confirm
+      input_digest: v2-frozen-confirm
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-confirm]
+      candidate_ids: [candidate-confirm]
+      anchor_revisions: [[memory-confirm, 2]]
+      summary: "The existing convention remains: run pytest before submitting changes."
+      judge_candidates:
+        - candidate_id: candidate-confirm
+          kind: preference
+          memory_type_hint: convention
+          scope_hint: {kind: global}
+          topic_key: verification-command
+          event_ids: [event-confirm]
+          text: "The existing convention remains: run pytest before submitting changes."
+      judge_anchors:
+        - memory_id: memory-confirm
+          revision: 2
+          memory_type: convention
+          scope: {kind: global}
+          payload: {key: verification-command, command: pytest}
+    body_schema: {required: [key, command]}
+    expected_body: {key: verification-command, command: pytest}
+    expected_evidence_ids: [event-confirm]
+    expected_context:
+      target_id: memory-confirm
+      expected_revision: 2
+      memory_type: convention
+      scope: {kind: global}
+    field_evidence:
+      key:
+        - {source: /batch/judge_anchors/0/payload/key, kind: value, expected: verification-command}
+      command:
+        - {source: /batch/judge_anchors/0/payload/command, kind: value, expected: pytest}
+        - {source: /batch/judge_candidates/0/text, kind: quote, expected: pytest}
+
+  - id: v2-smoke-refine-gotcha
+    group: smoke
+    category: refine
+    expected_relation: refine
+    should_ignore: false
+    batch:
+      batch_id: v2-refine
+      input_digest: v2-frozen-refine
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-refine]
+      candidate_ids: [candidate-refine]
+      anchor_revisions: [[memory-refine, 4]]
+      summary: "The known cancellation gotcha also applies when the async task is already closing."
+      judge_candidates:
+        - candidate_id: candidate-refine
+          kind: gotcha
+          memory_type_hint: gotcha
+          scope_hint: {kind: project, project_id: project-demo}
+          topic_key: async-cancel
+          event_ids: [event-refine]
+          text: "The known cancellation gotcha also applies when the async task is already closing."
+      judge_anchors:
+        - memory_id: memory-refine
+          revision: 4
+          memory_type: gotcha
+          scope: {kind: project, project_id: project-demo}
+          payload: {key: async-cancel, symptom: "task hangs", fix: "cancel task"}
+    body_schema: {required: [key, symptom, fix, applies_when]}
+    expected_body:
+      {key: async-cancel, symptom: "task hangs", fix: "cancel task", applies_when: "task is already closing"}
+    acceptable_bodies:
+      - {key: async-cancel, symptom: "task hangs", fix: "cancel task", applies_when: "async task is already closing"}
+    expected_evidence_ids: [event-refine]
+    expected_context:
+      target_id: memory-refine
+      expected_revision: 4
+      memory_type: gotcha
+      scope: {kind: project, project_id: project-demo}
+    field_evidence:
+      key:
+        - {source: /batch/judge_anchors/0/payload/key, kind: value, expected: async-cancel}
+      symptom:
+        - {source: /batch/judge_anchors/0/payload/symptom, kind: value, expected: "task hangs"}
+      fix:
+        - {source: /batch/judge_anchors/0/payload/fix, kind: value, expected: "cancel task"}
+      applies_when:
+        - {source: /batch/judge_candidates/0/text, kind: quote, expected: "task is already closing"}
+
+  - id: v2-smoke-supersede-taste
+    group: smoke
+    category: supersede
+    expected_relation: supersede
+    should_ignore: false
+    batch:
+      batch_id: v2-supersede
+      input_digest: v2-frozen-supersede
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-supersede]
+      candidate_ids: [candidate-supersede]
+      anchor_revisions: [[memory-supersede, 1]]
+      summary: "From now on, prefer concise JSON results instead of prose summaries."
+      judge_candidates:
+        - candidate_id: candidate-supersede
+          kind: preference
+          memory_type_hint: taste
+          scope_hint: {kind: global}
+          topic_key: output-style
+          event_ids: [event-supersede]
+          text: "From now on, prefer concise JSON results instead of prose summaries."
+      judge_anchors:
+        - memory_id: memory-supersede
+          revision: 1
+          memory_type: taste
+          scope: {kind: global}
+          payload: {key: output-style, format: prose}
+    body_schema: {required: [key, format]}
+    expected_body: {key: output-style, format: json}
+    expected_evidence_ids: [event-supersede]
+    expected_context:
+      target_id: memory-supersede
+      expected_revision: 1
+      memory_type: taste
+      scope: {kind: global}
+    field_evidence:
+      key:
+        - {source: /batch/judge_candidates/0/topic_key, kind: value, expected: output-style}
+      format:
+        - {source: /batch/judge_candidates/0/text, kind: quote, expected: JSON}
+
+  - id: v2-smoke-conflict-project-map
+    group: smoke
+    category: conflict
+    expected_relation: conflict
+    should_ignore: false
+    batch:
+      batch_id: v2-conflict
+      input_digest: v2-frozen-conflict
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-conflict]
+      candidate_ids: [candidate-conflict]
+      anchor_revisions: [[memory-conflict, 5]]
+      summary: "A quick inspection suggests the entrypoint is src/new.py, but this has not been verified."
+      judge_candidates:
+        - candidate_id: candidate-conflict
+          kind: project_fact
+          memory_type_hint: project_map
+          scope_hint: {kind: project, project_id: project-demo}
+          topic_key: module-entrypoint
+          event_ids: [event-conflict]
+          text: "A quick inspection suggests the module entrypoint is src/new.py rather than the recorded path, but this has not been verified."
+      judge_anchors:
+        - memory_id: memory-conflict
+          revision: 5
+          memory_type: project_map
+          scope: {kind: project, project_id: project-demo}
+          payload: {key: module-entrypoint, path: src/old.py}
+    body_schema: {required: [key, path]}
+    expected_body: {key: module-entrypoint, path: src/new.py}
+    expected_evidence_ids: [event-conflict]
+    expected_context:
+      target_id: memory-conflict
+      expected_revision: 5
+      memory_type: project_map
+      scope: {kind: project, project_id: project-demo}
+    field_evidence:
+      key:
+        - {source: /batch/judge_candidates/0/topic_key, kind: value, expected: module-entrypoint}
+      path:
+        - {source: /batch/judge_candidates/0/text, kind: quote, expected: src/new.py}
+
+  - id: v2-smoke-no-change
+    group: smoke
+    category: no_change
+    expected_relation: no_change
+    should_ignore: true
+    batch:
+      batch_id: v2-no-change
+      input_digest: v2-frozen-no-change
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-no-change]
+      candidate_ids: [candidate-no-change]
+      anchor_revisions: []
+      summary: "For this response, list the changed files as a compact table."
+      judge_candidates:
+        - candidate_id: candidate-no-change
+          kind: one_off_request
+          memory_type_hint: convention
+          scope_hint: {kind: global}
+          topic_key: response-format
+          event_ids: [event-no-change]
+          text: "For this response, list the changed files as a compact table."
+      judge_anchors: []
+    body_schema: {required: []}
+    expected_context:
+      target_id: null
+      expected_revision: null
+      memory_type: convention
+      scope: {kind: global}
+    field_evidence: {}
+
+  - id: v2-duplicate-exact-convention
+    group: duplicate_expression
+    category: confirm
+    expected_relation: confirm
+    should_ignore: false
+    batch:
+      batch_id: v2-duplicate-exact
+      input_digest: v2-frozen-duplicate-exact
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-duplicate-exact]
+      candidate_ids: [candidate-duplicate-exact]
+      anchor_revisions: [[memory-duplicate-exact, 3]]
+      summary: "Continue running pytest before submitting changes."
+      judge_candidates:
+        - candidate_id: candidate-duplicate-exact
+          kind: preference
+          memory_type_hint: convention
+          scope_hint: {kind: global}
+          topic_key: verification-command
+          event_ids: [event-duplicate-exact]
+          text: "Continue running pytest before submitting changes."
+      judge_anchors:
+        - memory_id: memory-duplicate-exact
+          revision: 3
+          memory_type: convention
+          scope: {kind: global}
+          payload: {key: verification-command, command: pytest}
+    body_schema: {required: [key, command]}
+    expected_body: {key: verification-command, command: pytest}
+    expected_evidence_ids: [event-duplicate-exact]
+    expected_context:
+      target_id: memory-duplicate-exact
+      expected_revision: 3
+      memory_type: convention
+      scope: {kind: global}
+    field_evidence:
+      key:
+        - {source: /batch/judge_anchors/0/payload/key, kind: value, expected: verification-command}
+      command:
+        - {source: /batch/judge_anchors/0/payload/command, kind: value, expected: pytest}
+        - {source: /batch/judge_candidates/0/text, kind: quote, expected: pytest}
+
+  - id: v2-duplicate-paraphrase-taste
+    group: duplicate_expression
+    category: confirm
+    expected_relation: confirm
+    should_ignore: false
+    batch:
+      batch_id: v2-duplicate-paraphrase
+      input_digest: v2-frozen-duplicate-paraphrase
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-duplicate-paraphrase]
+      candidate_ids: [candidate-duplicate-paraphrase]
+      anchor_revisions: [[memory-duplicate-paraphrase, 2]]
+      summary: "Keep responses machine-readable as JSON rather than narrative prose."
+      judge_candidates:
+        - candidate_id: candidate-duplicate-paraphrase
+          kind: preference
+          memory_type_hint: taste
+          scope_hint: {kind: global}
+          topic_key: output-style
+          event_ids: [event-duplicate-paraphrase]
+          text: "Keep responses machine-readable as JSON rather than narrative prose."
+      judge_anchors:
+        - memory_id: memory-duplicate-paraphrase
+          revision: 2
+          memory_type: taste
+          scope: {kind: global}
+          payload: {key: output-style, format: json}
+    body_schema: {required: [key, format]}
+    expected_body: {key: output-style, format: json}
+    expected_evidence_ids: [event-duplicate-paraphrase]
+    expected_context:
+      target_id: memory-duplicate-paraphrase
+      expected_revision: 2
+      memory_type: taste
+      scope: {kind: global}
+    field_evidence:
+      key:
+        - {source: /batch/judge_anchors/0/payload/key, kind: value, expected: output-style}
+      format:
+        - {source: /batch/judge_anchors/0/payload/format, kind: value, expected: json}
+        - {source: /batch/judge_candidates/0/text, kind: quote, expected: JSON}
+
+  - id: v2-reversal-explicit
+    group: preference_reversal
+    category: supersede
+    expected_relation: supersede
+    should_ignore: false
+    batch:
+      batch_id: v2-reversal-explicit
+      input_digest: v2-frozen-reversal-explicit
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-reversal-explicit]
+      candidate_ids: [candidate-reversal-explicit]
+      anchor_revisions: [[memory-reversal-explicit, 4]]
+      summary: "From now on, switch back to prose summaries instead of JSON."
+      judge_candidates:
+        - candidate_id: candidate-reversal-explicit
+          kind: preference
+          memory_type_hint: taste
+          scope_hint: {kind: global}
+          topic_key: output-style
+          event_ids: [event-reversal-explicit]
+          text: "From now on, switch back to prose summaries instead of JSON."
+      judge_anchors:
+        - memory_id: memory-reversal-explicit
+          revision: 4
+          memory_type: taste
+          scope: {kind: global}
+          payload: {key: output-style, format: json}
+    body_schema: {required: [key, format]}
+    expected_body: {key: output-style, format: prose}
+    expected_evidence_ids: [event-reversal-explicit]
+    expected_context:
+      target_id: memory-reversal-explicit
+      expected_revision: 4
+      memory_type: taste
+      scope: {kind: global}
+    field_evidence:
+      key:
+        - {source: /batch/judge_candidates/0/topic_key, kind: value, expected: output-style}
+      format:
+        - {source: /batch/judge_candidates/0/text, kind: quote, expected: prose}
+
+  - id: v2-reversal-temporary
+    group: preference_reversal
+    category: no_change
+    expected_relation: no_change
+    should_ignore: true
+    batch:
+      batch_id: v2-reversal-temporary
+      input_digest: v2-frozen-reversal-temporary
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-reversal-temporary]
+      candidate_ids: [candidate-reversal-temporary]
+      anchor_revisions: [[memory-reversal-temporary, 4]]
+      summary: "For this one answer, use prose so I can paste it into a document."
+      judge_candidates:
+        - candidate_id: candidate-reversal-temporary
+          kind: one_off_preference
+          memory_type_hint: taste
+          scope_hint: {kind: global}
+          topic_key: output-style
+          event_ids: [event-reversal-temporary]
+          text: "For this one answer, use prose so I can paste it into a document."
+      judge_anchors:
+        - memory_id: memory-reversal-temporary
+          revision: 4
+          memory_type: taste
+          scope: {kind: global}
+          payload: {key: output-style, format: json}
+    body_schema: {required: []}
+    expected_context:
+      target_id: null
+      expected_revision: null
+      memory_type: taste
+      scope: {kind: global}
+    field_evidence: {}
+
+  - id: v2-insufficient-unknown-path
+    group: insufficient_information
+    category: no_change
+    expected_relation: no_change
+    should_ignore: true
+    batch:
+      batch_id: v2-insufficient-path
+      input_digest: v2-frozen-insufficient-path
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-insufficient-path]
+      candidate_ids: [candidate-insufficient-path]
+      anchor_revisions: [[memory-insufficient-path, 5]]
+      summary: "The module entrypoint may have moved, but the new file has not been located."
+      judge_candidates:
+        - candidate_id: candidate-insufficient-path
+          kind: project_fact
+          memory_type_hint: project_map
+          scope_hint: {kind: project, project_id: project-demo}
+          topic_key: module-entrypoint
+          event_ids: [event-insufficient-path]
+          text: "The module entrypoint may have moved, but I have not located the new file."
+      judge_anchors:
+        - memory_id: memory-insufficient-path
+          revision: 5
+          memory_type: project_map
+          scope: {kind: project, project_id: project-demo}
+          payload: {key: module-entrypoint, path: src/old.py}
+    body_schema: {required: []}
+    expected_context:
+      target_id: null
+      expected_revision: null
+      memory_type: project_map
+      scope: {kind: project, project_id: project-demo}
+    field_evidence: {}
+
+  - id: v2-insufficient-unverified-gotcha
+    group: insufficient_information
+    category: no_change
+    expected_relation: no_change
+    should_ignore: true
+    batch:
+      batch_id: v2-insufficient-gotcha
+      input_digest: v2-frozen-insufficient-gotcha
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-insufficient-gotcha]
+      candidate_ids: [candidate-insufficient-gotcha]
+      anchor_revisions: []
+      summary: "There might be a timeout issue in CI, but neither the symptom nor fix is known yet."
+      judge_candidates:
+        - candidate_id: candidate-insufficient-gotcha
+          kind: unverified_problem
+          memory_type_hint: gotcha
+          scope_hint: {kind: project, project_id: project-demo}
+          topic_key: ci-timeout
+          event_ids: [event-insufficient-gotcha]
+          text: "There might be some timeout issue in CI; I am not sure about the cause or fix yet."
+      judge_anchors: []
+    body_schema: {required: []}
+    expected_context:
+      target_id: null
+      expected_revision: null
+      memory_type: gotcha
+      scope: {kind: project, project_id: project-demo}
+    field_evidence: {}
+
+  - id: v2-irrelevant-chatter
+    group: irrelevant_content
+    category: no_change
+    expected_relation: no_change
+    should_ignore: true
+    batch:
+      batch_id: v2-irrelevant-chatter
+      input_digest: v2-frozen-irrelevant-chatter
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-irrelevant-chatter]
+      candidate_ids: [candidate-irrelevant-chatter]
+      anchor_revisions: []
+      summary: "The weather is pleasant today."
+      judge_candidates:
+        - candidate_id: candidate-irrelevant-chatter
+          kind: chit_chat
+          memory_type_hint: convention
+          scope_hint: {kind: global}
+          topic_key: unrelated-chat
+          event_ids: [event-irrelevant-chatter]
+          text: "The weather is pleasant today."
+      judge_anchors: []
+    body_schema: {required: []}
+    expected_context:
+      target_id: null
+      expected_revision: null
+      memory_type: convention
+      scope: {kind: global}
+    field_evidence: {}
+
+  - id: v2-irrelevant-transient-observation
+    group: irrelevant_content
+    category: no_change
+    expected_relation: no_change
+    should_ignore: true
+    batch:
+      batch_id: v2-irrelevant-observation
+      input_digest: v2-frozen-irrelevant-observation
+      policy_version: replay-policy-v2
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-irrelevant-observation]
+      candidate_ids: [candidate-irrelevant-observation]
+      anchor_revisions: []
+      summary: "The last command completed in 0.2 seconds and printed no changes."
+      judge_candidates:
+        - candidate_id: candidate-irrelevant-observation
+          kind: transient_tool_observation
+          memory_type_hint: gotcha
+          scope_hint: {kind: project, project_id: project-demo}
+          topic_key: command-observation
+          event_ids: [event-irrelevant-observation]
+          text: "The last command completed in 0.2 seconds and printed no changes."
+      judge_anchors: []
+    body_schema: {required: []}
+    expected_context:
+      target_id: null
+      expected_revision: null
+      memory_type: gotcha
+      scope: {kind: project, project_id: project-demo}
+    field_evidence: {}

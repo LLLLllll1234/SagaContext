@@ -1,0 +1,207 @@
+dataset_digest: 0c3e3d20afadfb64b681435196277212e26eeaa7611fd40d7a22f360aba1dab8
+cases:
+  - id: real-new-decision
+    category: new
+    expected_relation: new
+    batch:
+      batch_id: replay-new
+      input_digest: frozen-new
+      policy_version: replay-policy-v1
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-new]
+      candidate_ids: [candidate-new]
+      anchor_revisions: []
+      summary: "We decided to use pytest for the repository verification command."
+      judge_candidates:
+        - candidate_id: candidate-new
+          kind: decision
+          memory_type_hint: decision
+          scope_hint: {kind: project, project_id: project-demo}
+          topic_key: verification-command
+          event_ids: [event-new]
+          text: "We decided to use pytest for the repository verification command."
+      judge_anchors: []
+    expected_proposal:
+      operation: new
+      target_id: null
+      expected_revision: null
+      memory_type: decision
+      scope: {kind: project, project_id: project-demo}
+      payload: {key: verification-command, command: pytest}
+      evidence_ids: [event-new]
+
+  - id: real-confirm-convention
+    category: confirm
+    expected_relation: confirm
+    batch:
+      batch_id: replay-confirm
+      input_digest: frozen-confirm
+      policy_version: replay-policy-v1
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-confirm]
+      candidate_ids: [candidate-confirm]
+      anchor_revisions: [[memory-confirm, 2]]
+      summary: "The existing convention remains: run pytest before submitting changes."
+      judge_candidates:
+        - candidate_id: candidate-confirm
+          kind: preference
+          memory_type_hint: convention
+          scope_hint: {kind: global}
+          topic_key: verification-command
+          event_ids: [event-confirm]
+          text: "The existing convention remains: run pytest before submitting changes."
+      judge_anchors:
+        - memory_id: memory-confirm
+          revision: 2
+          memory_type: convention
+          scope: {kind: global}
+          payload: {key: verification-command, command: pytest}
+    expected_proposal:
+      operation: confirm
+      target_id: memory-confirm
+      expected_revision: 2
+      memory_type: convention
+      scope: {kind: global}
+      payload: {key: verification-command, command: pytest}
+      evidence_ids: [event-confirm]
+
+  - id: real-refine-gotcha
+    category: refine
+    expected_relation: refine
+    batch:
+      batch_id: replay-refine
+      input_digest: frozen-refine
+      policy_version: replay-policy-v1
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-refine]
+      candidate_ids: [candidate-refine]
+      anchor_revisions: [[memory-refine, 4]]
+      summary: "The known cancellation gotcha also applies when the async task is already closing."
+      judge_candidates:
+        - candidate_id: candidate-refine
+          kind: gotcha
+          memory_type_hint: gotcha
+          scope_hint: {kind: project, project_id: project-demo}
+          topic_key: async-cancel
+          event_ids: [event-refine]
+          text: "The known cancellation gotcha also applies when the async task is already closing."
+      judge_anchors:
+        - memory_id: memory-refine
+          revision: 4
+          memory_type: gotcha
+          scope: {kind: project, project_id: project-demo}
+          payload: {key: async-cancel, symptom: "task hangs", fix: "cancel task"}
+    expected_proposal:
+      operation: refine
+      target_id: memory-refine
+      expected_revision: 4
+      memory_type: gotcha
+      scope: {kind: project, project_id: project-demo}
+      payload: {key: async-cancel, symptom: "task hangs", fix: "cancel task", applies_when: "task is closing"}
+      evidence_ids: [event-refine]
+
+  - id: real-supersede-taste
+    category: supersede
+    expected_relation: supersede
+    batch:
+      batch_id: replay-supersede
+      input_digest: frozen-supersede
+      policy_version: replay-policy-v1
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-supersede]
+      candidate_ids: [candidate-supersede]
+      anchor_revisions: [[memory-supersede, 1]]
+      summary: "From now on, prefer concise JSON results instead of prose summaries."
+      judge_candidates:
+        - candidate_id: candidate-supersede
+          kind: preference
+          memory_type_hint: taste
+          scope_hint: {kind: global}
+          topic_key: output-style
+          event_ids: [event-supersede]
+          text: "From now on, prefer concise JSON results instead of prose summaries."
+      judge_anchors:
+        - memory_id: memory-supersede
+          revision: 1
+          memory_type: taste
+          scope: {kind: global}
+          payload: {key: output-style, format: prose}
+    expected_proposal:
+      operation: supersede
+      target_id: memory-supersede
+      expected_revision: 1
+      memory_type: taste
+      scope: {kind: global}
+      payload: {key: output-style, format: json}
+      evidence_ids: [event-supersede]
+
+  - id: real-conflict-project-map
+    category: conflict
+    expected_relation: conflict
+    batch:
+      batch_id: replay-conflict
+      input_digest: frozen-conflict
+      policy_version: replay-policy-v1
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-conflict]
+      candidate_ids: [candidate-conflict]
+      anchor_revisions: [[memory-conflict, 5]]
+      summary: "The module entrypoint appears to be a different service than the current project map says."
+      judge_candidates:
+        - candidate_id: candidate-conflict
+          kind: project_fact
+          memory_type_hint: project_map
+          scope_hint: {kind: project, project_id: project-demo}
+          topic_key: module-entrypoint
+          event_ids: [event-conflict]
+          text: "The module entrypoint appears to be a different service than the current project map says."
+      judge_anchors:
+        - memory_id: memory-conflict
+          revision: 5
+          memory_type: project_map
+          scope: {kind: project, project_id: project-demo}
+          payload: {key: module-entrypoint, path: src/old.py}
+    expected_proposal:
+      operation: conflict
+      target_id: memory-conflict
+      expected_revision: 5
+      memory_type: project_map
+      scope: {kind: project, project_id: project-demo}
+      payload: {key: module-entrypoint, path: src/new.py}
+      evidence_ids: [event-conflict]
+
+  - id: real-no-change
+    category: no_change
+    expected_relation: no_change
+    batch:
+      batch_id: replay-no-change
+      input_digest: frozen-no-change
+      policy_version: replay-policy-v1
+      maintenance_schema_version: 2
+      judge_version: openai-proposal-v1
+      event_ids: [event-no-change]
+      candidate_ids: [candidate-no-change]
+      anchor_revisions: []
+      summary: "This message is a one-off request and should not update durable memory."
+      judge_candidates:
+        - candidate_id: candidate-no-change
+          kind: one_off_request
+          memory_type_hint: convention
+          scope_hint: {kind: global}
+          topic_key: one-off
+          event_ids: [event-no-change]
+          text: "This message is a one-off request and should not update durable memory."
+      judge_anchors: []
+    expected_proposal:
+      operation: no_change
+      target_id: null
+      expected_revision: null
+      memory_type: convention
+      scope: {kind: global}
+      payload: {}
+      evidence_ids: [event-no-change]

@@ -1,0 +1,7 @@
+#!/bin/sh
+# The daemon is managed explicitly; hooks never spawn untracked daemons.
+REPO=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 0
+if [ -x "$REPO/.venv/bin/python" ]; then
+  PYTHONPATH="$REPO/src${PYTHONPATH:+:$PYTHONPATH}" exec "$REPO/.venv/bin/python" -m sagacontext.hook "$@"
+fi
+printf '{}\n'

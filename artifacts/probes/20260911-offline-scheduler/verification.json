@@ -1,0 +1,24 @@
+{
+  "recorded_at": "2026-09-10T16:04:38.093144+00:00",
+  "parent_commit": "ed586b989707185844a862e9f70864859129d899",
+  "source_sha256": {
+    "scripts/audit_daily_scheduler.py": "2c4345db6f4c90c5d4d2019b0376e1c82110a28c478b627c2862422ba829479e",
+    "src/sagacontext/daily_report.py": "0dcb573fde5c9d11a39e939cf98aa8f2cbb0a74669fe6c2ef32fbed319f6b045",
+    "src/sagacontext/operator.py": "04ee5b7b35abe1f9bd740908972028bd3507dff4908b699c7ca426d52567cc6f",
+    "tests/test_daily_scheduler.py": "893252e9003e465fa9de5df7675ce9cec2534aab68b3277936dd3f058d10e330"
+  },
+  "pytest": {
+    "passed": 246,
+    "subtests_passed": 96,
+    "warnings": 2
+  },
+  "compileall": "passed",
+  "git_diff_check": "passed",
+  "observed_local_runtime": {
+    "daemon": "running",
+    "mode": "off",
+    "stop_switch": true
+  },
+  "provider_timeout": "deferred_by_user",
+  "real_workspace_changes": false
+}

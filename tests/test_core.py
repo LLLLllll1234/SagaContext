@@ -1,0 +1,180 @@
+import unittest
+import tempfile
+from pathlib import Path
+from sagacontext.memfile import parse, render
+from sagacontext.recall import render as render_recall
+from sagacontext.config import Config
+from sagacontext.capture import detect
+from sagacontext.transcript import read_incremental, read_edit_attempts
+from sagacontext.reconcile import compress, correction_plan
+from sagacontext.models import Delta, MemoryRecord
+from sagacontext.compliance import Rule, check_pattern, compile_rules, evaluate, run_commands
+from sagacontext.reconcile import WritePlan, evolve
+from sagacontext.writer import apply
+from sagacontext.store import Store
+from sagacontext.revert import detect as detect_revert, file_sha
+from sagacontext.tasks import create as create_task, resume_candidate
+from sagacontext.bench.adapters import FixtureAdapter, NoMemoryAdapter
+from sagacontext.bench.models import BenchmarkCase, Observation
+from sagacontext.bench.runner import run as run_bench
+from sagacontext.bench.report import markdown as benchmark_markdown
+
+class CoreTests(unittest.TestCase):
+    def test_memory_roundtrip(self):
+        content = render({"version": 2, "topic": "ts_no_any", "rule": "不要使用 <any>", "confidence": 0.7})
+        rec = parse("viking://x", content)
+        self.assertEqual(rec.version, 2)
+        self.assertEqual(rec.fields["topic"], "ts_no_any")
+        self.assertIn("MEMORY_FIELDS", content)
+
+    def test_render_escapes_and_budget(self):
+        rec = parse("viking://x", render({"version": 1, "layer": "preference", "scope_key": "global", "rule": "<x>", "confidence": 1}))
+        output = render_recall([rec], 100)
+        self.assertIn("&lt;x&gt;", output)
+        self.assertTrue(output.startswith("<memory"))
+
+    def test_default_config_loads(self):
+        cfg = Config.load(Path("/tmp/sagacontext-config-that-does-not-exist"))
+        self.assertEqual(cfg.port, 37780)
+
+    def test_capture_rules(self):
+        self.assertEqual(detect("以后不要使用 any")[0].kind, "explicit_negation")
+        self.assertEqual(detect("We decided to use SQLite")[0].layer_guess, "project")
+        self.assertEqual(detect("实现任务接续功能")[0].layer_guess, "task")
+
+    def test_incremental_transcript_ignores_partial_line(self):
+        path = Path("/tmp/sagacontext-transcript.jsonl")
+        path.write_bytes(b'{"role":"user","text":"hello"}\n{"role":"assistant","text":"partial"}')
+        turns, offset = read_incremental(path)
+        self.assertEqual(len(turns), 1)
+        self.assertLess(offset, path.stat().st_size)
+
+    def test_codex_and_claude_transcript_shapes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "turns.jsonl"
+            path.write_text('{"type":"response_item","payload":{"role":"user","content":[{"type":"input_text","text":"codex"}]}}\n{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"claude"}]}}\n')
+            turns, _ = read_incremental(path)
+            self.assertEqual([turn.text for turn in turns], ["codex", "claude"])
+
+    def test_codex_apply_patch_compliance_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "rollout.jsonl"
+            payload = {"type": "response_item", "payload": {"type": "function_call", "name": "apply_patch",
+                       "arguments": '{"patch":"*** Update File: src/a.ts\\n+let value: any\\n"}'}}
+            import json
+            path.write_text(json.dumps(payload) + "\n")
+            edits, offset = read_edit_attempts(path)
+            self.assertEqual(edits, [("src/a.ts", "let value: any")])
+            self.assertEqual(offset, path.stat().st_size)
+
+    def test_revert_snapshot_is_consumed_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); state = Store(root / "state.db"); target = root / "a.py"
+            self.addCleanup(state.db.close)
+            state.upsert_session("claude-code", "s", cwd=str(root), repo_key="r")
+            target.write_text("before")
+            state.add_tool_edit("claude-code", "s", "a.py", file_sha(target))
+            target.write_text("after")
+            self.assertEqual(len(detect_revert("claude-code", "s", root, state)), 1)
+            self.assertEqual(detect_revert("claude-code", "s", root, state), [])
+
+    def test_task_resume_prefers_same_branch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Store(Path(directory) / "state.db")
+            self.addCleanup(state.db.close)
+            create_task(state.db, "repo", "main", "first goal", "viking://root")
+            task = create_task(state.db, "repo", "feature", "feature goal", "viking://root")
+            self.assertEqual(resume_candidate(state.db, "repo", "feature")["task_id"], task["task_id"])
+
+    def test_benchmark_metrics_and_smoke_warning(self):
+        case = BenchmarkCase(id="p", category="preference", expected_recall=["rule"], expected_follow=["rule"],
+                             forbidden_recall=["leak"], observations={"sagacontext": Observation(recalled=["rule"], followed=["rule"])})
+        results = run_bench([case], [NoMemoryAdapter(), FixtureAdapter("sagacontext")])
+        saga = next(result for result in results if result.system == "sagacontext")
+        self.assertEqual((saga.recall_hits, saga.follow_hits, saga.false_injections), (1, 1, 0))
+        self.assertIn("contains smoke data", benchmark_markdown(results))
+
+    def test_reconcile_plan_is_stable(self):
+        candidate = detect("不要使用 any")[0]
+        first = correction_plan(candidate, "viking://~/memories/dev", "abcd1234")
+        second = correction_plan(candidate, "viking://~/memories/dev", "abcd1234")
+        self.assertEqual(first.uri, second.uri)
+        self.assertIn("MEMORY_FIELDS", first.content)
+
+    def test_delta_schema(self):
+        delta = Delta(layer="preference", type="dev_correction", relation="new", key="no_any")
+        self.assertEqual(delta.relation, "new")
+
+    def test_compress_prefers_user_turns(self):
+        class Turn:
+            def __init__(self, idx, role, text): self.idx, self.role, self.text = idx, role, text
+        result = compress([Turn(0, "assistant", "background" * 100), Turn(1, "user", "keep this")], 10)
+        self.assertIn("user", result)
+
+    def test_compliance_pattern(self):
+        self.assertEqual(check_pattern("src/a.ts: any", r"\bany\b").decision, "deny")
+        self.assertEqual(check_pattern("unknown", r"\bany\b").decision, "allow")
+
+    def test_compliance_compile_and_evaluate(self):
+        memory = MemoryRecord(uri="viking://rule", type="dev_convention", fields={"status": "active", "confidence": 0.8,
+            "rule": "no any", "check_hint": "pattern", "check_spec": '{"regex":"\\\\bany\\\\b","paths":["src/*.ts"],"mode":"block"}'})
+        rules = compile_rules([memory])
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(evaluate(rules, "src/a.ts", "let x: any")[0].decision, "deny")
+        self.assertEqual(evaluate(rules, "tests/a.ts", "let x: any"), [])
+        memory.fields["confidence"] = 0.5
+        self.assertEqual(compile_rules([memory]), [])
+        unsafe = MemoryRecord(uri="viking://unsafe", type="dev_convention", fields={"status": "active", "confidence": 0.8,
+            "rule": "run shell", "check_hint": "command", "check_spec": '{"command":["sh","-c","echo unsafe"]}'})
+        self.assertEqual(compile_rules([unsafe]), [])
+
+    def test_compliance_path_warn_and_command(self):
+        path_rule = Rule("viking://path", "path", "fixtures belong in conftest", "warn", forbid_paths=["tests/*fixture*.py"])
+        self.assertEqual(evaluate([path_rule], "tests/my_fixture.py", "")[0].decision, "warn")
+        command_rule = Rule("viking://cmd", "command", "check failed", command=["sh", "-c", "exit 2"])
+        self.assertEqual(len(run_commands([command_rule], Path("."))), 1)
+
+    def test_repeated_override_softens_rule(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Store(Path(directory) / "state.db")
+            self.addCleanup(state.db.close)
+            rule = Rule("viking://rule", "pattern", "no any", "block", regex="any")
+            state.replace_compliance_rules("claude-code", "s", [rule])
+            for _ in range(3): state.add_violation("claude-code", "s", rule.uri, "a.ts", rule.reason)
+            self.assertEqual(state.soften_compliance_after_override("claude-code", "s"), [rule.uri])
+            self.assertEqual(state.compliance_rules("claude-code", "s")[0].mode, "warn")
+            count = state.db.execute("SELECT COUNT(*) FROM pending").fetchone()[0]
+            self.assertEqual(count, 1)
+
+    def test_evolve_relations(self):
+        existing = MemoryRecord(uri="viking://x/no_any.md", type="dev_convention", version=2,
+                                fields={"version": 2, "topic": "no_any", "rule": "no any", "evidence_count": 1, "contra_count": 0, "status": "active"})
+        confirm, _ = evolve(existing, Delta(layer="preference", type="dev_convention", relation="confirm", anchor_uri=existing.uri, key="no_any"), "viking://root", "repo")
+        self.assertEqual(confirm[0].fields["evidence_count"], 2)
+        refine, _ = evolve(existing, Delta(layer="preference", type="dev_convention", relation="refine", anchor_uri=existing.uri, key="no_any", fields={"rule": "use unknown"}), "viking://root", "repo")
+        self.assertEqual(refine[0].fields["rule"], "use unknown")
+        supersede, _ = evolve(existing, Delta(layer="preference", type="dev_convention", relation="supersede", anchor_uri=existing.uri, key="no_any", fields={"rule": "allow any"}, strong_signal=True), "viking://root", "repo")
+        self.assertEqual(len(supersede), 2)
+        self.assertEqual(supersede[0].fields["status"], "superseded")
+        conflict, pending = evolve(existing, Delta(layer="preference", type="dev_convention", relation="conflict", anchor_uri=existing.uri, key="no_any", fields={"rule": "maybe any"}), "viking://root", "repo")
+        self.assertEqual(conflict[0].fields["status"], "pending_confirm")
+        self.assertEqual(len(pending), 1)
+        project, _ = evolve(None, Delta(layer="project", type="dev_gotcha", relation="new", key="pytest_hang", fields={"symptom": "hang", "fix": "cancel"}), "viking://root", "repo")
+        self.assertEqual(project[0].uri, "viking://root/project/repo-repo/gotcha/pytest_hang.md")
+
+class AsyncCoreTests(unittest.IsolatedAsyncioTestCase):
+    async def test_writer_rebases_version(self):
+        class Client:
+            def __init__(self): self.writes = []
+            async def read(self, uri): return {"content": render({"version": 3, "topic": "x", "rule": "old"})}
+            async def write(self, uri, content): self.writes.append(content); return {}
+            @staticmethod
+            def content_from_response(payload): return payload["content"]
+        client = Client()
+        fields = {"version": 3, "topic": "x", "rule": "new"}
+        written = await apply([WritePlan("viking://x", "dev_convention", render(fields), fields, "update", 2)], client)
+        self.assertEqual(written, ["viking://x"])
+        self.assertIn('"version": 4', client.writes[0])
+
+if __name__ == "__main__":
+    unittest.main()

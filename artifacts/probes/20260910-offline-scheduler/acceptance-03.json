@@ -1,0 +1,253 @@
+{
+  "schema": "daily-scheduler-offline-v1",
+  "created_at": "2026-09-10T15:59:29.034562+00:00",
+  "evidence": "synthetic-isolated-only",
+  "judge": "ScriptedJudge",
+  "backend": "InMemoryBackend",
+  "provider_calls": 0,
+  "daily_quality_samples": 0,
+  "real_host_consumption": "not_exercised",
+  "real_workspace_configuration_touched": false,
+  "scope_expansion_admitted": false,
+  "review_source": "explicit synthetic operator action",
+  "retention": "control/event evidence and quarantined rows retained until temporary directory removal",
+  "scenarios": [
+    {
+      "mode": "shadow",
+      "checks": {
+        "initially_off": true,
+        "waits_for_checkpoint": true,
+        "creates_proposal": true,
+        "no_memory_before_review": true,
+        "restart_waits": true,
+        "restart_does_not_commit": true,
+        "shadow_has_no_review_queue": true,
+        "shadow_has_no_projections": true,
+        "shadow_cannot_inject": true,
+        "rollback_completed": true,
+        "duplicate_rollback_receipt": true,
+        "new_receipt_reverifies": true,
+        "zero_ledger_residuals": true,
+        "zero_backend_residuals": true,
+        "ends_off": true
+      },
+      "environment": "synthetic-isolated",
+      "rollout_id": "0518e2ca-56fc-470b-8959-f50a36ff32f5",
+      "quality_report": {
+        "rollout_id": "0518e2ca-56fc-470b-8959-f50a36ff32f5",
+        "mode": "shadow",
+        "status": "running",
+        "deadline": "2026-09-10T16:59:29.004382+00:00",
+        "session_reservations": 2,
+        "session_limit": 10,
+        "candidate_reservations": 1,
+        "candidate_limit": 20,
+        "batches": {
+          "proposed": 1
+        },
+        "reviews": {},
+        "proposals": {
+          "new": 1
+        },
+        "judge_latency_ms": {
+          "samples": 1,
+          "p50": 1,
+          "p95": 1
+        },
+        "consumption_reports": 0,
+        "rate_basis": "operator_labeled_targets_only",
+        "candidate_effectiveness": null,
+        "review_modification_rate": null,
+        "wrong_recall_rate": null,
+        "consumption_rate": null,
+        "quality_status": "requires_observational_labels",
+        "projection_states": {},
+        "observations": {
+          "candidate_valid": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          },
+          "review_modified": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          },
+          "wrong_recall": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          },
+          "consumed": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 0,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          }
+        },
+        "scope_expansion_admitted": false
+      },
+      "before_cleanup": {
+        "candidates": 1,
+        "events_retained_for_audit": 3,
+        "batches_retained_for_audit": 1,
+        "memory_targets": 0,
+        "projection_targets": 0,
+        "compensation_receipts": 0,
+        "residual_memories": 0,
+        "residual_candidates": 1,
+        "residual_operations": 0,
+        "residual_outbox": 0
+      },
+      "rollback_status": "completed",
+      "after_cleanup": {
+        "candidates": 1,
+        "events_retained_for_audit": 3,
+        "batches_retained_for_audit": 1,
+        "memory_targets": 0,
+        "projection_targets": 0,
+        "compensation_receipts": 0,
+        "residual_memories": 0,
+        "residual_candidates": 0,
+        "residual_operations": 0,
+        "residual_outbox": 0
+      },
+      "temporary_root_removed": true,
+      "passed": true
+    },
+    {
+      "mode": "guarded",
+      "checks": {
+        "initially_off": true,
+        "waits_for_checkpoint": true,
+        "creates_proposal": true,
+        "no_memory_before_review": true,
+        "restart_waits": true,
+        "restart_does_not_commit": true,
+        "pending_queue": true,
+        "review_commits_once": true,
+        "scheduler_projects": true,
+        "projection_not_repeated": true,
+        "simulated_recall": true,
+        "unknown_is_not_consumed": true,
+        "labels_do_not_admit_expansion": true,
+        "rollback_completed": true,
+        "duplicate_rollback_receipt": true,
+        "new_receipt_reverifies": true,
+        "zero_ledger_residuals": true,
+        "zero_backend_residuals": true,
+        "ends_off": true
+      },
+      "environment": "synthetic-isolated",
+      "rollout_id": "94d35094-c4c5-474e-904b-ec307193a0af",
+      "quality_report": {
+        "rollout_id": "94d35094-c4c5-474e-904b-ec307193a0af",
+        "mode": "guarded",
+        "status": "running",
+        "deadline": "2026-09-10T16:59:29.021285+00:00",
+        "session_reservations": 2,
+        "session_limit": 10,
+        "candidate_reservations": 1,
+        "candidate_limit": 20,
+        "batches": {
+          "settled": 1
+        },
+        "reviews": {
+          "approve": 1
+        },
+        "proposals": {
+          "new": 1
+        },
+        "judge_latency_ms": {
+          "samples": 1,
+          "p50": 1,
+          "p95": 1
+        },
+        "consumption_reports": 0,
+        "rate_basis": "operator_labeled_targets_only",
+        "candidate_effectiveness": 1.0,
+        "review_modification_rate": 0.0,
+        "wrong_recall_rate": 0.0,
+        "consumption_rate": null,
+        "quality_status": "partial_observational_labels",
+        "projection_states": {
+          "confirmed": 1
+        },
+        "observations": {
+          "candidate_valid": {
+            "yes": 1,
+            "no": 0,
+            "unknown": 0,
+            "labeled_samples": 1,
+            "evaluated_samples": 1,
+            "yes_rate": 1.0
+          },
+          "review_modified": {
+            "yes": 0,
+            "no": 1,
+            "unknown": 0,
+            "labeled_samples": 1,
+            "evaluated_samples": 1,
+            "yes_rate": 0.0
+          },
+          "wrong_recall": {
+            "yes": 0,
+            "no": 1,
+            "unknown": 0,
+            "labeled_samples": 1,
+            "evaluated_samples": 1,
+            "yes_rate": 0.0
+          },
+          "consumed": {
+            "yes": 0,
+            "no": 0,
+            "unknown": 1,
+            "labeled_samples": 1,
+            "evaluated_samples": 0,
+            "yes_rate": null
+          }
+        },
+        "scope_expansion_admitted": false
+      },
+      "before_cleanup": {
+        "candidates": 1,
+        "events_retained_for_audit": 3,
+        "batches_retained_for_audit": 1,
+        "memory_targets": 1,
+        "projection_targets": 1,
+        "compensation_receipts": 0,
+        "residual_memories": 1,
+        "residual_candidates": 1,
+        "residual_operations": 1,
+        "residual_outbox": 1
+      },
+      "rollback_status": "completed",
+      "after_cleanup": {
+        "candidates": 1,
+        "events_retained_for_audit": 3,
+        "batches_retained_for_audit": 1,
+        "memory_targets": 1,
+        "projection_targets": 1,
+        "compensation_receipts": 1,
+        "residual_memories": 0,
+        "residual_candidates": 0,
+        "residual_operations": 0,
+        "residual_outbox": 0
+      },
+      "temporary_root_removed": true,
+      "passed": true
+    }
+  ],
+  "passed": true
+}

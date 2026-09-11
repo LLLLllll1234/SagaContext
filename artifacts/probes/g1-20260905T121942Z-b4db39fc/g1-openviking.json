@@ -1,0 +1,488 @@
+{
+  "assertions": [
+    {
+      "evidence": {
+        "configured": "ghcr.io/volcengine/openviking@sha256:14553ec16f2bda9bd08a188cffb659fcfff4fde5891cbb881ed1bd8488b23294",
+        "expected": "ghcr.io/volcengine/openviking@sha256:14553ec16f2bda9bd08a188cffb659fcfff4fde5891cbb881ed1bd8488b23294"
+      },
+      "name": "image_reference_pinned",
+      "status": "pass"
+    },
+    {
+      "evidence": {
+        "status": "ready",
+        "status_code": 200
+      },
+      "name": "backend_ready",
+      "status": "pass"
+    },
+    {
+      "evidence": {
+        "credential_class": "ephemeral_user",
+        "namespace": "viking://user/sagag1-9e840aabcc5f/memories/sagacontext-g1/g1-20260905T121942Z-b4db39fc",
+        "payload_class": "synthetic"
+      },
+      "name": "isolated_namespace",
+      "status": "pass"
+    },
+    {
+      "evidence": {
+        "all_index_entries_absent": true,
+        "all_locators_absent": true,
+        "attempted": true,
+        "ephemeral_user_result": "deleted",
+        "namespace_result": "deleted",
+        "response_shape": {
+          "error": "null",
+          "profile": "null",
+          "result": {
+            "estimated_deleted_count": "int",
+            "uri": "str"
+          },
+          "status": "str",
+          "telemetry": "null"
+        },
+        "result": "pass"
+      },
+      "name": "namespace_cleanup",
+      "status": "pass"
+    }
+  ],
+  "cleanup": {
+    "all_index_entries_absent": true,
+    "all_locators_absent": true,
+    "attempted": true,
+    "ephemeral_user_result": "deleted",
+    "namespace_result": "deleted",
+    "response_shape": {
+      "error": "null",
+      "profile": "null",
+      "result": {
+        "estimated_deleted_count": "int",
+        "uri": "str"
+      },
+      "status": "str",
+      "telemetry": "null"
+    },
+    "result": "pass"
+  },
+  "fatal_error": {
+    "detail": "Extra data: line 3 column 1 (char 822)",
+    "error_class": "JSONDecodeError"
+  },
+  "finished_at": "2026-09-05T12:19:43.614462+00:00",
+  "gate": "G1",
+  "http_exchanges": [
+    {
+      "elapsed_ms": 63.939,
+      "error_class": null,
+      "method": "POST",
+      "path": "/api/v1/admin/accounts/default/users",
+      "request": {
+        "body_bytes": 47,
+        "body_digest": "sha256:b3844394dfdfc54e8cb9a438b0badd78c35c427eeb2a7ba4f0c0bfe8f9971349",
+        "body_keys": [
+          "role",
+          "user_id"
+        ],
+        "query_keys": []
+      },
+      "response": {
+        "body_bytes": 264,
+        "body_digest": "sha256:e8170d6decb9a0a307de041b2237b3321a5fac3b9b28747a5f93d3f24b4f27c4",
+        "shape": {
+          "error": "null",
+          "profile": "null",
+          "result": {
+            "account_id": "str",
+            "user_id": "str",
+            "user_key": "str"
+          },
+          "status": "str",
+          "telemetry": "null"
+        }
+      },
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 7.208,
+      "error_class": null,
+      "method": "GET",
+      "path": "/api/v1/system/status",
+      "request": {
+        "body_bytes": 2,
+        "body_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "body_keys": [],
+        "query_keys": []
+      },
+      "response": {
+        "body_bytes": 119,
+        "body_digest": "sha256:c7c5c525b758cd1047436395f9d843e13279a9990c2d994311b82c5d0441dafe",
+        "shape": {
+          "error": "null",
+          "profile": "null",
+          "result": {
+            "initialized": "bool",
+            "user": "str"
+          },
+          "status": "str",
+          "telemetry": "null"
+        }
+      },
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 54.462,
+      "error_class": null,
+      "method": "POST",
+      "path": "/api/v1/content/write",
+      "request": {
+        "body_bytes": 1088,
+        "body_digest": "sha256:7065956792e3f3c205964bf145503dcfac9c98c4f9733b2284fd335a6b88a121",
+        "body_keys": [
+          "content",
+          "mode",
+          "processing_mode",
+          "uri",
+          "wait"
+        ],
+        "query_keys": []
+      },
+      "response": {
+        "body_bytes": 466,
+        "body_digest": "sha256:40ef06a81f9f47a04e035aa28891086ca43de547c66227cc703031a1c584c8ef",
+        "shape": {
+          "result": {
+            "content_updated": "bool",
+            "context_type": "str",
+            "mode": "str",
+            "overview_status": "str",
+            "queue_status": "null",
+            "root_uri": "str",
+            "semantic_status": "str",
+            "uri": "str",
+            "vector_status": "str",
+            "written_bytes": "int"
+          },
+          "status": "str"
+        }
+      },
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 6.584,
+      "error_class": null,
+      "method": "GET",
+      "path": "/api/v1/content/read",
+      "request": {
+        "body_bytes": 2,
+        "body_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "body_keys": [],
+        "query_keys": [
+          "raw",
+          "uri"
+        ]
+      },
+      "response": {
+        "body_bytes": 997,
+        "body_digest": "sha256:0777809560d23026346d85b6bad1c81a6c1b41f258709a8c04d83d5f1657aa97",
+        "shape": {
+          "error": "null",
+          "profile": "null",
+          "result": "str",
+          "status": "str",
+          "telemetry": "null"
+        }
+      },
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 25.528,
+      "error_class": null,
+      "method": "DELETE",
+      "path": "/api/v1/fs",
+      "request": {
+        "body_bytes": 2,
+        "body_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "body_keys": [],
+        "query_keys": [
+          "recursive",
+          "timeout",
+          "uri",
+          "wait"
+        ]
+      },
+      "response": {
+        "body_bytes": 194,
+        "body_digest": "sha256:6bf265b90b6f075b123f86a941652118acebc401677e835f9f74389abff30c0b",
+        "shape": {
+          "error": "null",
+          "profile": "null",
+          "result": {
+            "estimated_deleted_count": "int",
+            "uri": "str"
+          },
+          "status": "str",
+          "telemetry": "null"
+        }
+      },
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 6.943,
+      "error_class": "not_found",
+      "method": "GET",
+      "path": "/api/v1/content/read",
+      "request": {
+        "body_bytes": 2,
+        "body_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "body_keys": [],
+        "query_keys": [
+          "raw",
+          "uri"
+        ]
+      },
+      "status_code": 404
+    },
+    {
+      "elapsed_ms": 7.012,
+      "error_class": "not_found",
+      "method": "GET",
+      "path": "/api/v1/content/read",
+      "request": {
+        "body_bytes": 2,
+        "body_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "body_keys": [],
+        "query_keys": [
+          "raw",
+          "uri"
+        ]
+      },
+      "status_code": 404
+    },
+    {
+      "elapsed_ms": 7.451,
+      "error_class": "not_found",
+      "method": "GET",
+      "path": "/api/v1/content/read",
+      "request": {
+        "body_bytes": 2,
+        "body_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "body_keys": [],
+        "query_keys": [
+          "raw",
+          "uri"
+        ]
+      },
+      "status_code": 404
+    },
+    {
+      "elapsed_ms": 56.939,
+      "error_class": null,
+      "method": "POST",
+      "path": "/api/v1/search/find",
+      "request": {
+        "body_bytes": 160,
+        "body_digest": "sha256:62d03bc9c397d31e70c56fec4b532632bfda5e8c71795b2791f36cd7cf3bcd0e",
+        "body_keys": [
+          "limit",
+          "query",
+          "score_threshold",
+          "target_uri"
+        ],
+        "query_keys": []
+      },
+      "response": {
+        "body_bytes": 77,
+        "body_digest": "sha256:1dc765a45f96e84c60cce3d7009f08ccfb3b5e9f5f95760a04da54161525bd5c",
+        "shape": {
+          "result": {
+            "memories": {
+              "length": 0,
+              "type": "array"
+            },
+            "resources": {
+              "length": 0,
+              "type": "array"
+            },
+            "skills": {
+              "length": 0,
+              "type": "array"
+            },
+            "total": "int"
+          },
+          "status": "str"
+        }
+      },
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 38.246,
+      "error_class": null,
+      "method": "POST",
+      "path": "/api/v1/search/find",
+      "request": {
+        "body_bytes": 160,
+        "body_digest": "sha256:d988d697da5a78d976455f3fc9a71a400163d4f52cd56fb4e9cc864414c1680b",
+        "body_keys": [
+          "limit",
+          "query",
+          "score_threshold",
+          "target_uri"
+        ],
+        "query_keys": []
+      },
+      "response": {
+        "body_bytes": 77,
+        "body_digest": "sha256:1dc765a45f96e84c60cce3d7009f08ccfb3b5e9f5f95760a04da54161525bd5c",
+        "shape": {
+          "result": {
+            "memories": {
+              "length": 0,
+              "type": "array"
+            },
+            "resources": {
+              "length": 0,
+              "type": "array"
+            },
+            "skills": {
+              "length": 0,
+              "type": "array"
+            },
+            "total": "int"
+          },
+          "status": "str"
+        }
+      },
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 77.359,
+      "error_class": null,
+      "method": "POST",
+      "path": "/api/v1/search/find",
+      "request": {
+        "body_bytes": 160,
+        "body_digest": "sha256:f6d6bda03495229e71c2ebe1f0814fc5b1657f27515aa6aa8b60747a750cc3aa",
+        "body_keys": [
+          "limit",
+          "query",
+          "score_threshold",
+          "target_uri"
+        ],
+        "query_keys": []
+      },
+      "response": {
+        "body_bytes": 349,
+        "body_digest": "sha256:2691a76dd2566eee9fab8555efbbbc4a244a4ffadef74fdaac33f888e872bc06",
+        "shape": {
+          "result": {
+            "memories": {
+              "length": 1,
+              "type": "array"
+            },
+            "resources": {
+              "length": 0,
+              "type": "array"
+            },
+            "skills": {
+              "length": 0,
+              "type": "array"
+            },
+            "total": "int"
+          },
+          "status": "str"
+        }
+      },
+      "status_code": 200
+    },
+    {
+      "elapsed_ms": 16.854,
+      "error_class": null,
+      "method": "DELETE",
+      "path": "/api/v1/admin/accounts/default/users/sagag1-9e840aabcc5f",
+      "request": {
+        "body_bytes": 2,
+        "body_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "body_keys": [],
+        "query_keys": []
+      },
+      "response": {
+        "body_bytes": 195,
+        "body_digest": "sha256:ef83716fa777ddbd41a31d3e02f9f8d854b9fe2941756e26bd3951690f755032",
+        "shape": {
+          "error": "null",
+          "profile": "null",
+          "result": {
+            "account_id": "str",
+            "status": "str",
+            "task_id": "str",
+            "user_id": "str"
+          },
+          "status": "str",
+          "telemetry": "null"
+        }
+      },
+      "status_code": 202
+    }
+  ],
+  "metadata": {
+    "api_version": "0.1.0",
+    "auth_mode": "api_key",
+    "code_revision": "8b712c20d64a05249d2a4de4ba6066f6a858d991",
+    "config_fingerprint": "sha256:eb13902fa03a1c2068c0362ce08a94747e555b43856a3f58d61155ff03a3b2cc",
+    "container_image_id": "sha256:2e6281eeeea40013db6c296261386925dc686555547f5c06456f0891b85da274",
+    "container_version": "v0.4.17.1",
+    "image_architecture": "arm64",
+    "image_id": "sha256:2e6281eeeea40013db6c296261386925dc686555547f5c06456f0891b85da274",
+    "image_reference": "ghcr.io/volcengine/openviking@sha256:14553ec16f2bda9bd08a188cffb659fcfff4fde5891cbb881ed1bd8488b23294",
+    "image_repo_digests": [
+      "ghcr.io/volcengine/openviking@sha256:14553ec16f2bda9bd08a188cffb659fcfff4fde5891cbb881ed1bd8488b23294"
+    ],
+    "probe_version": "g1-openviking-probe-v1",
+    "ready_checks": {
+      "agfs": {
+        "checks": {
+          "filesystem": "ok",
+          "multiwrite_sync": "not_supported"
+        },
+        "status": "ok"
+      },
+      "api_key_manager": "[REDACTED]",
+      "embedding": "ok",
+      "ollama": "ok",
+      "vectordb": "ok"
+    },
+    "ready_status_code": 200,
+    "schema_version": "projection-v1",
+    "source_revision": "420d4074f74070bc6fe7151aa54527cf1ff15152"
+  },
+  "namespace": "viking://user/sagag1-9e840aabcc5f/memories/sagacontext-g1/g1-20260905T121942Z-b4db39fc",
+  "payload_policy": "synthetic_only",
+  "probe_id": "g1-20260905T121942Z-b4db39fc",
+  "started_at": "2026-09-05T12:19:42.807232+00:00",
+  "status": "failed_contract",
+  "visibility": [
+    {
+      "elapsed_seconds": 0.057,
+      "locator": "viking://user/sagag1-9e840aabcc5f/memories/sagacontext-g1/g1-20260905T121942Z-b4db39fc/generation-a/memory-alpha/r1.json",
+      "polls": 1,
+      "status": "absent",
+      "timeout_seconds": 120.0
+    },
+    {
+      "elapsed_seconds": 0.038,
+      "locator": "viking://user/sagag1-9e840aabcc5f/memories/sagacontext-g1/g1-20260905T121942Z-b4db39fc/generation-a/memory-alpha/r2.json",
+      "polls": 1,
+      "status": "absent",
+      "timeout_seconds": 120.0
+    },
+    {
+      "elapsed_seconds": 0.077,
+      "locator": "viking://user/sagag1-9e840aabcc5f/memories/sagacontext-g1/g1-20260905T121942Z-b4db39fc/generation-b/memory-alpha/r1.json",
+      "polls": 1,
+      "status": "absent",
+      "timeout_seconds": 120.0
+    }
+  ]
+}

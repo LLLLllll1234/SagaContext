@@ -1,0 +1,142 @@
+{
+  "schema": "guarded-runtime-v1",
+  "payload_class": "controlled_test_decision",
+  "status": "passed",
+  "host_version": "codex-cli 0.153.4",
+  "host_model": "gpt-6-astra",
+  "host_sessions": [
+    {
+      "name": "no_memory_control",
+      "exit_code": 0,
+      "blocker": "model_authentication_failed",
+      "stderr_summary": {
+        "present": true,
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false
+      },
+      "latency_ms": 16704,
+      "final_digest": "8af1d328d75e91cf5fff2deab39607be475491d16c45e89a2721eb14bb9a701e",
+      "expected_match": true
+    },
+    {
+      "name": "source_event",
+      "exit_code": 0,
+      "blocker": "model_authentication_failed",
+      "stderr_summary": {
+        "present": true,
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false
+      },
+      "latency_ms": 16845,
+      "final_digest": "a2f1a6d79bfb0fe6d2fe2f0f08c2f32ce53cc935520e9d8a9f8daa051b4f239b",
+      "expected_match": true
+    },
+    {
+      "name": "next_session_consumption",
+      "exit_code": 0,
+      "blocker": "model_authentication_failed",
+      "stderr_summary": {
+        "present": true,
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false
+      },
+      "latency_ms": 16707,
+      "final_digest": "64023bf66d605489c1a458287207d3204abc4a1a7fa8c78348b38c354ef83b6f",
+      "expected_match": true
+    },
+    {
+      "name": "post_rollback_control",
+      "exit_code": 0,
+      "blocker": "model_authentication_failed",
+      "stderr_summary": {
+        "present": true,
+        "authentication_signal": true,
+        "hook_failure_signal": false,
+        "hook_timeout_signal": false
+      },
+      "latency_ms": 15927,
+      "final_digest": "8af1d328d75e91cf5fff2deab39607be475491d16c45e89a2721eb14bb9a701e",
+      "expected_match": true
+    }
+  ],
+  "steps": [
+    {
+      "name": "authenticated_backend",
+      "passed": true
+    },
+    {
+      "name": "no_memory_control",
+      "passed": true
+    },
+    {
+      "name": "source_event",
+      "passed": true
+    },
+    {
+      "name": "real_host_candidate",
+      "passed": true
+    },
+    {
+      "name": "judge_proposal",
+      "passed": true
+    },
+    {
+      "name": "delegated_content_review",
+      "passed": true
+    },
+    {
+      "name": "guarded_commit",
+      "passed": true
+    },
+    {
+      "name": "projection",
+      "passed": true,
+      "status": "confirmed"
+    },
+    {
+      "name": "search_visibility",
+      "passed": true
+    },
+    {
+      "name": "next_session_consumption",
+      "passed": true
+    },
+    {
+      "name": "post_rollback_control",
+      "passed": true
+    }
+  ],
+  "quality_population": "not_daily_traffic",
+  "review_actor": "user_delegated_operator",
+  "active_enabled": false,
+  "command_digest": "64023bf66d605489c1a458287207d3204abc4a1a7fa8c78348b38c354ef83b6f",
+  "rollout_id": "2b8291de-b30b-4b14-ade5-fc5ec174afab",
+  "judge_latency_ms": 7427,
+  "batch_id": "950bea3d-fc0b-47c1-8127-027a53fa5bb2",
+  "memory_ids": [
+    "d31b03bd-761e-5f81-b428-e10547df1f78"
+  ],
+  "projection_latency_ms": 88,
+  "consumption_receipt_id": "0796eef3-eed0-46da-8947-255193db86e9",
+  "rollback": {
+    "rollout_id": "2b8291de-b30b-4b14-ade5-fc5ec174afab",
+    "rollback_id": "0d245542-2e35-48e7-945b-20c0f5199cef",
+    "status": "completed",
+    "phase": "verify",
+    "audit": {
+      "candidates": 1,
+      "events_retained_for_audit": 12,
+      "batches_retained_for_audit": 1,
+      "memory_targets": 1,
+      "projection_targets": 1,
+      "compensation_receipts": 1,
+      "residual_memories": 0,
+      "residual_candidates": 0,
+      "residual_operations": 0,
+      "residual_outbox": 0
+    }
+  }
+}

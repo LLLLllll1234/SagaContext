@@ -1,0 +1,30 @@
+{
+  "run_id": "20260906T154914Z-deepseek-v4-pro",
+  "model": "deepseek-v4-pro",
+  "mode": "isolated_shadow",
+  "shadow_only": true,
+  "formal_memory_write": false,
+  "recall_enabled": false,
+  "injection_enabled": false,
+  "dataset_digest": "8ebf785c8c579140236521e0b8e93164741d75f9356bd18b26924e7732dc8565",
+  "input_digest": "sha256:71f694303629e7265537db2bfab1bca39e5763ea0fd5cbde745beb6889d1cf09",
+  "temporary_namespace": "viking://user/shadow-20260906T154914Z-deepseek-v4-pro/memories/sagacontext/20260906T154914Z-deepseek-v4-pro",
+  "temporary_ledger_created": true,
+  "workspace_id": "0847ef02-d74c-4fa3-9e37-8f6d2aa3cafa",
+  "temporary_memory_count_before": 0,
+  "temporary_memory_count_after": 0,
+  "temporary_memory_write_observed": false,
+  "cleanup": {
+    "temporary_root_removed": true,
+    "temporary_ledger_removed": true
+  },
+  "admission_errors": [
+    "unsuccessful_observation",
+    "memory_body_correct_failure"
+  ],
+  "artifact_files": [
+    "replay.jsonl",
+    "report.md",
+    "manifest.json"
+  ]
+}

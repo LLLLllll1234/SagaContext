@@ -1,0 +1,11 @@
+{
+  "scenarios": [
+    {"id": "worktree_explicit_binding", "same_project": true, "same_workspace": false, "same_task": true},
+    {"id": "fork_unconfirmed", "same_project": false, "same_workspace": false},
+    {"id": "monorepo_root_only", "same_project": true, "same_workspace": true},
+    {"id": "monorepo_explicit_subproject", "same_project": false, "same_workspace": false},
+    {"id": "moved_directory_rebind", "same_project": true, "same_workspace": true},
+    {"id": "same_branch_parallel_tasks", "same_project": true, "same_workspace": true, "same_task": false},
+    {"id": "clone_unconfirmed", "same_project": false, "same_workspace": false}
+  ]
+}

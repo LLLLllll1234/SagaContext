@@ -1,0 +1,299 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from urllib.parse import urlparse
+import json
+import hashlib
+import math
+from typing import Any, Literal, Protocol
+
+import httpx
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_validator
+from .models import Candidate, Delta
+
+class Judge(Protocol):
+    async def judge(self, anchors: list[dict[str, Any]], candidates: list[Candidate], summary: str) -> list[Delta]: ...
+
+
+class WireDeltaV3(BaseModel):
+    """Provider-facing Delta contract; helper scores are optional trace metadata."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    layer: Literal["user", "preference", "project", "task", "l0"]
+    type: str
+    relation: Literal["confirm", "refine", "supersede", "new", "conflict"]
+    candidate_id: str | None = None
+    anchor_uri: str | None = None
+    key: str
+    fields: dict[str, Any] = Field(default_factory=dict)
+    evidence_ids: list[str] = Field(default_factory=list)
+    strong_signal: bool | None = None
+    confidence_hint: float | None = Field(default=None, ge=0.0, le=1.0)
+    rationale: str = ""
+
+    @field_validator("layer", mode="before")
+    @classmethod
+    def normalize_layer(cls, value: Any) -> Any:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+        aliases = {
+            "users": "user",
+            "preferences": "preference",
+            "projects": "project",
+            "tasks": "task",
+            "project_fact": "project",
+            "one_off_preference": "preference",
+        }
+        return aliases.get(normalized, normalized)
+
+    @field_validator("strong_signal", mode="before")
+    @classmethod
+    def validate_strong_signal(cls, value: Any) -> Any:
+        if value is not None and not isinstance(value, bool):
+            raise ValueError("strong_signal must be a boolean or null")
+        return value
+
+    @field_validator("confidence_hint", mode="before")
+    @classmethod
+    def validate_confidence_hint(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("confidence_hint must be numeric or null")
+        normalized = float(value)
+        if not math.isfinite(normalized):
+            raise ValueError("confidence_hint must be finite")
+        return normalized
+
+
+@dataclass(frozen=True, slots=True)
+class JudgeError(RuntimeError):
+    class_name: str
+    retryable: bool
+    attempts: int = 1
+    status_code: int | None = None
+    detail: str = ""
+    timeout_phase: Literal["connect", "read", "write", "pool", "unknown"] | None = None
+    response_digest: str | None = None
+
+    def __post_init__(self) -> None:
+        RuntimeError.__init__(self, self.class_name)
+
+
+def _response_digest(response: httpx.Response | None = None, content: object = None) -> str | None:
+    if response is not None:
+        data = response.content
+    elif content is not None:
+        data = content if isinstance(content, bytes) else str(content).encode("utf-8", "replace")
+    else:
+        return None
+    return f"sha256:{hashlib.sha256(data).hexdigest()}"
+
+
+class OpenAIJudge:
+    """OpenAI-compatible structured-output judge with classified failures."""
+
+    prompt_contract_version = "openai-judge-prompt-v6"
+    response_schema_version = "delta-v3"
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        timeout: float = 5.0,
+        temperature: float = 0.0,
+    ):
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.model = model
+        self.timeout = timeout
+        self.temperature = temperature
+        self.last_auxiliary: tuple[dict[str, Any], ...] = ()
+        self.last_status_code: int | None = None
+
+    async def judge(self, anchors, candidates, summary):
+        self.last_auxiliary = ()
+        self.last_status_code = None
+        if not self.base_url or not self.api_key or not self.model:
+            raise JudgeError("judge_configuration_error", False, detail="missing llm configuration")
+        parsed = urlparse(self.base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise JudgeError("judge_configuration_error", False, detail="invalid llm base url")
+        system_prompt = (
+            "You are a conservative durable-memory reconciler. Return only a JSON object "
+            "with a deltas array. Return an empty deltas array for one-off requests, chatter, "
+            "irrelevant content, insufficient evidence, or temporary preferences. Relations: "
+            "new has no matching anchor; confirm repeats an anchor; refine adds supported detail; "
+            "supersede explicitly replaces an anchor; conflict is a plausible but unresolved "
+            "disagreement. Never invent a fact to complete a body. Each delta must include "
+            "candidate_id, layer, type, relation, anchor_uri, key, fields, evidence_ids, "
+            "rationale. strong_signal and confidence_hint are optional helper fields: omit or "
+            "return null when uncertain; if present, strong_signal must be boolean and "
+            "confidence_hint must be a finite number from 0 to 1. These helper fields are "
+            "recorded only in trace metadata and do not determine semantic acceptance. Copy "
+            "candidate_id and use topic_key "
+            "as key; set layer "
+            "from layer_guess and type from memory_type_hint. Copy anchor_uri and evidence IDs "
+            "exactly. Memory type and relation are independent: valid types are profile, "
+            "taste, convention, decision, project_map, gotcha, task_checkpoint. "
+            "conflict is ONLY a relation, NEVER a memory type. For example, an unresolved "
+            "alternative for a project_map candidate must have type=project_map and "
+            "relation=conflict. Never replace the candidate's type with its relation. "
+            "Copy anchor_uri and evidence IDs "
+            "from the input. Use null anchor_uri only for new. "
+            "Allowed body fields by type: decision={command}; convention={command}; "
+            "gotcha={symptom,fix,applies_when}; taste={format}; project_map={path}. "
+            "Put key outside fields. fields is a COMPLETE replacement body, never a patch. "
+            "For confirm, copy all anchor.payload fields except key without rewriting them. "
+            "For refine, start with all anchor.payload fields except key, preserve existing "
+            "supported facts, and add the newly supported detail. Returning only the added "
+            "field would erase the other facts. For supersede, replace the contradicted "
+            "value while retaining unaffected supported fields. Do not carry the old value "
+            "into the replacement value. For conflict, return the supported alternative "
+            "body for review; do not invent missing details. "
+            "taste.format is a canonical enum: only the lowercase strings json and prose "
+            "are valid. Map requests for JSON output to json and prose output to prose; "
+            "do not put adjectives, explanations, or the word summaries/results in format. "
+            "For free-text fields, use a concise phrase directly supported by the input; "
+            "copy unchanged anchor text exactly. For decision/convention command fields, "
+            "output only the exact command token or command text stated by the candidate "
+            "(for example pytest), never an explanatory sentence or wrapper such as "
+            "use ... for verification. Preserve exact commands and paths. "
+            "Before returning, check that a refine body contains every existing anchor "
+            "field, type equals the referenced candidate's memory_type_hint for EVERY "
+            "relation including conflict, and enum values use the canonical spelling. If the candidate "
+            "does not support a durable change or confirmation, return an empty deltas array."
+        )
+        user_payload = {
+            "anchors": anchors,
+            "candidates": [candidate.model_dump() for candidate in candidates],
+            "summary": summary,
+        }
+        payload = {
+            "model": self.model,
+            "temperature": self.temperature,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": json.dumps(user_payload, ensure_ascii=True)},
+            ],
+            "response_format": {"type": "json_object"},
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    self.base_url + "/chat/completions",
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    json=payload,
+                )
+                response.raise_for_status()
+                self.last_status_code = response.status_code
+        except httpx.TimeoutException as error:
+            phase = next((
+                name for error_type, name in (
+                    (httpx.ConnectTimeout, "connect"),
+                    (httpx.ReadTimeout, "read"),
+                    (httpx.WriteTimeout, "write"),
+                    (httpx.PoolTimeout, "pool"),
+                ) if isinstance(error, error_type)
+            ), "unknown")
+            raise JudgeError(
+                "judge_timeout", True, detail=type(error).__name__, timeout_phase=phase
+            ) from error
+        except httpx.HTTPStatusError as error:
+            status = error.response.status_code
+            if status in {401, 403}:
+                raise JudgeError(
+                    "judge_authentication_error", False, status_code=status,
+                    detail=f"HTTP {status}", response_digest=_response_digest(error.response)
+                ) from error
+            if status in {408, 429} or status >= 500:
+                name = "judge_rate_limited" if status == 429 else "judge_service_unavailable"
+                raise JudgeError(
+                    name, True, status_code=status, detail=f"HTTP {status}",
+                    response_digest=_response_digest(error.response)
+                ) from error
+            raise JudgeError(
+                "judge_response_error", False, status_code=status, detail=f"HTTP {status}",
+                response_digest=_response_digest(error.response)
+            ) from error
+        except httpx.RequestError as error:
+            raise JudgeError("judge_service_unavailable", True, detail=type(error).__name__) from error
+
+        try:
+            envelope = response.json()
+            content = envelope["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError) as error:
+            raise JudgeError(
+                "judge_response_error", False, detail="missing structured content",
+                status_code=response.status_code,
+                response_digest=_response_digest(response)
+            ) from error
+        if not content:
+            raise JudgeError(
+                "judge_response_error", False, detail="empty structured content",
+                status_code=response.status_code,
+                response_digest=_response_digest(response)
+            )
+
+        try:
+            data = json.loads(content) if isinstance(content, str) else content
+        except (json.JSONDecodeError, TypeError) as error:
+            raise JudgeError(
+                "judge_response_error", False, detail="content is not valid JSON",
+                status_code=response.status_code,
+                response_digest=_response_digest(content=content)
+            ) from error
+        if not isinstance(data, dict) or "deltas" not in data:
+            raise JudgeError(
+                "judge_response_error", False, detail="response must contain deltas",
+                status_code=response.status_code,
+                response_digest=_response_digest(content=content)
+            )
+        try:
+            wire_deltas = TypeAdapter(list[WireDeltaV3]).validate_python(data["deltas"])
+        except (ValidationError, TypeError) as error:
+            if isinstance(error, ValidationError):
+                locations = [
+                    ".".join(str(part) for part in item.get("loc", ())) or "response"
+                    for item in error.errors(include_input=True)
+                ]
+                detail = "invalid delta schema at " + ",".join(locations[:8])
+                layer_error = next((item for item in error.errors(include_input=True)
+                                    if item.get("loc") == (0, "layer")), None)
+                if layer_error is not None:
+                    detail += f" (layer={layer_error.get('input')!r})"
+            else:
+                detail = "invalid delta schema"
+            raise JudgeError(
+                # Some providers intermittently violate enum constraints; callers
+                # may retry a bounded observation without accepting invalid data.
+                "judge_schema_error", True, detail=detail,
+                status_code=response.status_code,
+                response_digest=_response_digest(content=content)
+            ) from error
+        self.last_auxiliary = tuple(
+            {
+                "strong_signal": delta.strong_signal,
+                "confidence_hint": delta.confidence_hint,
+            }
+            for delta in wire_deltas
+        )
+        return [
+            Delta(
+                layer=delta.layer,
+                type=delta.type,
+                relation=delta.relation,
+                candidate_id=delta.candidate_id,
+                anchor_uri=delta.anchor_uri,
+                key=delta.key,
+                fields=delta.fields,
+                evidence_ids=delta.evidence_ids,
+                strong_signal=delta.strong_signal if delta.strong_signal is not None else False,
+                confidence_hint=delta.confidence_hint if delta.confidence_hint is not None else 0.5,
+                rationale=delta.rationale,
+            )
+            for delta in wire_deltas
+        ]
