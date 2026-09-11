@@ -31,6 +31,9 @@ test("review batch to evidence, session, memory and history", async ({
   await page.goto("/console/");
   await page.getByRole("link", { name: /1 个批次等待审核/ }).click();
   await expect(page.getByRole("combobox")).toHaveValue("awaiting_review");
+  await page.getByRole("combobox").selectOption("");
+  await expect(page.getByRole("link", { name: /批次 / }).first()).toBeVisible();
+  await page.getByRole("combobox").selectOption("awaiting_review");
   await page.getByRole("link", { name: /批次 / }).first().click();
   await expect(page.getByRole("heading", { name: "补全提案" })).toBeVisible();
   await page

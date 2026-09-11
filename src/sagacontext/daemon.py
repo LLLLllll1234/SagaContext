@@ -83,7 +83,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     api = FastAPI(title="SagaContext", version="0.1.0", lifespan=lifespan)
     from .console.router import create_console_router
     from .console.db import ConsoleReadError
-    from fastapi.exceptions import RequestValidationError
+    from fastapi.exceptions import RequestValidationError, ResponseValidationError
     from fastapi.exception_handlers import request_validation_exception_handler
     import uuid
 
@@ -99,7 +99,21 @@ def create_app(config: Config | None = None) -> FastAPI:
             return await console_error(request, ConsoleReadError("invalid_request"))
         return await request_validation_exception_handler(request, error)
 
+    @api.exception_handler(ResponseValidationError)
+    async def console_response_error(request: Request, error: ResponseValidationError):
+        if request.url.path.startswith('/console/v1/'):
+            return await console_error(request, ConsoleReadError('data_invalid'))
+        raise error
+
     api.include_router(create_console_router())
+
+    @api.middleware('http')
+    async def console_cache_policy(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith('/console/v1/'):
+            response.headers['Cache-Control'] = 'no-store'
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+        return response
 
     @api.get("/health")
     def health(request: Request):

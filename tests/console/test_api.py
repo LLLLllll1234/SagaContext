@@ -32,6 +32,7 @@ def test_all_console_gets_are_readonly(console_case,client,monkeypatch):
     for path in paths:
         response=client.get('/console/v1/'+path)
         assert response.status_code==200,(path,response.text)
+        assert response.headers['cache-control']=='no-store'
         assert 'request_id' in response.json()['meta']
         assert 'private.example' not in response.text
     with sqlite3.connect(c.path) as db:
@@ -48,6 +49,18 @@ def test_access_and_errors(client,console_case):
     assert client.get(f'/console/v1/projects/{c.project_b}/tasks/{c.task_id}?workspace_id={c.workspace_a}').status_code==404
     assert client.get(f'/console/v1/projects/{c.project_a}/tasks/missing?workspace_id={c.workspace_a}').status_code==404
     assert client.get('/console/v1/no-such-api').status_code==404
+
+
+def test_invalid_response_is_a_safe_console_error(client,console_case):
+    import json
+    c=console_case
+    with sqlite3.connect(c.path) as db:
+        db.execute("UPDATE rollout_audit SET payload_json=? WHERE receipt_id='demo-injection'",
+            (json.dumps({'status':['invalid stored shape'],'memory_ids':[],'revisions':[]}),))
+    response=client.get(f'/console/v1/workspaces/{c.workspace_a}/sessions/{c.session_a}')
+    assert response.status_code == 503
+    assert response.json()['error']['code'] == 'data_invalid'
+    assert 'invalid stored shape' not in response.text
 
 
 def test_corrupt_stored_json_returns_data_invalid(client,console_case):

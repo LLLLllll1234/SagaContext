@@ -22,6 +22,23 @@ function show() {
   );
 }
 describe("proposal evidence display", () => {
+  it("hides a cached body when the object becomes inaccessible", () => {
+    mocks.read.mockReturnValue({
+      error: { message: "not_found", retryable: false },
+      data: {
+        meta: { observed_at: "2026-09-11T01:00:00Z" },
+        data: {
+          batch_id: "b",
+          proposals: [
+            { availability: "available", new_payload: "cached private body" },
+          ],
+        },
+      },
+    });
+    show();
+    expect(screen.getByRole("heading", {name:"对象不存在或不可访问"})).toBeInTheDocument();
+    expect(screen.queryByText(/cached private/)).not.toBeInTheDocument();
+  });
   it("hides every payload of an unavailable proposal", () => {
     mocks.read.mockReturnValue({
       data: {

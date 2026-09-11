@@ -52,7 +52,8 @@ export default function ResourcePage() {
   const filters = (key: string, value: string) => {
     const next = new URLSearchParams(search);
     next.delete("cursor");
-    next.set(key, value);
+    if (value) next.set(key, value);
+    else next.delete(key);
     setSearch(next);
   };
   return (

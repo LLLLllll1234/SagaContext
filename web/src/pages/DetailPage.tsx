@@ -65,7 +65,8 @@ export default function DetailPage() {
       : `/workspaces/${workspaceId}/${resource}/${objectId}?${q}`;
   const result =
     useRead<Envelope<Batch | Memory | Session | Rollout | TaskRow>>(endpoint);
-  const data = result.data?.data;
+  const data =
+    result.error && !result.error.retryable ? undefined : result.data?.data;
   useEffect(() => {
     if (data && "batch_id" in data && data.task_id && !search.has("task_id")) {
       const next = new URLSearchParams(search);
