@@ -18,6 +18,7 @@ from .rollout import RuntimeMode
 from .maintenance.judge import OpenAIProposalJudge
 from .llm import OpenAIJudge
 from .codex_memory import read_sessions, source_version
+from .codex_observer import snapshot as codex_snapshot
 from fastapi.responses import HTMLResponse
 
 
@@ -100,14 +101,17 @@ def create_app(config: Config | None = None) -> FastAPI:
         """Read-only Codex memory learning snapshot for the local console."""
         source = Path(os.environ.get("SAGACONTEXT_CODEX_SOURCE", str(Path.home() / "Downloads" / "codex")))
         sessions = Path.home() / ".codex" / "sessions"
-        return {"source": source_version(source), "events": [e.__dict__ for e in read_sessions(sessions, include_raw=include_raw)]}
+        data = codex_snapshot()
+        data["source"] = source_version(source)
+        data["events"] = [e.__dict__ for e in read_sessions(sessions, include_raw=include_raw)]
+        return data
 
     @api.get("/console/memory/view", response_class=HTMLResponse)
     def memory_learning_page():
-        return HTMLResponse("""<!doctype html><meta charset='utf-8'><title>Codex 记忆学习</title>
-<style>body{font:15px system-ui;max-width:1100px;margin:32px auto;color:#17202a}button{padding:8px 12px}.event{border-left:3px solid #6b8afd;padding:10px 14px;margin:10px 0;background:#f5f7ff}.muted{color:#667085}</style>
-<h1>Codex 记忆机制学习</h1><p class='muted'>只读回放本地会话：压缩、短期上下文滚动与长期记忆事件。</p><button onclick='load()'>刷新本地数据</button><main id='app'>点击刷新开始读取</main>
-<script>async function load(){const r=await fetch('/console/memory');const d=await r.json();document.querySelector('#app').innerHTML='<p>源码版本：'+(d.source.revision||'未知')+'</p>'+d.events.map(e=>`<article class="event"><b>${e.kind}</b> · ${e.session}<div>${e.summary}</div><small class="muted">${e.timestamp||''} · ${e.source} · ${e.evidence}</small></article>`).join('')||'<p>未发现可解析会话</p>'}</script>""")
+        return HTMLResponse("""<!doctype html><meta charset='utf-8'><title>Codex 记忆机制观察器</title>
+<style>body{font:15px system-ui;max-width:1180px;margin:28px auto;color:#17202a;background:#fafbff}button{padding:9px 14px;border:1px solid #d0d5dd;border-radius:8px;background:white;cursor:pointer}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card,.memory,.session{background:white;border:1px solid #e4e7ec;border-radius:12px;padding:16px;margin:10px 0}.memory{cursor:pointer;border-left:4px solid #7f56d9}.session{border-left:4px solid #12b76a}.muted{color:#667085}.num{font-size:28px;font-weight:700}.hidden{display:none}</style>
+<h1>Codex 记忆机制观察器</h1><p class='muted'>从本地数据回答：Codex 记住了什么？它如何沉淀？当前会话引用了什么？</p><button onclick='load()'>刷新本地数据</button><p id='status' class='muted'></p><section class='grid' id='stats'></section><h2>长期记忆资产</h2><div id='memories'></div><h2>最近会话与上下文</h2><div id='sessions'></div><details><summary>原始事件证据</summary><div id='events'></div></details>
+<script>async function load(){let d=await (await fetch('/console/memory')).json();stats.innerHTML=`<div class=card><div class=num>${d.counts.memories}</div>长期记忆候选</div><div class=card><div class=num>${d.counts.sessions}</div>已识别会话</div><div class=card><div class=num>${d.source.revision?.slice(0,8)||'未知'}</div>源码版本</div>`;memories.innerHTML=d.memories.map((m,i)=>`<article class=memory onclick="alert(${JSON.stringify(m.content||m.summary)})"><b>${m.summary||'未命名记忆'}</b><p>${m.content||''}</p><small class=muted>来源线程：${m.id} · 使用 ${m.usage_count} 次 · ${m.selected?'已进入后续阶段':'候选中'}</small></article>`).join('')||'<p class=muted>本地尚未发现长期记忆记录</p>';sessions.innerHTML=d.sessions.slice(0,20).map(s=>`<article class=session><b>${s.id}</b><p>${s.user_messages} 条用户消息 · ${s.items} 个上下文项 · ${s.status}</p></article>`).join('')||'<p class=muted>未发现会话</p>';events.innerHTML=d.events.slice(0,100).map(e=>`<p><b>${e.kind}</b> · ${e.summary} <small class=muted>${e.session}</small></p>`).join('');status.textContent='数据来源：本地 Codex SQLite 与 sessions；页面只读。'}load()</script>""")
 
     @api.post("/events")
     async def ingest_event(
