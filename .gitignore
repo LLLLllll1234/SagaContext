@@ -5,3 +5,11 @@ __pycache__/
 .pytest_cache/
 .sagacontext/
 OpenViking/data/
+.superpowers/
+.worktrees/
+web/node_modules/
+web/test-results/
+web/playwright-report/
+src/sagacontext/console/_static/
+dist/
+build/

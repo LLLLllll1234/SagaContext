@@ -8,7 +8,7 @@
 - 真实闭环：[Scheduler 真实验收](probes/2026-09-11-scheduler-real-acceptance.md)，11/11 步骤、17/17 独立复核通过；真实日常质量与长期 provider 稳定性尚待观察。
 - 日常观察：[范围、审核、台账、STOP 和独立收尾](probes/2026-09-11-daily-observation.md)。报告记录一次限时授权，实时状态以本机 Ledger 为准。
 - 故障与运维：[离线 Scheduler 验收](probes/2026-09-11-offline-scheduler-acceptance.md) → [验收报告索引](probes/README.md)。历史数字不是当前测试总数。
-- 后续工作：[工作区控制台设计](superpowers/specs/2026-09-11-workspace-console-design.md) → [实施计划](superpowers/plans/2026-09-11-workspace-console.md)。控制台在独立分支开发，不属于本次 V1 合并的实现。
+- 可视化：[工作区控制台设计](superpowers/specs/2026-09-11-workspace-console-design.md) → [实施计划](superpowers/plans/2026-09-11-workspace-console.md)。控制台已纳入 V1，见 [控制台验收](probes/2026-09-11-workspace-console-acceptance.md)。
 - 实现约束：[Guarded rollout 设计](superpowers/specs/2026-09-08-normal-workspace-guarded-rollout-design.md) → [日常观察设计](superpowers/specs/2026-09-11-daily-observation-design.md)。
 - 本地部署：[OpenViking 部署记录](ops-openviking-local.md)。
 

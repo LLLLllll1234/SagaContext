@@ -1137,17 +1137,8 @@ class Ledger:
 
     @staticmethod
     def _scope_allows(scope: Scope, context: TaskContext) -> bool:
-        if scope.kind == "global":
-            return True
-        if scope.project_id != context.project_id:
-            return False
-        if scope.kind == "project":
-            return True
-        if scope.kind == "task":
-            return scope.task_id == context.task_id
-        root = Path("/")
-        pattern = scope.path_pattern or ""
-        return any((root / path).match(pattern) for path in context.touched_paths if not Path(path).is_absolute())
+        from .access import scope_allows
+        return scope_allows(scope, context)
 
     def _view(self, row: sqlite3.Row, scope: Scope) -> MemoryView:
         return MemoryView(

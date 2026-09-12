@@ -29,6 +29,35 @@ uv run --locked python -m compileall -q src scripts tests
 
 ---
 
+## 工作区控制台
+
+第一期只读控制台已实现：四卡总览、项目与工作区导航、任务/会话/记忆/批次目录，以及提案、版本、证据、注入回执和运行状态下钻。详情不会触发审批、注入或调度。验收与已知边界见 [控制台验收报告](docs/probes/2026-09-11-workspace-console-acceptance.md)。
+
+从源码运行合成演示（在仓库根目录）：
+
+```sh
+uv sync
+npm --prefix web ci
+npm --prefix web run build
+uv run python -m scripts.serve_console_fixture --port 37781
+```
+
+打开 [本地演示控制台](http://127.0.0.1:37781/console/)。演示使用临时数据库，页面有明确标记，退出时清理；支持 `--scenario empty` 与 `--scenario stale`。它不读取本机配置，也不启动 worker、Judge 或检索后端。
+
+已有 daemon 使用其配置的 loopback 地址和端口，页面路径为 `/console/`，读取 API 为 `/console/v1/`。打开页面不会启用自动化。若源码尚未构建，页面返回 `console_assets_missing`，读取 API 仍可用。源码开发采用修改后重新构建、由 Python 同源服务预览的方式。
+
+发行包先执行前端构建，再运行 `uv build --wheel`；wheel 包含 HTML/CSS/JS，安装后无需 Node 服务。前端依赖由 `web/package-lock.json` 锁定。
+
+```sh
+uv run python -m scripts.console_openapi > /tmp/sagacontext-console-openapi.json
+(cd web && ./node_modules/.bin/openapi-typescript /tmp/sagacontext-console-openapi.json -o src/api/schema.d.ts)
+uv run pytest tests/console -q
+npm --prefix web test
+CONSOLE_PYTHON="$(pwd)/.venv/bin/python" npm --prefix web run test:e2e
+```
+
+首次运行浏览器测试前执行 `npm --prefix web exec -- playwright install chromium`。API 类型变更后重新生成 `web/src/api/schema.d.ts` 并构建。
+
 ## 你大概遇到过这些
 
 - 上周告诉 Agent"别用 `any`"，这周它又写了。
