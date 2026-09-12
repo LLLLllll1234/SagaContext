@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -97,7 +98,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     @api.get("/console/memory")
     def memory_learning(request: Request, include_raw: bool = False):
         """Read-only Codex memory learning snapshot for the local console."""
-        source = Path(request.app.state.runtime.config.workspace_root) / "codex"
+        source = Path(os.environ.get("SAGACONTEXT_CODEX_SOURCE", str(Path.home() / "Downloads" / "codex")))
         sessions = Path.home() / ".codex" / "sessions"
         return {"source": source_version(source), "events": [e.__dict__ for e in read_sessions(sessions, include_raw=include_raw)]}
 
