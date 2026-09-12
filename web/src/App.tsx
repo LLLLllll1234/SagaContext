@@ -14,6 +14,7 @@ import { EmptyState, ReadNotice } from "./components/Common";
 import OverviewPage from "./pages/OverviewPage";
 import ResourcePage from "./pages/ResourcePage";
 import DetailPage from "./pages/DetailPage";
+import DeploymentPage from "./pages/DeploymentPage";
 
 export function useWorkspace() {
   const p = useParams();
@@ -72,6 +73,9 @@ function Shell() {
               ))}
             </div>
           ))}
+          <NavLink className="deployment-nav" to="/deployment">
+            部署状态
+          </NavLink>
           <div className="aside-foot">
             <span className="dot" />
             本地运行视图
@@ -139,6 +143,9 @@ function Landing() {
       >
         在本地注册项目后，可查看会话、记忆与运行状态。
       </EmptyState>
+      <Link className="button" to="/deployment">
+        查看部署状态
+      </Link>
     </main>
   );
 }
@@ -146,6 +153,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/deployment" element={<DeploymentPage />} />
       <Route
         path="/projects/:projectId/workspaces/:workspaceId/*"
         element={<Shell />}

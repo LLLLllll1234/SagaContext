@@ -8,8 +8,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from .security import check_console_access
 
 _PAGE = re.compile(
-    r"projects/[^/.]+/workspaces/[^/.]+"
-    r"(?:/(?:tasks|sessions|memories|batches|activity|rollouts)(?:/[^/.]+)?)?/?"
+    r"(?:deployment/?|projects/[^/.]+/workspaces/[^/.]+"
+    r"(?:/(?:tasks|sessions|memories|batches|activity|rollouts)(?:/[^/.]+)?)?/?)"
 )
 _HEADERS = {
     "X-Content-Type-Options": "nosniff",

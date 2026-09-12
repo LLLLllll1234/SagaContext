@@ -12,5 +12,6 @@ export type MemoryRow = Models["MemoryRow"];
 export type BatchRow = Models["BatchRow"];
 export type ActivityRow = Models["ActivityRow"];
 export type Evidence = Models["Evidence"];
+export type DeploymentStatus = Models["DeploymentStatus"];
 export type Envelope<T> = { meta: Models["SnapshotMeta"]; data: T };
 export type Page<T> = { items: T[]; next_cursor?: string | null };

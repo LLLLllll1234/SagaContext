@@ -32,11 +32,12 @@ def test_only_legal_routes_and_contained_assets_are_served(static_client, tmp_pa
     (root/'assets/app.js').write_text('console.log("fixture")')
     (root/'assets/escape.js').symlink_to(tmp_path.parent/'private.js')
     (tmp_path.parent/'private.js').write_text('private')
-    for path in ['', 'projects/p/workspaces/w', 'projects/p/workspaces/w/batches/b']:
+    for path in ['', 'deployment', 'projects/p/workspaces/w', 'projects/p/workspaces/w/batches/b']:
         response = client.get('/console/'+path)
         assert response.status_code == 200
         assert "frame-ancestors 'none'" in response.headers['content-security-policy']
     assert client.get('/console/assets/app.js').status_code == 200
     assert client.get('/console/assets/escape.js').status_code == 404
+    assert client.get('/console/deployment/unknown').status_code == 404
     assert client.get('/console/random').status_code == 404
     assert client.get('/console/', headers={'Host': 'evil.invalid:37781'}).status_code == 403

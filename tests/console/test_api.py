@@ -39,6 +39,36 @@ def test_all_console_gets_are_readonly(console_case,client,monkeypatch):
         assert list(db.iterdump())==before
 
 
+def test_deployment_is_typed_and_does_not_read_the_domain_or_network(client, monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError('deployment status caused a domain or network effect')
+
+    from sagacontext.console.service import ConsoleReadService
+
+    monkeypatch.setattr(ConsoleReadService, '_read', forbidden)
+    monkeypatch.setattr(RolloutRuntime, '_run', forbidden)
+    monkeypatch.setattr(socket.socket, 'connect', forbidden)
+    response = client.get('/console/v1/deployment')
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload == {
+        'product': 'sagacontext',
+        'version': '1.0.0',
+        'instance_id': payload['instance_id'],
+        'rollout_mode': 'off',
+        'worker_enabled': False,
+        'scheduler': 'disabled',
+        'stop_active': False,
+        'openviking_configured': False,
+        'llm_configured': False,
+        'console_assets_available': True,
+    }
+    assert payload['instance_id']
+    assert client.get('/console/v1/deployment').json()['instance_id'] == payload['instance_id']
+    assert 'localhost' not in response.text
+    assert 'ledger' not in response.text
+
+
 def test_access_and_errors(client,console_case):
     c=console_case
     for headers in ({'Origin':'https://evil.invalid'},{'Host':'evil.invalid:37780'},{'Host':'localhost:1234'},{'Sec-Fetch-Site':'cross-site'}):

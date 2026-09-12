@@ -6,7 +6,7 @@ SagaContext 是基于本地 Ledger 和独立 [OpenViking](https://github.com/vol
 
 默认模式为 `off`，安装不会自动采集或注入。启用需要固定 workspace、授权主体、期限与配额；日常观察最多 10 个 session、20 个 candidate、24 小时，逐条审核通过才写入。首轮观察仅允许本项目的新记忆，确保现有回滚能够撤销。
 
-真实后台调度闭环 **11/11**、独立消费与远端清理复核 **17/17** 已通过。全量回归 **264 tests、96 subtests**；这些证据证明受控链路可运行，真实日常质量仍在观察，不能据此承诺准确率、长期稳定性或扩大范围。
+真实后台调度闭环 **11/11**、独立消费与远端清理复核 **17/17** 已通过。历史日常观察验收为 **264 tests、96 subtests**；当前 V1 发布回归为 **330 tests、96 subtests**，这些证据证明受控链路可运行，真实日常质量仍在观察，不能据此承诺准确率、长期稳定性或扩大范围。
 
 - [V1.0 发布说明与能力边界](docs/releases/v1.0.0.md)
 - [真实 Scheduler 闭环](docs/probes/2026-09-11-scheduler-real-acceptance.md)
@@ -118,3 +118,7 @@ OpenViking 已经把记忆系统的基础设施做得很扎实：类型化 schem
 ## 许可证
 
 Apache-2.0。OpenViking 作为独立服务运行，遵循其自身许可证。
+
+## 部署与接入
+
+V1 提供安全的 [一键部署与接入脚本](docs/deployment.md)。默认安装保持 `rollout.mode=off`，不会自动启用 hooks、Judge、OpenViking 或 guarded 运行；显式使用 `--with-openviking`、`--with-hooks`、`--start` 和 `--open-console` 才会执行对应步骤。控制台路径为 `/console/`，演示和验证命令见部署指南。

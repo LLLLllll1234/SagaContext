@@ -151,6 +151,19 @@ small,
   background: var(--pale);
   font-weight: 600;
 }
+.deployment-nav {
+  display: block;
+  margin: 8px 0 18px;
+  padding: 10px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.deployment-nav.active {
+  color: var(--green);
+  background: var(--pale);
+  font-weight: 600;
+}
 .aside-foot {
   margin-top: auto;
   padding: 40px 10px 0;
@@ -513,6 +526,72 @@ footer {
 .landing .empty {
   margin-top: 60px;
 }
+.deployment-page {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 48px 32px;
+}
+.deployment-page > .logo {
+  margin-bottom: 58px;
+}
+.deployment-page .title-row {
+  margin-bottom: 28px;
+}
+.deployment-summary,
+.deployment-grid article {
+  border: 1px solid var(--border);
+  background: var(--paper);
+  border-radius: 8px;
+}
+.deployment-summary {
+  display: grid;
+  grid-template-columns: 1fr minmax(180px, 1.4fr) 110px;
+  gap: 24px;
+  padding: 24px;
+  margin: 22px 0;
+}
+.deployment-summary > div {
+  min-width: 0;
+}
+.deployment-summary h2 {
+  margin-top: 4px;
+  font-size: 20px;
+}
+.deployment-summary p {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 5px;
+}
+.deployment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.deployment-grid article {
+  padding: 22px 24px;
+}
+.deployment-grid h2 {
+  margin-bottom: 16px;
+}
+.deployment-grid dl {
+  margin: 0;
+}
+.deployment-grid dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding: 11px 0;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.deployment-grid dt {
+  color: var(--muted);
+}
+.deployment-grid dd {
+  margin: 0;
+  text-align: right;
+}
 .button {
   border: 1px solid #cad5cd;
   background: #fff;
@@ -690,6 +769,23 @@ pre {
   }
 }
 @media (max-width: 640px) {
+  .deployment-page {
+    padding: 28px 18px;
+  }
+  .deployment-page > .logo {
+    margin-bottom: 38px;
+  }
+  .deployment-summary,
+  .deployment-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .deployment-summary {
+    padding: 18px;
+  }
+  .deployment-grid article {
+    padding: 18px;
+  }
   .shell {
     display: block;
   }

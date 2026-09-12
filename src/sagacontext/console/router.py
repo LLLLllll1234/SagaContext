@@ -7,7 +7,8 @@ from sagacontext.ledger import TaskContext
 from .security import check_console_access
 from .db import ConsoleReadError
 from .models import (Envelope,ProjectDirectory,WorkspaceOverview,SessionPage,TaskPage,TaskRow,ActivityPage,
-    BatchPage,MemoryPage,SessionDetail,BatchDetail,MemoryDetail,RolloutDetail)
+    BatchPage,MemoryPage,SessionDetail,BatchDetail,MemoryDetail,RolloutDetail,DeploymentStatus)
+from .deployment import deployment_status
 
 Limit=Annotated[int,Query(ge=1,le=100)]
 
@@ -23,6 +24,10 @@ def _context(request,workspace_id,project_id,task_id,paths):
 
 def create_console_router():
     router=APIRouter(prefix='/console/v1',dependencies=[Depends(check_console_access)])
+
+    @router.get('/deployment', response_model=DeploymentStatus)
+    def deployment(request: Request):
+        return deployment_status(request)
 
     @router.get('/projects',response_model=Envelope[ProjectDirectory])
     def projects(request: Request):

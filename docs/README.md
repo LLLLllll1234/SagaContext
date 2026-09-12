@@ -11,6 +11,8 @@
 - 可视化：[工作区控制台设计](superpowers/specs/2026-09-11-workspace-console-design.md) → [实施计划](superpowers/plans/2026-09-11-workspace-console.md)。控制台已纳入 V1，见 [控制台验收](probes/2026-09-11-workspace-console-acceptance.md)。
 - 实现约束：[Guarded rollout 设计](superpowers/specs/2026-09-08-normal-workspace-guarded-rollout-design.md) → [日常观察设计](superpowers/specs/2026-09-11-daily-observation-design.md)。
 - 本地部署：[OpenViking 部署记录](ops-openviking-local.md)。
+- 一键部署与接入：[V1 部署指南](deployment.md)。
+- 接入边界与恢复：[集成指南](integration.md)。
 
 ## 全量文档目录
 

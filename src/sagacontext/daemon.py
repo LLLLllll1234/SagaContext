@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import json
+import os
 from pathlib import Path
 from typing import Any
+import uuid
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -64,6 +66,7 @@ def _auth_kwargs(request: Request, approver: str | None, key_id: str | None,
 def create_app(config: Config | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(api: FastAPI):
+        api.state.instance_id = os.environ.get("SAGACONTEXT_SETUP_INSTANCE_ID") or uuid.uuid4().hex
         runtime = Application(config or Config.load())
         api.state.runtime = runtime
         from .console.service import ConsoleReadService

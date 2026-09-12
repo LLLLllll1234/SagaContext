@@ -28,6 +28,19 @@ class Envelope(_StrictModel, Generic[T]):
     data: T
 
 
+class DeploymentStatus(_StrictModel):
+    product: Literal['sagacontext']
+    version: Literal['1.0.0']
+    instance_id: str = Field(min_length=1)
+    rollout_mode: Literal['off', 'shadow', 'guarded']
+    worker_enabled: bool
+    scheduler: Literal['disabled', 'running', 'error', 'unknown']
+    stop_active: bool
+    openviking_configured: bool
+    llm_configured: bool
+    console_assets_available: bool
+
+
 class Module(_StrictModel, Generic[T]):
     availability: Literal['available','unavailable']
     value: T | None = None

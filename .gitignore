@@ -10,6 +10,5 @@ OpenViking/data/
 web/node_modules/
 web/test-results/
 web/playwright-report/
-src/sagacontext/console/_static/
 dist/
 build/
