@@ -16,6 +16,8 @@ from .ledger.schema import SCHEMA_VERSION
 from .rollout import RuntimeMode
 from .maintenance.judge import OpenAIProposalJudge
 from .llm import OpenAIJudge
+from .codex_memory import read_sessions, source_version
+from fastapi.responses import HTMLResponse
 
 
 class ProjectRegistration(BaseModel):
@@ -91,6 +93,20 @@ def create_app(config: Config | None = None) -> FastAPI:
             "scheduler": "disabled" if request.app.state.scheduler is None else (
                 "error" if request.app.state.scheduler.error_class else "running"),
         }
+
+    @api.get("/console/memory")
+    def memory_learning(request: Request, include_raw: bool = False):
+        """Read-only Codex memory learning snapshot for the local console."""
+        source = Path(request.app.state.runtime.config.workspace_root) / "codex"
+        sessions = Path.home() / ".codex" / "sessions"
+        return {"source": source_version(source), "events": [e.__dict__ for e in read_sessions(sessions, include_raw=include_raw)]}
+
+    @api.get("/console/memory/view", response_class=HTMLResponse)
+    def memory_learning_page():
+        return HTMLResponse("""<!doctype html><meta charset='utf-8'><title>Codex 记忆学习</title>
+<style>body{font:15px system-ui;max-width:1100px;margin:32px auto;color:#17202a}button{padding:8px 12px}.event{border-left:3px solid #6b8afd;padding:10px 14px;margin:10px 0;background:#f5f7ff}.muted{color:#667085}</style>
+<h1>Codex 记忆机制学习</h1><p class='muted'>只读回放本地会话：压缩、短期上下文滚动与长期记忆事件。</p><button onclick='load()'>刷新本地数据</button><main id='app'>点击刷新开始读取</main>
+<script>async function load(){const r=await fetch('/console/memory');const d=await r.json();document.querySelector('#app').innerHTML='<p>源码版本：'+(d.source.revision||'未知')+'</p>'+d.events.map(e=>`<article class="event"><b>${e.kind}</b> · ${e.session}<div>${e.summary}</div><small class="muted">${e.timestamp||''} · ${e.source} · ${e.evidence}</small></article>`).join('')||'<p>未发现可解析会话</p>'}</script>""")
 
     @api.post("/events")
     async def ingest_event(
