@@ -1,124 +1,110 @@
 # SagaContext
 
-**让 Coding Agent 记住你，也记住你的项目。**
+**让 Coding Agent 记住你的工作方式，也记住每个项目的上下文。**
 
-SagaContext 是基于本地 Ledger 和独立 [OpenViking](https://github.com/volcengine/OpenViking) 后端的 Coding Agent 记忆系统。**V1.0 提供 Codex 新事件采集、Judge 提案、审核写入、跨会话召回与消费证据、定向回滚。**
+SagaContext 是一个本地优先的开发者记忆层。它帮助 Coding Agent 在不同会话中延续项目决策、任务进度和经过确认的工作约定，同时把个人偏好、项目知识和临时任务分开管理，减少重复解释和错误复现。
 
-默认模式为 `off`，安装不会自动采集或注入。启用需要固定 workspace、授权主体、期限与配额；日常观察最多 10 个 session、20 个 candidate、24 小时，逐条审核通过才写入。首轮观察仅允许本项目的新记忆，确保现有回滚能够撤销。
+V1.0 提供可运行的本地记忆服务、只读控制台和一键部署脚本。默认处于关闭状态，安装后不会自动采集会话、调用模型或写入外部记忆后端。
 
-真实后台调度闭环 **11/11**、独立消费与远端清理复核 **17/17** 已通过。历史日常观察验收为 **264 tests、96 subtests**；当前 V1 发布回归为 **330 tests、96 subtests**，这些证据证明受控链路可运行，真实日常质量仍在观察，不能据此承诺准确率、长期稳定性或扩大范围。
+## 它解决什么问题
 
-- [V1.0 发布说明与能力边界](docs/releases/v1.0.0.md)
-- [真实 Scheduler 闭环](docs/probes/2026-09-11-scheduler-real-acceptance.md)
-- [有限期日常观察与操作](docs/probes/2026-09-11-daily-observation.md)
-- [文档索引](docs/README.md)
+- 你已经解释过的代码风格和工作约定，Agent 不必每次重新学习。
+- 一个项目里做过的架构决定、环境坑和任务进度，可以延续到下一次会话。
+- 一个仓库里的规则不会无意间带到另一个仓库。
+- 当你改变主意时，旧记忆会被标记为被取代，而不是悄悄留下两条互相冲突的规则。
 
-## 从源码验证
+## 核心能力
 
-需要 Python 3.11+ 和 uv。在仓库根目录执行：
+| 能力 | 作用 |
+| --- | --- |
+| 分层记忆 | 区分个人偏好、项目知识和任务状态，按适用范围召回 |
+| 范围隔离 | 支持用户、项目和路径级范围，降低跨项目串用风险 |
+| 证据与生命周期 | 记录记忆来源、确认关系和取代关系，过时内容可以退场 |
+| 规则遵守 | 将明确的工作约定转成可检查的提示或约束 |
+| 只读控制台 | 查看项目、会话、记忆、任务和部署状态，不直接执行审批或写入 |
+| 可逆接入 | hooks、服务和配置都通过显式命令启用，并提供停止和移除路径 |
+
+SagaContext 的工作方式是先召回与当前项目相关的旧记忆，再把新信息与旧内容对照，判断它是确认、补充、取代、冲突还是全新内容。只有经过明确配置和授权的路径才会进入实际接入流程。
+
+## 一个实际场景
+
+你在周一修复了一个测试挂起问题，并说明以后测试文件统一放在指定目录。周三继续处理同一个项目时，Agent 可以先带回这条约定和上次任务的进度；如果你后来调整了规则，新的决定会取代旧规则。换到另一个项目时，这些项目级内容不会自动跟过去。
+
+## 快速开始
+
+需要 Python 3.11+ 和 [uv](https://docs.astral.sh/uv/)。在仓库根目录执行：
+
+```sh
+./scripts/install.sh --start --open-console
+```
+
+脚本会安装锁定的依赖、创建本地配置，并启动一个仅绑定本机的服务。首次安装生成的配置保持关闭模式；你可以先打开部署状态页检查当前配置：
+
+<http://127.0.0.1:37780/console/deployment>
+
+常用命令：
+
+```sh
+# 只检查，不写配置、不启动服务
+./scripts/install.sh --dry-run
+
+# 查看服务状态
+./scripts/install.sh --status
+
+# 停止由脚本启动的服务
+./scripts/install.sh --stop
+```
+
+控制台是只读的，适合查看当前项目的记忆、会话和运行状态。它不会因为打开页面而启用采集或自动化。
+
+## 接入工作区
+
+确认配置和目标项目后，再显式安装 hooks：
+
+```sh
+./scripts/install.sh --with-hooks --workspace /absolute/path/to/project
+```
+
+hooks 安装会保留已有的无关配置，并支持移除 SagaContext 自己写入的处理器：
+
+```sh
+./scripts/install.sh --remove-hooks --workspace /absolute/path/to/project
+```
+
+OpenViking 和其他模型服务属于可选依赖，需要先准备好各自的本地配置，再按需执行对应选项。完整的安装、服务管理、恢复和接入说明见[部署指南](docs/deployment.md)与[集成指南](docs/integration.md)。
+
+## 安全与隐私
+
+- 默认使用 `rollout.mode=off`，不会自动启用会话采集、注入或后台写入。
+- 服务默认只监听本机回环地址，不把控制台暴露到网络。
+- README、源码和生成的配置模板不包含密钥值；凭据应通过受保护文件或环境变量提供。
+- hooks、服务和配置变更都由显式命令触发，并提供状态检查、停止和移除操作。
+- 记忆内容按项目和范围组织，避免把一个项目的约定无意注入另一个项目。
+
+## 当前边界
+
+- V1 面向本地单用户开发环境，推荐从源码 checkout 使用。
+- 当前公开集成以 Codex 工作流为主；其他宿主需要单独适配和验证。
+- 自动化写入、模型服务和外部记忆后端都需要用户自行配置并明确启用。
+- 项目仍在持续完善中，长期准确率、跨宿主能力和团队协作能力需要后续验证。
+
+## 开发与测试
 
 ```sh
 uv sync --locked --group dev
 uv run --locked pytest -q
-uv run --locked python -m compileall -q src scripts tests
 ```
 
-运行集成还需独立 OpenViking、已授权 Judge 配置和固定验证过的 Codex CLI。操作脚本依赖源码 checkout 的 `bin/` 与 `.venv/`；配置与凭据仅保存在本机，参见 [部署记录](docs/ops-openviking-local.md) 和 [观察说明](docs/probes/2026-09-11-daily-observation.md)。本版不宣称安装 Python wheel 即可自动接入宿主。
-
-以下场景和分层能力描述是长期产品方向；跨 Claude Code/Codex 共享、遵守约束、反馈学习与团队层没有获得 V1 的完整真实日常验收。
-
----
-
-## 工作区控制台
-
-第一期只读控制台已实现：四卡总览、项目与工作区导航、任务/会话/记忆/批次目录，以及提案、版本、证据、注入回执和运行状态下钻。详情不会触发审批、注入或调度。验收与已知边界见 [控制台验收报告](docs/probes/2026-09-11-workspace-console-acceptance.md)。
-
-从源码运行合成演示（在仓库根目录）：
-
-```sh
-uv sync
-npm --prefix web ci
-npm --prefix web run build
-uv run python -m scripts.serve_console_fixture --port 37781
-```
-
-打开 [本地演示控制台](http://127.0.0.1:37781/console/)。演示使用临时数据库，页面有明确标记，退出时清理；支持 `--scenario empty` 与 `--scenario stale`。它不读取本机配置，也不启动 worker、Judge 或检索后端。
-
-已有 daemon 使用其配置的 loopback 地址和端口，页面路径为 `/console/`，读取 API 为 `/console/v1/`。打开页面不会启用自动化。若源码尚未构建，页面返回 `console_assets_missing`，读取 API 仍可用。源码开发采用修改后重新构建、由 Python 同源服务预览的方式。
-
-发行包先执行前端构建，再运行 `uv build --wheel`；wheel 包含 HTML/CSS/JS，安装后无需 Node 服务。前端依赖由 `web/package-lock.json` 锁定。
-
-```sh
-uv run python -m scripts.console_openapi > /tmp/sagacontext-console-openapi.json
-(cd web && ./node_modules/.bin/openapi-typescript /tmp/sagacontext-console-openapi.json -o src/api/schema.d.ts)
-uv run pytest tests/console -q
-npm --prefix web test
-CONSOLE_PYTHON="$(pwd)/.venv/bin/python" npm --prefix web run test:e2e
-```
-
-首次运行浏览器测试前执行 `npm --prefix web exec -- playwright install chromium`。API 类型变更后重新生成 `web/src/api/schema.d.ts` 并构建。
-
-## 你大概遇到过这些
-
-- 上周告诉 Agent"别用 `any`"，这周它又写了。
-- 换一个仓库，它把上一个仓库的目录约定带了过来。
-- 一个 pytest 挂起的坑，你在 Codex 里排过一次，换到 Claude Code 又踩一遍。
-- 关掉终端再打开，它不知道你昨天做到哪了。
-- 你说"以后测试都放 `tests/`"，它记下了；三个月后你改了主意，它还在用旧的。
-
-现有的记忆方案大多把"发生过什么"一股脑存下来，然后按时间或相似度捞回来。它们没有区分"你是谁"、"你要什么"、"项目是什么"、"你在做什么"，也不会在新信息和旧记忆冲突时停下来问你一句。
-
-## SagaContext 怎么做
-
-**分层记，而不是混着记。** 六层记忆各有各的范围和寿命：
-
-| 层 | 记什么 | 跟着谁走 |
-|---|---|---|
-| 用户 | 技术栈、经验、解释风格 | 你，跨所有项目 |
-| 偏好 | 可判定的约定、你的每一次纠正 | 你，可按仓库或路径限定 |
-| 项目 | 架构决策、模块地图、环境坑 | 仓库 |
-| 任务 | 目标、做到哪、下一步 | 仓库里的一段工作 |
-| 团队 | 同事定的约定，标明来源 | 仓库 |
-| Agent 经验 | 对你和这个项目哪种做法有效 | 你 × 仓库 |
-
-**以旧记忆为锚做对账，而不是从零抽取。** 每次会话开始，先按层召回和当前仓库、当前任务相关的记忆；会话结束时，把这些记忆和本次对话一起交给模型，让它判断新信息相对旧记忆是"确认、补全、推翻，还是全新"。语义相同的东西不会被写成两条，改了主意的偏好会被明确取代，真正冲突的进待确认队列，等你拍板。
-
-**每条记忆都有出处、有范围、有生命周期。** 能回到产生它的那一轮对话；带全局 / 仓库 / 路径作用域，仓库 A 的东西不会带进仓库 B；带置信度和取代关系，长期没被印证的会自然退场。
-
-**从"记住"到"遵守"。** 可判定的约定会被编译成可检查的规则：写文件前拦截、改动后跑 lint、路径约束。遵守和违反的结果反过来修正记忆的置信度。
-
-**跨宿主。** Claude Code 和 Codex 共享同一份记忆，在一个里学到的，另一个里直接用。
-
-**可评测。** 偏好遵守率、演化正确率、误注入率、事实回忆正确率、任务接续正确率，全部对照无记忆、宿主原生记忆、OpenViking 原生、Mem0、claude-mem 等基线。数字跑出来之前一律不写。
-
-## 一个场景
-
-周一，你在 Codex 里排掉了一个 CI 上 pytest 挂起的问题，原因是 asyncio fixture 没有正确取消。
-
-周三，你在 Claude Code 里改到同一个测试文件，Agent 在动手前先提醒你这个坑和当时的修法。
-
-周五，你说"以后 fixture 统一放 `conftest.py`"，这成了这个仓库的一条约定。
-
-下个月，Agent 试图在别处新建 fixture，被拦下并附上这条约定；而在你的另一个仓库里，这条约定不会出现。
-
-再往后，你改了主意，说"小模块可以就近放"。旧约定被标记为已取代，新约定生效，而"你曾经改过一次主意"这件事本身也被记住了。
-
-## 为什么叠在 OpenViking 上
-
-OpenViking 已经把记忆系统的基础设施做得很扎实：类型化 schema、字段级合并、多层命名空间、分层召回、使用反馈。缺的是面向开发者的内容模型和"越用越懂你"的机制。SagaContext 不重造这些基础，只做它之上的个性化层，以独立进程运行，通过公开接口对接。
+前端控制台位于 `web/`。构建和浏览器验证命令见[文档索引](docs/README.md)。
 
 ## 了解更多
 
-- [分层模型与对账循环](docs/05-分层模型与对账循环.md)：项目定位与核心机制
-- [当前设计基线 v0.3](docs/superpowers/specs/2026-09-05-sagacontext-v0.3-design.md)：Ledger 权威边界、持续维护与分阶段验收
-- [重新定位：个性化记忆](docs/03-重新定位-个性化记忆.md)：为什么是"个性化"，与现有方案的差异
-- [审核意见](docs/02-审核意见.md)：竞品与先例的源码级对照
-- [全部文档索引](docs/README.md)
+- [V1 发布说明](docs/releases/v1.0.0.md)
+- [部署指南](docs/deployment.md)
+- [集成指南](docs/integration.md)
+- [文档索引](docs/README.md)
+- [贡献指南](CONTRIBUTING.md)（如果你准备参与开发）
 
 ## 许可证
 
-Apache-2.0。OpenViking 作为独立服务运行，遵循其自身许可证。
-
-## 部署与接入
-
-V1 提供安全的 [一键部署与接入脚本](docs/deployment.md)。默认安装保持 `rollout.mode=off`，不会自动启用 hooks、Judge、OpenViking 或 guarded 运行；显式使用 `--with-openviking`、`--with-hooks`、`--start` 和 `--open-console` 才会执行对应步骤。控制台路径为 `/console/`，演示和验证命令见部署指南。
+SagaContext 使用 Apache-2.0 许可证。OpenViking 作为独立服务运行，遵循其自身许可证。
