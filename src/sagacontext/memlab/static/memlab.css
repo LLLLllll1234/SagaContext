@@ -14,6 +14,7 @@ small,.muted{color:var(--muted)}
 code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
 code{background:#eef1f3;padding:1px 5px;border-radius:4px}
 pre{background:#f7f9fa;border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:12.5px;line-height:1.5;max-height:420px}
+.raw-doc{max-height:none;min-height:70vh;font-size:13px;line-height:1.6}
 a{color:var(--brand)}
 button{font:inherit;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);cursor:pointer}
 button:hover{background:var(--soft);color:var(--brand)}

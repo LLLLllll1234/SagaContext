@@ -118,7 +118,7 @@ views.codex.assets = async el => {
     <p class="muted">源码把这个文件截断到 ${fmt(limit)} tokens 后放进 developer 指令（MEMORY_SUMMARY BEGINS … ENDS）。本机文件约 ${fmt(sum.approx_tokens)} tokens（中文按字、英文按 4 字符/token 粗估）${sum.approx_tokens > limit ? '，<b style="color:var(--danger)">可能已超出，尾部会被截掉</b>' : '，未超出'}。首行 <code>${esc(sum.version_line)}</code> · 更新于 ${when(sum.modified)}。</p>
     <div class="window" style="margin:8px 0 12px"><div class="fill" style="width:${Math.min(100, sum.approx_tokens / limit * 100)}%"></div><div class="thr" style="left:${Math.min(100, limit / Math.max(limit, sum.approx_tokens) * 100)}%"></div><div class="lbl">${fmt(sum.approx_tokens)} / ${fmt(limit)} tokens</div></div>
     <div class="grid c2">${(sum.sections || []).map(s => `<div class="item"><b>${esc(s.title)}</b> <small>第 ${s.line_start} 行起 · ${s.items.length} 条</small><ul style="margin:6px 0 0;padding-left:18px">${s.items.slice(0, 6).map(i => `<li class="muted" style="font-size:13px">${esc(i.replace(/^[-*]\s*/, '')).slice(0, 180)}</li>`).join('')}${s.items.length > 6 ? `<li class="muted">… 还有 ${s.items.length - 6} 条</li>` : ''}</ul></div>`).join('')}</div>
-    <details style="margin-top:10px"><summary>查看 memory_summary.md 原文</summary><pre>${esc(sum.text)}</pre></details>
+    <button class="secondary raw-open" data-raw-title="memory_summary.md 原文" data-raw-text="${esc(sum.text).replace(/"/g,'&quot;')}" style="margin-top:10px">查看 memory_summary.md 原文</button>
   </section>
 
   <section class="panel">
@@ -149,10 +149,14 @@ function showAsset(x) {
     <h3>被哪些会话引用过</h3>
     ${x.recalls.length ? `<table><tr><th>引用它的会话</th><th>时间</th><th>引用条目</th></tr>${x.recalls.map(r => `<tr><td class="mono">${esc(short(r.citing_thread, 13))}…</td><td>${when(r.timestamp)}</td><td>${r.entries.map(e => `<div><code>${esc(e.file)}:${e.start}-${e.end}</code> <small>${esc(e.note)}</small></div>`).join('')}</td></tr>`).join('')}</table>` : '<p class="muted">rollout 中没有找到引用该任务组来源线程的 &lt;oai-mem-citation&gt;。</p>'}
     <div class="callout infer" style="margin-top:12px">${ev('inference')} “被引用”按 &lt;rollout_ids&gt; 里的线程 id 匹配。citation_entries 里的 MEMORY.md 行号指向引用当时的文件版本，MEMORY.md 每次整合都会被重写，所以行号不用于匹配。</div>
-    <details><summary>MEMORY.md 原文</summary><pre>${esc(x.text)}</pre></details>`);
+    <button class="secondary raw-open" data-raw-title="${esc(x.title.replace(/^Task Group:\s*/, ''))} · MEMORY.md 原文" data-raw-text="${esc(x.text).replace(/"/g,'&quot;')}">查看 MEMORY.md 原文</button>`);
   $('#drawer-body').querySelectorAll('[data-life]').forEach(b => b.onclick = () => { state.sel.life = b.dataset.life; state.tab = 'pipeline'; $('#drawer').classList.add('hidden'); render(); });
   $('#drawer-body').querySelectorAll('[data-roll]').forEach(b => b.onclick = () => { state.sel.thread = b.dataset.roll; state.tab = 'context'; $('#drawer').classList.add('hidden'); render(); });
 }
+document.addEventListener('click', e => {
+  const b = e.target.closest('.raw-open'); if (!b) return;
+  drawer(esc(b.dataset.rawTitle), `<div class="callout source">${ev('local_data')} 以下内容直接读取本地记忆文件，未经过摘要或重排。</div><pre class="raw-doc">${esc(b.dataset.rawText || '')}</pre>`);
+});
 
 // ================================================================ CODEX · 形成过程
 views.codex.pipeline = async el => {
