@@ -261,6 +261,7 @@ function renderContext(box, r, product) {
     </div>
     <div class="chart" id="chart"></div>
     <div class="ctrl"><button class="primary" id="play-ctx">▶ 播放</button><button id="pause-ctx">⏸</button><input type="range" id="scrub" min="0" max="${feedEvents.length - 1}" value="0"><span class="muted" id="ctx-pos">0 / ${feedEvents.length}</span><select id="speed"><option value="140">慢</option><option value="60" selected>中</option><option value="18">快</option></select></div>
+    <div class="event-filters"><span class="muted">筛选事件：</span>${[['session_meta','会话开始'],['memory_injection','注入记忆'],['developer','developer'],['harness','环境注入'],['turn','新一轮'],['user','用户'],['assistant','模型'],['tool_call','工具调用'],['tool_output','工具输出']].map(([k,n])=>`<button class="filter active" data-kind="${k}">${n}</button>`).join('')}<button class="filter-reset" id="filter-reset">全选</button></div>
     <div class="window" id="win"><div class="fill" style="width:0"></div>${cv.window ? `<div class="thr" style="left:${cv.auto_compact_threshold / cv.window * 100}%"></div>` : ''}<div class="lbl" id="win-lbl">0 tokens</div></div>
     <div class="grid c2" style="margin-top:12px">
       <div><h3 style="margin-top:0">事件流 <small class="muted">（${r.counts.tool_call || 0} 次工具调用 · ${r.counts.user || 0} 条用户消息 · ${r.counts.assistant || 0} 条回复）</small></h3><div class="feed" id="feed">${feedEvents.map((e, i) => `<div class="e" data-i="${i}"><small>#${e.ordinal}</small><span class="k k-${e.kind}">${esc(kindName(e.kind))}</span><span>${esc(e.summary)}</span></div>`).join('')}</div></div>
@@ -271,6 +272,10 @@ function renderContext(box, r, product) {
   drawChart($('#chart'), cv);
   // playback
   const fill = $('#win .fill'), lbl = $('#win-lbl'), feed = $('#feed'), narr = $('#narr'), scrub = $('#scrub'), pos = $('#ctx-pos'), win = $('#win');
+  const filterKinds = new Set(['session_meta','memory_injection','developer','harness','turn','user','assistant','tool_call','tool_output']);
+  function applyFilters() { feed.querySelectorAll('.e').forEach(row => { const e = feedEvents[+row.dataset.i]; row.style.display = filterKinds.has(e.kind) ? '' : 'none'; }); }
+  document.querySelectorAll('.event-filters .filter').forEach(btn => btn.onclick = () => { const k=btn.dataset.kind; if (filterKinds.has(k)) { filterKinds.delete(k); btn.classList.remove('active'); } else { filterKinds.add(k); btn.classList.add('active'); } applyFilters(); });
+  $('#filter-reset').onclick = () => { document.querySelectorAll('.event-filters .filter').forEach(btn => { filterKinds.add(btn.dataset.kind); btn.classList.add('active'); }); applyFilters(); };
   let ctx = 0, i = 0, playing = false, timer = null;
   const ptsByOrd = new Map(pts.map(p => [p.ordinal, p]));
   function setIdx(n) {
@@ -311,6 +316,7 @@ function renderContext(box, r, product) {
   scrub.oninput = e => { playing = false; clearTimeout(timer); setIdx(+e.target.value); };
   state.stopCtx = () => { playing = false; clearTimeout(timer); };
   setIdx(0);
+  applyFilters();
 }
 const kindName = k => ({session_meta: '会话开始', memory_injection: '注入记忆', harness: '环境注入', developer: 'developer', turn: '新一轮', user: '用户', assistant: '模型', reasoning: '推理', tool_call: '工具调用', tool_output: '工具输出', token_count: '计数', compacted: '⚠ 压缩', summary_message: '摘要入史', agent_message: '子agent', task: '任务', unparsed: '未解析'}[k] || k);
 
