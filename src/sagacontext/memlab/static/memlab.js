@@ -45,6 +45,7 @@ const views = {codex: {}, claude: {}, fallback: el => { el.innerHTML = '<section
 views.codex.overview = async el => {
   const o = await api('/overview');
   const lc = await api('/codex/lifecycles');
+  const assets = await api('/codex/assets');
   const c = o.codex, h = c.home, cfg = h.config || {};
   const src = c.source;
   el.innerHTML = `
@@ -67,6 +68,12 @@ views.codex.overview = async el => {
   </section>
 
   <section class="panel">
+    <div class="row between"><div><h2 style="margin:0">现在真正记住了什么</h2><p class="muted">先看长期记忆内容，再沿着每条信息追溯形成与使用过程。</p></div><button class="primary" id="go-assets">查看全部记忆资产</button></div>
+    <div class="asset-grid overview-assets">${assets.assets.slice(0, 6).map(x => `<div class="item clickable"><div class="row between"><b>${esc(x.title.replace(/^Task Group:\s*/, ''))}</b><span class="pill brand">${x.threads.length} 个来源</span></div><div class="desc">${esc((x.sections['User preferences'] || x.sections['Reusable knowledge'] || x.sections['Project'] || [])[0] || '暂无摘要')}</div><div class="asset-meta"><span>引用 ${x.recall_count} 次</span><span>MEMORY.md ${x.line_start}-${x.line_end} 行</span></div></div>`).join('') || '<p class="muted">当前没有可展示的长期记忆资产。</p>'}</div>
+    <div class="callout infer">${ev('inference')} 总览只展示前 6 条资产；点击卡片或“查看全部记忆资产”进入逐条生命周期追溯。</div>
+  </section>
+
+  <section class="panel">
     <h2>记忆是怎样形成、被用、再被取代的</h2>
     <p class="muted">点击“播放”看一遍完整链路。每个节点下的数字是你本机上的真实数量。</p>
     <div class="flow" id="flow">
@@ -82,6 +89,7 @@ views.codex.overview = async el => {
 
 `;
   $('#play-flow').onclick = () => playFlow(lc);
+  $('#go-assets').onclick = () => { state.tab = 'assets'; render(); };
 };
 function flowNode(id, t, s, n, evk) { return `<div class="node" data-node="${id}"><div class="t">${esc(t)}</div><div class="s">${esc(s)}</div><div class="n">${fmt(n)}</div><div>${ev(evk)}</div></div>`; }
 function playFlow(lc) {

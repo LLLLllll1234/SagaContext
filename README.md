@@ -4,6 +4,46 @@
 
 SagaContext 是叠在 [OpenViking](https://github.com/volcengine/OpenViking) 之上的开发者个性化记忆层。它让 Claude Code 与 Codex 在你所有的项目里越用越懂你：知道你希望代码怎么写，知道这个仓库里做过哪些决定、踩过哪些坑，知道你上次做到哪。而且不只是"记得"，还会真的照做。
 
+## 记忆机制观察与学习平台
+
+SagaContext 自带一个只读的 **Memory Lab**，帮助你从“完全不了解 Codex 如何记忆”逐步走到能解释每一条记忆的形成过程。启动 Web 服务后访问 `/memlab/`，按产品切换 Codex 或 Claude Code。
+
+平台围绕记忆资产组织内容：先看到 `MEMORY.md` / `memory_summary.md` 中的具体信息，再沿着单条信息追溯来源会话、候选抽取、整合写入、后续召回以及更新或取代。形成过程页把每个阶段和阶段之间的连接拆开说明，明确触发条件、传递内容、过滤规则、源码依据和通俗解释；短期上下文页则可播放上下文增长、压缩和保留内容，并按事件标签筛选会话开始、记忆注入、用户消息、模型回复和工具调用等事件。
+
+所有结论都标注证据等级：`source` 是本地源码事实，`local_data` 是直接读取的本地文件/SQLite，`inference` 是平台基于两者拼接出的解释。平台只读本地数据，不执行记忆写入。
+
+### Memory Lab 页面
+
+![总览：记忆资产与形成链路](docs/assets/memlab/overview.png)
+
+![记忆资产：具体内容与生命周期](docs/assets/memlab/assets.png)
+
+![形成过程：阶段之间的触发与传递](docs/assets/memlab/pipeline.png)
+
+![短期上下文：增长、压缩与事件筛选](docs/assets/memlab/context.png)
+
+## 项目全貌
+
+项目由四层组成：宿主观测层接收 Codex/Claude Code 的会话事实；Ledger 与投影层保存可审计事件和状态；记忆维护层负责候选抽取、对账、写入、召回与取代；Memory Lab 以只读方式把源码事实、本地数据和推断串成可学习的页面。OpenViking 作为可插拔后端提供向量/分层存储能力，SagaContext 保留自己的证据、作用域和生命周期边界。
+
+```text
+Codex / Claude Code
+        │ 会话与上下文事实
+        ▼
+Capture → Ledger → Projection / Reconcile
+        │                 │
+        │                 ├─ 候选抽取与阶段二整合
+        │                 ├─ 作用域、召回、更新与取代
+        │                 └─ OpenViking backend（可选）
+        ▼
+Memory assets + provenance + lifecycle
+        │
+        ▼
+Memory Lab（总览 / 资产 / 形成 / 上下文 / 源码）
+```
+
+代码入口在 `src/sagacontext/`，其中 `memlab/` 提供页面和只读 API，`capture.py`、`ledger/`、`projection/`、`maintenance/` 和 `recall.py` 构成记忆机制主链路；`tests/` 与 `scripts/` 提供本地验收、探针和回放工具。
+
 > **状态：** 已有可运行的 Python 实现：S1 Ledger、S2 持续维护已通过本地验收；G1/G3 准入、S3-1 真实 OpenViking 故障恢复、RecallPolicy、Codex Shadow、G5 删除/取代和 G6 三条跨会话合成链路均已通过。当前仍是隔离合成验收，未启用正常会话自动化；下文是产品目标，不代表全部已实现。
 
 本地验证：`PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -q`。当前真实后端交付见 [S3-1 故障恢复报告](docs/probes/2026-09-05-s3-1-openviking-recovery.md)，完整状态见 [文档索引](docs/README.md)。
