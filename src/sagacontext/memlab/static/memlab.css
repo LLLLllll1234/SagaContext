@@ -131,6 +131,7 @@ tr.clickable:hover td{background:#f7faf9}
 .step .note{color:var(--muted);font-size:13px}
 details summary{cursor:pointer;color:var(--brand)}
 .fact{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:#fff}
+.memory-facts{display:grid;gap:8px}
 .fact .loc{font-size:12px;color:var(--muted)}
 .fact.drifted{border-color:var(--infer)}
 .fact.missing{border-color:var(--danger)}

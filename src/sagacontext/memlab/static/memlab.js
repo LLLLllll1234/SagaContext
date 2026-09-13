@@ -80,15 +80,7 @@ views.codex.overview = async el => {
     <div class="row"><button class="primary" id="play-flow">▶ 播放形成过程</button><span class="muted" id="flow-caption">按源码顺序演示一次：触发 → 抽取 → 整合 → 注入 → 引用 → 遗忘。</span></div>
   </section>
 
-  <section class="panel">
-    <h2>四个容易混淆的概念</h2>
-    <div class="grid c2">
-      <div class="item"><b>短期上下文（context window）</b><div class="desc">一次会话里模型实际看到的消息序列。随工具调用快速增长，逼近窗口 90% 时触发压缩，压缩后只留下 ≤20k tokens 的用户消息 + 一条交接摘要。</div><div style="margin-top:6px">${ev('source')} 见「短期上下文」页</div></div>
-      <div class="item"><b>压缩摘要（compacted）</b><div class="desc">写在 rollout 里的 <code>compacted</code> 行，用于本会话续接与恢复。<b>它不会进入长期记忆</b>：阶段一序列化时把 Compacted 项直接丢弃。</div><div style="margin-top:6px">${ev('source')} compaction.vs_memory</div></div>
-      <div class="item"><b>阶段一候选（stage1_outputs）</b><div class="desc">每个会话最多一行：模型抽出的 raw_memory 与 rollout_summary。只是候选，30 天没被引用且未参与上次整合就会被清理。</div><div style="margin-top:6px">${ev('local_data')} memories_1.sqlite</div></div>
-      <div class="item"><b>长期记忆资产（MEMORY.md / memory_summary.md）</b><div class="desc">整合 agent 写出的文件。memory_summary.md 是真正注入每个新会话的部分；MEMORY.md 是模型按需搜索的登记册；rollout_summaries/ 是逐会话证据。</div><div style="margin-top:6px">${ev('local_data')} ~/.codex/memories</div></div>
-    </div>
-  </section>`;
+`;
   $('#play-flow').onclick = () => playFlow(lc);
 };
 function flowNode(id, t, s, n, evk) { return `<div class="node" data-node="${id}"><div class="t">${esc(t)}</div><div class="s">${esc(s)}</div><div class="n">${fmt(n)}</div><div>${ev(evk)}</div></div>`; }
@@ -151,7 +143,7 @@ function showAsset(x) {
   drawer(`${esc(x.title.replace(/^Task Group:\s*/, ''))} ${ev('local_data')}`, `
     <p class="muted">MEMORY.md 第 ${x.line_start}-${x.line_end} 行 · ${x.threads.length} 个来源会话 · 被后续会话引用 ${x.recall_count} 次</p>
     <div class="callout">${ev('inference')} 生命周期：形成 → 写入 → 使用 → 更新/取代。下方每个来源会话都保留可定位证据。</div>
-    ${secs.map(([k, v]) => `<h3>${esc(k)}</h3><ul style="padding-left:18px">${v.map(i => `<li>${esc(i)}</li>`).join('')}</ul>`).join('')}
+    ${secs.map(([k, v]) => `<h3>${esc(k)}</h3><div class="memory-facts">${v.map((i, n) => `<div class="fact"><div class="row between"><b>信息 ${n + 1}</b>${ev('local_data')}</div><div style="margin-top:5px">${esc(i)}</div><div class="muted" style="margin-top:5px">这条信息当前属于 MEMORY.md 的“${esc(k)}”分组；下方生命周期会展示它如何从会话候选变成可召回资产。</div></div>`).join('')}</div>`).join('')}
     <h3>来源会话（溯源）</h3>
     <table><tr><th>会话</th><th>时间</th><th>候选</th><th>证据文件</th><th></th></tr>${x.provenance.map(p => `<tr><td><b>${esc(p.title || p.thread_id)}</b><br><small class="mono">${esc(p.thread_id)}</small><br><small>${esc(p.cwd || '')}</small></td><td>${day(p.updated_at)}</td><td>${p.in_stage1 ? `<span class="pill ok">有 · 引用 ${p.usage_count}</span>` : '<span class="pill bad">已清理</span>'}</td><td>${p.summary_file ? `<span class="pill ok">有</span>` : '<span class="pill bad">无</span>'}</td><td><button data-life="${p.thread_id}">形成过程</button> ${p.rollout_exists ? `<button data-roll="${p.thread_id}">原始会话</button>` : ''}</td></tr>`).join('')}</table>
     <h3>被哪些会话引用过</h3>
