@@ -44,6 +44,8 @@ Memory Lab（总览 / 资产 / 形成 / 上下文 / 源码）
 
 代码入口在 `src/sagacontext/`，其中 `memlab/` 提供页面和只读 API，`capture.py`、`ledger/`、`projection/`、`maintenance/` 和 `recall.py` 构成记忆机制主链路；`tests/` 与 `scripts/` 提供本地验收、探针和回放工具。
 
+![SagaContext 项目全貌](docs/assets/project/sagacontext-overview.png)
+
 > **状态：** 已有可运行的 Python 实现：S1 Ledger、S2 持续维护已通过本地验收；G1/G3 准入、S3-1 真实 OpenViking 故障恢复、RecallPolicy、Codex Shadow、G5 删除/取代和 G6 三条跨会话合成链路均已通过。当前仍是隔离合成验收，未启用正常会话自动化；下文是产品目标，不代表全部已实现。
 
 本地验证：`PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -q`。当前真实后端交付见 [S3-1 故障恢复报告](docs/probes/2026-09-05-s3-1-openviking-recovery.md)，完整状态见 [文档索引](docs/README.md)。
