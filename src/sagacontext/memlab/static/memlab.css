@@ -130,6 +130,11 @@ tr.clickable:hover td{background:#f7faf9}
 .step.unknown .dot{background:var(--infer);color:#fff}
 .step .lbl{font-weight:600}
 .step .note{color:var(--muted);font-size:13px}
+.transition{display:grid;grid-template-columns:32px 1fr;gap:12px;padding:2px 0 8px;color:var(--muted)}
+.transition-arrow{width:26px;text-align:center;color:var(--brand);font-size:20px;line-height:1.2}
+.transition-body{border-left:2px solid var(--soft);padding:8px 12px;background:#fbfcfc;border-radius:0 8px 8px 0;font-size:12.5px}
+.transition-label{display:inline-block;margin-top:3px;color:var(--ink)}
+.transition-explain{margin-top:5px;padding-top:5px;border-top:1px dashed var(--line);font-size:12px}
 details summary{cursor:pointer;color:var(--brand)}
 .fact{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:#fff}
 .memory-facts{display:grid;gap:8px}

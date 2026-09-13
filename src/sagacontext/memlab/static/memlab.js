@@ -189,7 +189,7 @@ function showLife(l, s1) {
   <section class="panel">
     <div class="row between"><h2 style="margin:0">${esc(l.title || l.thread_id)}</h2><button class="primary" id="play-life">▶ 回放</button></div>
     <p class="muted mono">${esc(l.thread_id)} · ${esc(l.cwd || '')}</p>
-    <div id="life-steps">${l.stages.map((s, i) => `<div class="step ${s.status}" data-step="${i}"><div class="dot">${icons[s.stage] || i + 1}</div><div><div class="row between"><span class="lbl">${esc(s.label)}</span><span>${s.at ? `<small>${when(s.at)}</small> ` : ''}${ev(s.evidence)}</span></div><div class="note">${esc(s.note)}</div>${stepExtra(s, row, l)}</div></div>`).join('')}</div>
+    <div id="life-steps">${l.stages.map((s, i) => `<div class="step ${s.status}" data-step="${i}"><div class="dot">${icons[s.stage] || i + 1}</div><div><div class="row between"><span class="lbl">${esc(s.label)}</span><span>${s.at ? `<small>${when(s.at)}</small> ` : ''}${ev(s.evidence)}</span></div><div class="note">${esc(s.note)}</div>${stepExtra(s, row, l)}</div></div>${i < l.stages.length - 1 ? transitionExtra(s.stage, l.stages[i+1].stage, row) : ''}`).join('')}</div>
   </section>`;
   $('#play-life').onclick = () => {
     stopTimers();
@@ -207,6 +207,19 @@ function stepExtra(s, row, l) {
   if (s.stage === 'asset' && s.blocks && s.blocks.length) return `<div style="margin-top:4px">${s.blocks.map(b => `<div><span class="pill brand">MEMORY.md 第 ${b.line_start}-${b.line_end} 行</span> ${esc(b.title.replace(/^Task Group:\s*/, ''))}</div>`).join('')}</div>`;
   if (s.stage === 'recall' && s.uses && s.uses.length) return `<details style="margin-top:4px"><summary>${s.uses.length} 次引用明细</summary><table><tr><th>引用它的会话</th><th>时间</th><th>引用条目</th></tr>${s.uses.map(u => `<tr><td class="mono">${esc(short(u.citing_thread, 13))}…</td><td>${when(u.timestamp)}</td><td>${u.entries.map(e => `<div><code>${esc(e.file)}:${e.start}-${e.end}</code> <small>${esc(e.note)}</small></div>`).join('')}</td></tr>`).join('')}</table></details>`;
   return '';
+}
+function transitionExtra(from, to, row) {
+  const key = `${from}->${to}`;
+  const map = {
+    'session->candidate': ['触发：下一轮开始时，后台挑选其他闲置会话', '传递：过滤后的用户/模型对话', '过滤：去掉 developer 指令与压缩摘要；最多挑 2 个会话，再交给 gpt-5.6-luna。', '解释：当前会话不会抽自己，而是借下一轮启动的机会整理“别的会话”。'],
+    'candidate->selected': ['触发：阶段一写入 stage1_outputs 后进入整合窗口', '传递：raw_memory + rollout_summary + usage_count', '过滤：只选 30 天内、被使用过且不超过 256 条的候选。', '解释：候选先进入待审核队列，只有满足保留条件才会送给阶段二。'],
+    'selected->summary_file': ['触发：阶段二整合任务启动', '传递：候选序列化为 rollout_summaries/*.md', '过滤：每个文件保留会话叙事和可追溯来源，作为 agent 的工作材料。', '解释：这一步把数据库里的候选变成 agent 能读、能 diff 的证据文件。'],
+    'summary_file->asset': ['触发：沙箱 agent 读取证据文件 diff', '传递：更新后的 MEMORY.md / memory_summary.md', '过滤：agent 按提示词合并、改写或移除任务组；Rust 只校验 v1 和文件存在。', '解释：长期记忆不是数据库自动拼接，而是整合 agent 根据证据重写文件。'],
+    'asset->recall': ['触发：新会话启动', '传递：memory_summary.md 前 2500 tokens 注入 developer 指令', '过滤：超出 2500 tokens 的尾部不会进入上下文；模型可按需再搜 MEMORY.md。', '解释：写入文件不会立刻等于“模型记住”，必须在下一次会话启动时被注入。'],
+    'recall->forget': ['触发：长期未被引用或来源证据被清理', '传递：usage_count、引用线程和删除 diff', '过滤：30 天未使用的候选会被 prune；只由它支撑的资产可能在下一次整合中被移除。', '解释：遗忘是下一轮整合根据证据缺失做出的结果，不是一次即时删除。'],
+  };
+  const x = map[key]; if (!x) return '';
+  return `<div class="transition"><div class="transition-arrow">↓</div><div class="transition-body"><b>${esc(x[0])}</b><div><span class="transition-label">${esc(x[1])}</span></div><div><span class="transition-label">${esc(x[2])}</span></div><div class="transition-explain">${ev('inference')} ${esc(x[3])}</div></div></div>`;
 }
 document.addEventListener('click', async e => {
   const a = e.target.closest('[data-sumfile]'); if (!a) return; e.preventDefault();
