@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -78,12 +79,23 @@ def _shape_entries(value: Any, prefix: str = "$") -> list[str]:
     return [f"{prefix}:{kind}"]
 
 
+# Enum-like fields whose unknown values are kept verbatim when they look like an
+# identifier, so new host behaviour is visible. Anything else still maps to "other".
+RAW_IDENTIFIER_FIELDS = {"source", "reason"}
+IDENTIFIER = re.compile(r"[a-z][a-z0-9_-]{0,31}")
+
+
 def _safe_enums(payload: dict[str, Any]) -> dict[str, str]:
     result: dict[str, str] = {}
     for key, allowed in SAFE_ENUMS.items():
         value = payload.get(key)
         if isinstance(value, str):
-            result[key] = value if value in allowed else "other"
+            if value in allowed:
+                result[key] = value
+            elif key in RAW_IDENTIFIER_FIELDS and IDENTIFIER.fullmatch(value):
+                result[key] = "unlisted:" + value
+            else:
+                result[key] = "other"
     return result
 
 

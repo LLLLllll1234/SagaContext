@@ -151,3 +151,15 @@ def test_collection_scope_still_requires_everything_else():
     c["session_start_sources"]["resume_keeps_session_id"] = False
     assert EVAL.evaluate(c, "d", scope="collection")["status"] == "inconclusive"
     assert EVAL.evaluate(capture(interactive_smoke={"status": "not_run"}), "d", scope="collection")["status"] == "inconclusive"
+
+
+RECORDER = load("g3_recorder", "scripts/g3_hook_recorder.py")
+
+
+def test_recorder_keeps_unlisted_identifier_sources_but_not_free_text():
+    enums = RECORDER._safe_enums
+    assert enums({"source": "startup"})["source"] == "startup"
+    assert enums({"source": "idle_rollover"})["source"] == "unlisted:idle_rollover"
+    assert enums({"source": "Remember my API key sk-1"})["source"] == "other"
+    assert enums({"source": "x" * 40})["source"] == "other"
+    assert enums({"permission_mode": "somethingnew"})["permission_mode"] == "other"

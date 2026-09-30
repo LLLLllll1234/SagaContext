@@ -67,9 +67,23 @@ def collect(directory: Path, capture_path: Path) -> dict:
     sessions = {r.get("session_ref") for r in records if r.get("session_ref")}
     sources = sorted({(r.get("safe_enums") or {}).get("source", "absent") for r in records if r.get("hook_event_name") == "SessionStart"})
     end_reasons = sorted({(r.get("safe_enums") or {}).get("reason", "absent") for r in records if r.get("hook_event_name") == "SessionEnd"})
-    ok = all(counts.get(e, 0) >= 1 for e in EXPECTED) and len(sessions) == 1 and "startup" in sources
+    # Per session: how it opened, what it carried, whether it was closed. A session that
+    # carries prompts but never gets SessionEnd would hold rollout quota until deadline.
+    lifecycle = {}
+    for ref in sorted(sessions):
+        own = [r for r in records if r.get("session_ref") == ref]
+        lifecycle[ref] = {
+            "opened_by": [(r.get("safe_enums") or {}).get("source", "absent") for r in own if r.get("hook_event_name") == "SessionStart"],
+            "events": [r.get("hook_event_name") for r in own],
+            "closed": any(r.get("hook_event_name") == "SessionEnd" for r in own),
+        }
+    unclosed_with_prompts = sorted(ref for ref, v in lifecycle.items() if "UserPromptSubmit" in v["events"] and not v["closed"])
+    # Pass stays strict: one session, opened by startup, closed. Rollover runs are
+    # recorded for design decisions but do not pass the smoke.
+    ok = all(counts.get(e, 0) >= 1 for e in EXPECTED) and "startup" in sources and not unclosed_with_prompts and len(sessions) == 1
     smoke = {"status": "pass" if ok else "not_observed", "event_counts": dict(sorted(counts.items())),
              "session_count": len(sessions), "session_start_sources": sources, "session_end_reasons": end_reasons,
+             "session_lifecycle": lifecycle, "unclosed_sessions_with_prompts": unclosed_with_prompts,
              "payload_shapes": records}
     capture = json.loads(capture_path.read_text())
     capture["interactive_smoke"] = smoke
