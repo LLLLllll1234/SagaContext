@@ -319,3 +319,15 @@ def test_claude_session_start_is_collected_but_never_injected(runtime):
     codex = {**record, "host": "codex", "host_version": CODEX, "session_id": "cx", "source_event_ref": "start2"}
     _, codex_receipt = rt.session_start(codex, None, query="workspace", hits=[])
     assert codex_receipt.reason != "injection_not_admitted_for_host"
+
+
+def test_rejected_session_start_is_counted_by_host_and_source(runtime):
+    from sagacontext.daily_report import report
+    root, ledger, config, rt = runtime
+    run = rt.activate(mode="guarded", workspace=str(root), approval_receipt="a",
+                      deadline=datetime.now(timezone.utc) + timedelta(hours=1), hosts=frozen(root), **auth())
+    event(rt, root, "claude-code", CLAUDE, kind="SessionStart", key="1", source="idle_rollover")
+    event(rt, root, "claude-code", CLAUDE, kind="SessionStart", key="2", source="free text with spaces")
+    counts = report(ledger, run["rollout_id"])["event_rejections"]
+    assert counts == {"claude-code:SessionStart:session_start_source_not_allowed:-": 1,
+                      "claude-code:SessionStart:session_start_source_not_allowed:idle_rollover": 1}

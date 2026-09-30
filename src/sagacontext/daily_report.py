@@ -13,6 +13,15 @@ def pending(ledger):
         'SELECT proposal_id,candidate_id,operation,memory_type,scope_json,payload_patch_json,evidence_ids_json FROM proposals WHERE batch_id=?', (row['batch_id'],))]} for row in rows]
 
 
+def rejections(ledger, rollout_id):
+    counts = {}
+    for (payload,) in ledger.db.execute("SELECT payload_json FROM rollout_audit WHERE rollout_id=? AND kind='event_rejection'", (rollout_id,)):
+        data = json.loads(payload)
+        key = ':'.join(str(data.get(k) or '-') for k in ('host','event','reason','source'))
+        counts[key] = counts.get(key, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def report(ledger, rollout_id):
     row = ledger.db.execute('SELECT * FROM rollout_runs WHERE rollout_id=? AND owner_id=?', (rollout_id,ledger.owner_id)).fetchone()
     if not row:
@@ -35,6 +44,7 @@ def report(ledger, rollout_id):
         'proposals':groups('SELECT p.operation,COUNT(*) FROM proposals p JOIN rollout_batches rb USING(batch_id) WHERE rb.rollout_id=? GROUP BY p.operation'),
         'judge_latency_ms':{'samples':len(latencies),'p50':quantile(.5),'p95':quantile(.95)},
         'consumption_reports':count('rollout_consumption_receipts'),
+        'event_rejections':rejections(ledger, rollout_id),
         'rate_basis':'operator_labeled_targets_only',
         # These rates describe labeled targets only, never the unlabeled population.
         'candidate_effectiveness':observations['candidate_valid']['yes_rate'],

@@ -131,7 +131,11 @@ class NormalHostAdapter:
     def ingest(self, record: dict[str, Any], *, rollout: dict[str, Any] | None = None) -> GateReceipt:
         event = str(record.get("hook_event_name", "")); workspace = _path(record.get("cwd")); mode = _safe_mode(rollout["mode"] if rollout else self.config.rollout_mode)
         def reject(reason: str) -> GateReceipt:
-            audit = self.ledger.record_rollout_receipt("event_rejection", {"event": event, "reason": reason, "mode": mode.value})
+            # Host and a bounded source identifier let window reports count unexpected host behaviour.
+            detail = {"event": event, "reason": reason, "mode": mode.value, "host": str(record.get("host", ""))[:32]}
+            if event == "SessionStart" and isinstance(record.get("source"), str) and record["source"].replace("_", "").replace("-", "").isalnum():
+                detail["source"] = record["source"][:32]
+            audit = self.ledger.record_rollout_receipt("event_rejection", detail, rollout_id=rollout["rollout_id"] if rollout else None)
             return GateReceipt(status="rejected", reason=reason, audit_receipt_id=audit["receipt_id"])
         if mode is RuntimeMode.OFF: return reject("mode_off")
         if self.kill_switch_active(): return reject("kill_switch")

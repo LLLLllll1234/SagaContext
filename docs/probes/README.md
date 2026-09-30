@@ -4,7 +4,9 @@
 
 ## 当前验收
 
-当前观察：[2026-09-11 日常观察](2026-09-11-daily-observation.md)。已授权开启一次 guarded 窗口，限本仓库 10 session / 20 candidate，截止 2026-09-12 14:39 北京时间；独立每分钟巡检收尾、每 30 分钟代理审核。启动样本为 0，未验收日常质量，未启用 active。实时状态以本机台账为准。
+最新准入：[2026-09-30 G3-CC Claude Code](2026-09-30-g3-claude-code.md)：`2.1.285` 只采集口径 22/22 passed；SessionStart 注入未被模型消费，完整口径 inconclusive，按已拍板只采集。Codex `0.159.2` 重新准入尚未运行。
+
+上一观察：[2026-09-11 日常观察](2026-09-11-daily-observation.md)。guarded 窗口已于 2026-09-12 14:39 到期收尾，0 session / 0 candidate（当时只有 Codex 接入 hook）。
 
 最新真实验收：[2026-09-11 Scheduler 真实闭环](2026-09-11-scheduler-real-acceptance.md)：同一 Codex 模型本轮恢复可用；后台调度真实受控链路 11/11、独立复核 17/17 通过，回滚零残留。真实日常质量尚未验收。
 离线验收：[2026-09-11 Scheduler 与运维验收](2026-09-11-offline-scheduler-acceptance.md)：合成隔离运行 34/34、全量 246 tests / 96 subtests；当时的 provider 阻塞见最新真实运行结果。
