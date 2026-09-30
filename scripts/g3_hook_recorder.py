@@ -27,16 +27,21 @@ SAFE_ENUMS = {
         "SubagentStop",
         "Stop",
         "Interrupt",
+        "Notification",
     },
-    "permission_mode": {"default", "read-only", "workspace-write", "danger-full-access"},
+    # Codex sandbox modes, then Claude Code permission modes.
+    "permission_mode": {"default", "read-only", "workspace-write", "danger-full-access",
+                        "auto", "acceptEdits", "bypassPermissions", "manual", "dontAsk", "plan"},
     "source": {"startup", "resume", "clear", "compact"},
     "trigger": {"manual", "auto"},
-    "tool_name": {"shell", "Bash", "apply_patch"},
+    "tool_name": {"shell", "Bash", "apply_patch", "Read"},
+    "reason": {"clear", "logout", "prompt_input_exit", "other"},
 }
 REFERENCE_FIELDS = {
     "session": ("session_id",),
     "workspace": ("cwd", "workspace"),
-    "task": ("turn_id", "task_id", "thread_id"),
+    # Claude Code links a turn's events by prompt_id.
+    "task": ("turn_id", "task_id", "thread_id", "prompt_id"),
     "tool_call": ("tool_use_id", "tool_call_id", "call_id"),
 }
 

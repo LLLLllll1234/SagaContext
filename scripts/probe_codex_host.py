@@ -45,8 +45,9 @@ REQUIRED_EVENTS = (
 )
 SESSION_START_CONTEXT = "G3_SESSION_START_CONTEXT"
 SOURCE_REVISION = "728cb12fe5794b0c3a8e776fb4994b1650b973a8"
-PINNED_EXECUTABLE_VERSION = "codex-cli 0.153.4"
-PINNED_MODEL = "gpt-5.6-luna"
+PINNED_EXECUTABLE_VERSION = "codex-cli 0.159.2"
+# v5 admission (0.153.4) ran on terra; the same model keeps the rerun comparable.
+PINNED_MODEL = "gpt-5.6-terra"
 OFFICIAL_REFERENCES = (
     "https://developers.openai.com/codex/hooks",
     "https://developers.openai.com/codex/config-file/config-reference",
@@ -59,6 +60,11 @@ SCENARIOS = (
     "hook_timeout",
     "restart_recovery",
 )
+
+
+def _executable() -> str:
+    """Frozen absolute path, as the observation watchdog uses; never PATH lookup."""
+    return str((Path.home() / ".local/bin/codex").resolve())
 
 
 def _utc_now() -> str:
@@ -175,7 +181,7 @@ def _config_fingerprint(configs: dict[str, dict[str, Any]]) -> str:
 
 def _runtime_feature_flags() -> dict[str, bool]:
     completed = subprocess.run(
-        ["codex", "features", "list"], check=True, text=True, capture_output=True
+        [_executable(), "features", "list"], check=True, text=True, capture_output=True
     )
     flags: dict[str, bool] = {}
     for line in completed.stdout.splitlines():
@@ -282,7 +288,7 @@ def _scenario_result(
     marker: str = SESSION_START_CONTEXT,
 ) -> dict[str, Any]:
     command = [
-        "codex",
+        _executable(),
         "--dangerously-bypass-hook-trust",
         "--ask-for-approval",
         "never",
@@ -364,7 +370,7 @@ def run_probe(output: Path, timeout_seconds: int = 90, model: str = PINNED_MODEL
         raise ValueError("refusing_to_overwrite_capture")
     recorder = Path(__file__).with_name("g3_hook_recorder.py").resolve()
     version = subprocess.run(
-        ["codex", "--version"], check=True, text=True, capture_output=True
+        [_executable(), "--version"], check=True, text=True, capture_output=True
     ).stdout.strip()
     if version != PINNED_EXECUTABLE_VERSION:
         raise ValueError("host_version_not_pinned")
@@ -462,6 +468,7 @@ def run_probe(output: Path, timeout_seconds: int = 90, model: str = PINNED_MODEL
             "host_name": "codex",
             "host_form": "cli-exec",
             "executable_version": version,
+            "executable_path": _executable(),
             "pinned_executable_version": PINNED_EXECUTABLE_VERSION,
             "requested_model": model,
             "adapter_version": "g3-probe-v5",
