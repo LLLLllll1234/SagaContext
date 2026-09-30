@@ -15,6 +15,7 @@
 ## 已拍板
 
 - **已拍板（2026-09-30）下一阶段先补 Claude Code 宿主准入，再做双宿主日常观察。** 2026-09-11 首轮 24 小时观察窗口（rollout `5d6b4431…`）到期收尾，0 session / 0 candidate；原因是本机仅 Codex 接入 `sagactl-hook`，日常主要使用的 Claude Code 未接入。顺序：G3-CC 隔离准入探针 → Claude Code 宿主适配（SessionStart 注入格式、marker 消费复核）→ 仅限本仓库 workspace 的 hook 接入 → 沿用既有边界（本项目、仅 new proposal、10 session / 20 candidate、24 小时）重开观察。
+- **已拍板（2026-09-30）双宿主结构与版本冻结。** 单个 rollout 同时接收 codex 与 claude-code 事件，共用配额；窗口期冻结每个宿主的精确版本和可执行文件路径，并关闭两者的自动更新。Codex 已自动更新到 `codex-cli 0.159.2`，此前基于 0.153.4 的准入不外推，本期在 0.159.2 上重跑 G3，与 G3-CC 同期进行。设计见 [Claude Code 宿主准入与双宿主观察](superpowers/specs/2026-09-30-claude-code-admission-design.md)。
 - **已拍板（2026-09-30）未跟踪 artifact 的处理：对应用启动运行有帮助才提交，否则不提交。** 启动与测试所需的是 `src/sagacontext/memlab/` 源码和 `tests/memlab/`；`artifacts/` 下未跟踪的探针/Judge 运行输出不被源码或测试引用（测试引用的回放文件已在版本库中），不提交。
 
 ## 全量文档目录
