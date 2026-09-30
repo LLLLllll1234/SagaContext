@@ -12,6 +12,11 @@
 - 本地部署与操作：[OpenViking 部署记录](ops-openviking-local.md)。
  - 当前阶段：[S3-5/G6 真实隔离纵向验收](probes/2026-09-08-g6-lifecycle-acceptance.md) 已通过；正常 workspace 自动化仍关闭。
 
+## 已拍板
+
+- **已拍板（2026-09-30）下一阶段先补 Claude Code 宿主准入，再做双宿主日常观察。** 2026-09-11 首轮 24 小时观察窗口（rollout `5d6b4431…`）到期收尾，0 session / 0 candidate；原因是本机仅 Codex 接入 `sagactl-hook`，日常主要使用的 Claude Code 未接入。顺序：G3-CC 隔离准入探针 → Claude Code 宿主适配（SessionStart 注入格式、marker 消费复核）→ 仅限本仓库 workspace 的 hook 接入 → 沿用既有边界（本项目、仅 new proposal、10 session / 20 candidate、24 小时）重开观察。
+- **已拍板（2026-09-30）未跟踪 artifact 的处理：对应用启动运行有帮助才提交，否则不提交。** 启动与测试所需的是 `src/sagacontext/memlab/` 源码和 `tests/memlab/`；`artifacts/` 下未跟踪的探针/Judge 运行输出不被源码或测试引用（测试引用的回放文件已在版本库中），不提交。
+
 ## 全量文档目录
 
 下表按阶段由新到旧排列。验收数字属于对应日期的运行快照；S0–S2 的限制、旧探针失败和早期草案不覆盖 S3 的当前结论。保留原文件名和位置，避免破坏既有引用。
