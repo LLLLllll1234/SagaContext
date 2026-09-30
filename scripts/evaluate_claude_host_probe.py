@@ -13,6 +13,8 @@ REQUIRED_EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUs
 FORBIDDEN_SAVED_KEYS = {"prompt", "tool_input", "tool_response", "last_assistant_message", "transcript_path",
                         "cwd", "session_id", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"}
 POSITIVE = ("baseline_with_duplicate", "hook_nonzero_exit", "hook_timeout", "restart_recovery")
+# Collection-only admission (已拍板 2026-09-30): injection is recorded, never required.
+INJECTION_ASSERTIONS = {"session_start_context_received"}
 
 
 def _forbidden_paths(value: Any, prefix: str = "$") -> list[str]:
@@ -29,7 +31,7 @@ def _forbidden_paths(value: Any, prefix: str = "$") -> list[str]:
     return found
 
 
-def evaluate(capture: dict[str, Any], capture_digest: str) -> dict[str, Any]:
+def evaluate(capture: dict[str, Any], capture_digest: str, *, scope: str = "full") -> dict[str, Any]:
     assertions: list[dict[str, Any]] = []
 
     def check(name: str, ok: bool | None, evidence: dict[str, Any], *, fail_status: str = "not_observed") -> None:
@@ -87,7 +89,8 @@ def evaluate(capture: dict[str, Any], capture_digest: str) -> dict[str, Any]:
           {"exit_code": timeout.get("exit_code"), "elapsed_ms": timeout.get("elapsed_ms"), "hook_outcomes": timeout.get("hook_outcomes")})
     recovery = scenarios.get("restart_recovery") or {}
     check("restart_recovery_observed", recovery.get("exit_code") == 0 and recovery.get("resumed_from_baseline") is True
-          and recovery.get("session_id_continuous") is True and recovery.get("agent_received_injected_context") is True
+          and recovery.get("session_id_continuous") is True
+          and (scope == "collection" or recovery.get("agent_received_injected_context") is True)
           and "resume" in (recovery.get("session_start_sources") or []),
           {"scenario": {k: recovery.get(k) for k in ("exit_code", "resumed_from_baseline", "session_id_continuous",
                                                      "agent_received_injected_context", "session_start_sources")}})
@@ -107,31 +110,40 @@ def evaluate(capture: dict[str, Any], capture_digest: str) -> dict[str, Any]:
     smoke = capture.get("interactive_smoke") or {}
     check("interactive_smoke", smoke.get("status") == "pass", {"interactive_smoke": smoke})
 
+    if scope == "collection":
+        for item in assertions:
+            if item["name"] in INJECTION_ASSERTIONS:
+                item["required"] = False
+    required = [a for a in assertions if a.get("required", True)]
     if capture_status == "blocked_environment":
         status = "blocked_environment"
-    elif capture_status != "completed" or any(a["status"] == "fail" for a in assertions):
+    elif capture_status != "completed" or any(a["status"] == "fail" for a in required):
         status = "failed_contract"
-    elif all(a["status"] == "pass" for a in assertions):
+    elif all(a["status"] == "pass" for a in required):
         status = "passed"
     else:
         status = "inconclusive"
     return {"gate": "G3-CC", "probe_id": capture.get("probe_id"), "status": status, "capture_status": capture_status,
-            "capture_artifact_digest": capture_digest, "required_assertions": len(assertions),
-            "passed_assertions": sum(a["status"] == "pass" for a in assertions), "assertions": assertions,
-            "decision_rule": "passed only when every required assertion is pass; interactive smoke is required"}
+            "scope": scope, "capture_artifact_digest": capture_digest, "required_assertions": len(required),
+            "passed_assertions": sum(a["status"] == "pass" for a in required), "assertions": assertions,
+            "injection_admitted": scope == "full" and all(a["status"] == "pass" for a in assertions if a["name"] in INJECTION_ASSERTIONS),
+            "decision_rule": "passed only when every required assertion is pass; interactive smoke is required; "
+                             "collection scope records injection assertions without requiring them"}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--capture", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--scope", choices=("full", "collection"), default="full")
     args = parser.parse_args()
     raw = args.capture.read_bytes()
-    result = evaluate(json.loads(raw), "sha256:" + hashlib.sha256(raw).hexdigest())
+    result = evaluate(json.loads(raw), "sha256:" + hashlib.sha256(raw).hexdigest(), scope=args.scope)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(json.dumps({"status": result["status"], "passed": result["passed_assertions"],
                       "required": result["required_assertions"],
-                      "not_passed": [a["name"] for a in result["assertions"] if a["status"] != "pass"]}))
+                      "not_passed": [a["name"] for a in result["assertions"] if a["status"] != "pass" and a.get("required", True)],
+                      "recorded_not_required": [a["name"] for a in result["assertions"] if not a.get("required", True)]}))
     return 0 if result["status"] == "passed" else 1
 
 

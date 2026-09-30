@@ -303,3 +303,19 @@ def test_failed_restore_is_retried_on_later_ticks(window, monkeypatch):
     tick(app, lambda: "test")
     assert snapshot(app, run["rollout_id"])["host_settings_restore"] == "restored"
     assert json.loads((home / ".claude/settings.json").read_text()) == {"env": {"ANTHROPIC_AUTH_TOKEN": SECRET}}
+
+
+def test_claude_session_start_is_collected_but_never_injected(runtime):
+    from sagacontext.backends import BackendHit
+    root, ledger, config, rt = runtime
+    rt.activate(mode="guarded", workspace=str(root), approval_receipt="a",
+                deadline=datetime.now(timezone.utc) + timedelta(hours=1), hosts=frozen(root), **auth())
+    record = {"cwd": str(root), "host": "claude-code", "host_version": CLAUDE, "source_generation": "g1",
+              "session_id": "cc", "source_event_ref": "start", "source": "startup"}
+    output, receipt = rt.session_start(record, None, query="workspace", hits=[])
+    assert output == {} and receipt.status == "blocked" and receipt.reason == "injection_not_admitted_for_host"
+    # The event itself still reaches the Ledger for candidate collection.
+    assert ledger.db.execute("SELECT COUNT(*) FROM events WHERE host='claude-code' AND event_kind='session_opened'").fetchone()[0] == 1
+    codex = {**record, "host": "codex", "host_version": CODEX, "session_id": "cx", "source_event_ref": "start2"}
+    _, codex_receipt = rt.session_start(codex, None, query="workspace", hits=[])
+    assert codex_receipt.reason != "injection_not_admitted_for_host"

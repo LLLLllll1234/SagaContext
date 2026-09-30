@@ -32,6 +32,9 @@ EVENT_KIND = {"SessionStart": "session_opened", "UserPromptSubmit": "user_messag
 EVENTS = frozenset(EVENT_KIND)
 # Claude Code also fires SessionStart on compact/clear; only these open a session.
 SESSION_START_SOURCES = {"claude-code": frozenset({"startup", "resume"})}
+# Hosts whose SessionStart context was shown to reach the model (G3 marker consumption).
+# claude-code is collection-only: G3-CC 2026-09-30 observed no model consumption.
+INJECTION_HOSTS = frozenset({"codex"})
 
 
 class RuntimeMode(StrEnum):
@@ -526,6 +529,7 @@ class RolloutRuntime:
     def session_start(self, record: dict[str, Any], backend: BackendAdapter | None, *, query: str, context: TaskContext | None = None, hits: list[BackendHit] | None = None) -> tuple[dict[str, Any], InjectionReceipt]:
         gate=self.ingest({**record,"hook_event_name":"SessionStart"}); session_digest=_digest({"host":record.get("host",self.config.rollout_host),"session_id":record.get("session_id", ""),"workspace":record.get("cwd", "")})
         if gate.status != "accepted" or self.mode is not RuntimeMode.GUARDED: return self._blocked_injection(gate.reason or "injection_disabled",session_digest,gate)
+        if str(record.get("host", self.config.rollout_host)) not in INJECTION_HOSTS: return self._blocked_injection("injection_not_admitted_for_host",session_digest,gate)
         identity=self.ledger.resolve_project(self.host.allowed_workspace() or Path(".")); context=context or TaskContext(owner_id=self.ledger.owner_id,project_id=identity["project_id"],workspace_id=gate.workspace_id)
         if hits is None:
             if backend is None: return self._blocked_injection("backend_not_configured",session_digest,gate)

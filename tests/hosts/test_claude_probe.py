@@ -125,3 +125,29 @@ def test_saved_raw_fields_fail_redaction():
     result = EVAL.evaluate(leaked, "d")
     assert result["status"] == "failed_contract"
     assert next(a for a in result["assertions"] if a["name"] == "redacted_receipts")["status"] == "fail"
+
+
+def no_injection():
+    c = capture()
+    for s in c["scenarios"]:
+        s["agent_received_injected_context"] = False
+    return c
+
+
+def test_full_scope_requires_injection():
+    result = EVAL.evaluate(no_injection(), "d")
+    assert result["status"] == "inconclusive" and result["injection_admitted"] is False
+
+
+def test_collection_scope_records_but_does_not_require_injection():
+    result = EVAL.evaluate(no_injection(), "d", scope="collection")
+    assert result["status"] == "passed" and result["injection_admitted"] is False
+    skipped = [a for a in result["assertions"] if not a.get("required", True)]
+    assert [a["name"] for a in skipped] == ["session_start_context_received"] and skipped[0]["status"] == "not_observed"
+
+
+def test_collection_scope_still_requires_everything_else():
+    c = no_injection()
+    c["session_start_sources"]["resume_keeps_session_id"] = False
+    assert EVAL.evaluate(c, "d", scope="collection")["status"] == "inconclusive"
+    assert EVAL.evaluate(capture(interactive_smoke={"status": "not_run"}), "d", scope="collection")["status"] == "inconclusive"

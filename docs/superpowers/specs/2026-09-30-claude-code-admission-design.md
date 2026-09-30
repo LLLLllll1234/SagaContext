@@ -107,7 +107,9 @@ claude-code = "2.1.285 (Claude Code)"
 - 兜底**只对 `claude-code` 生效**。Codex 的 `hooks.json` 没有 matcher，compact 时的行为由 0.159.2 探针记录（§3）；在拿到证据之前不改变 Codex 的现有行为。缺少 `source` 字段的 Claude Code SessionStart 视为不合规并拒绝，不默认按 startup 处理。
 - `/clear` 产生新的 session_id，其后的 UserPromptSubmit 照常开新 session 并占用配额。这是预期行为，在报告中计入。
 
-**注入**：SessionStart 输出格式不变。Claude Code 是否实际消费注入，沿用现有「consumption receipt 另行记录」的规则，不因注入成功就推断已消费。
+**注入（实现修订，已拍板 2026-09-30）**：Claude Code 本期只采集。`rollout.INJECTION_HOSTS` 只含 `codex`；claude-code 的 SessionStart 仍作为 `session_opened` 进入 Ledger，但注入回执为 `blocked / injection_not_admitted_for_host`，输出 `{}`。G3-CC 以 `--scope collection` 评估：注入断言照常记录，不计入通过条件。开放注入需要另行准入。
+
+**注入（原设计）**：SessionStart 输出格式不变。Claude Code 是否实际消费注入，沿用现有「consumption receipt 另行记录」的规则，不因注入成功就推断已消费。
 
 ## 5. 版本冻结与漂移检测
 
