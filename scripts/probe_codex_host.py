@@ -406,6 +406,8 @@ def run_probe(output: Path, timeout_seconds: int = 90, model: str = PINNED_MODEL
             (workspace / ".codex" / "hooks.json").write_text(
                 json.dumps(config, indent=2) + "\n"
             )
+            # Progress goes to stderr; stdout stays the single JSON summary.
+            print(f"[{_utc_now()}] scenario {scenario} started (timeout {timeout_seconds}s)", file=sys.stderr, flush=True)
             scenario_result = _scenario_result(
                 name=scenario,
                 workspace=workspace,
@@ -414,6 +416,8 @@ def run_probe(output: Path, timeout_seconds: int = 90, model: str = PINNED_MODEL
                 model=model,
                 marker=marker,
             )
+            print(f"[{_utc_now()}] scenario {scenario} finished in {scenario_result['elapsed_ms'] / 1000:.1f}s "
+                  f"exit={scenario_result['exit_code']} blocker={scenario_result['blocker']}", file=sys.stderr, flush=True)
             current_records = _read_records(hook_log)
             scenario_records = [item for item in current_records if item.get("scenario") == scenario]
             scenario_result["event_counts"] = dict(
