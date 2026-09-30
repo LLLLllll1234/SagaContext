@@ -19,7 +19,7 @@ from .models import (
     Scope,
     TaskContext,
 )
-from .schema import MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, MIGRATION_5, SCHEMA_VERSION
+from .schema import MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, MIGRATION_5, MIGRATION_6, MIGRATION_7, SCHEMA_VERSION
 
 
 def _now() -> str:
@@ -226,7 +226,7 @@ class Ledger:
             tables = self._user_tables()
             if tables != {"schema_migrations"}:
                 raise RuntimeError("incomplete schema v0")
-        for version, migration in ((1, MIGRATION_1), (2, MIGRATION_2), (3, MIGRATION_3), (4, MIGRATION_4), (5, MIGRATION_5)):
+        for version, migration in ((1, MIGRATION_1), (2, MIGRATION_2), (3, MIGRATION_3), (4, MIGRATION_4), (5, MIGRATION_5), (6, MIGRATION_6), (7, MIGRATION_7)):
             if version in applied:
                 continue
             try:
@@ -309,6 +309,15 @@ class Ledger:
                 columns = {row[1] for row in self.db.execute(f"PRAGMA table_info({table})")}
                 if required - columns:
                     raise RuntimeError(f"incomplete schema v5: missing columns in {table}")
+        if version >= 6:
+            columns = {row[1] for row in self.db.execute("PRAGMA table_info(rollout_runs)")}
+            if "hosts_json" not in columns:
+                raise RuntimeError("incomplete schema v6: missing columns in rollout_runs")
+        if version >= 7:
+            for index in self.db.execute("PRAGMA index_list(rollout_sessions)").fetchall():
+                columns = [row[2] for row in self.db.execute(f"PRAGMA index_info('{index[1]}')")]
+                if index[2] and columns == ["rollout_id", "host_session_id"]:
+                    raise RuntimeError("incomplete schema v7: rollout_sessions keeps per-rollout host session uniqueness")
         if version >= 4:
             columns = {row[1] for row in self.db.execute("PRAGMA table_info(rollout_control_keys)")}
             if {"owner_id", "key_id", "token_digest", "approver", "registered_at", "retired_at"} - columns:

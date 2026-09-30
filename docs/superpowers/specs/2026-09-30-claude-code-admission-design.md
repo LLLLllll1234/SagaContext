@@ -87,7 +87,7 @@ claude-code = "2.1.285 (Claude Code)"
 
 **digest 一致性**：`hosts` 以规范化 JSON（键排序）进入 `activate()` 的 `fields`，因而进入 `ControlAuth.request_digest`。预注册 grant 由调用方先算 digest，所以所有调用方（`observation.start_window`、`operator.py`、`scripts/run_guarded_runtime.py`）必须使用同一个 `hosts` 规范化函数，不各自拼装。
 
-**schema**：新增 `MIGRATION_6`，`ALTER TABLE rollout_runs ADD COLUMN hosts_json TEXT`。配套改动：`SCHEMA_VERSION = 6`；`service.py` 迁移元组追加 `(6, MIGRATION_6)`；`_validate_schema` 在 `version >= 6` 时检查 `rollout_runs.hosts_json`。`/health` 返回的 schema 版本随之变为 6。旧 run 该列为 NULL，读取时视为 `{config 中的 rollout_host: {version: rollout_host_version, executable: null}}`；`executable` 为 null 的 run 不能通过新 preflight，只能走原有收尾路径。
+**schema**：新增 `MIGRATION_6`，`ALTER TABLE rollout_runs ADD COLUMN hosts_json TEXT`。配套改动：`SCHEMA_VERSION = 6`；`service.py` 迁移元组追加 `(6, MIGRATION_6)`；`_validate_schema` 在 `version >= 6` 时检查 `rollout_runs.hosts_json`。`/health` 返回的 schema 版本随之变为 6。**实现修订（2026-09-30）**：`rollout_sessions` 带有 `UNIQUE(rollout_id, host_session_id)`，两个宿主复用同一个 session id 时会冲突（多宿主测试复现）。新增 `MIGRATION_7` 重建该表并去掉这条约束（`session_id` 已按 `(owner, host, host_session_id)` 唯一），预约查找改按 `session_id`。`SCHEMA_VERSION` 最终为 7。旧 run 该列为 NULL，读取时视为 `{config 中的 rollout_host: {version: rollout_host_version, executable: null}}`；`executable` 为 null 的 run 不能通过新 preflight，只能走原有收尾路径。
 
 **ingest**
 

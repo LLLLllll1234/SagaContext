@@ -59,12 +59,12 @@ class S2SchemaTests(unittest.TestCase):
 
         ledger = Ledger(self.ledger_path)
         try:
-            self.assertEqual(SCHEMA_VERSION, 5)
+            self.assertEqual(SCHEMA_VERSION, 7)
             self.assertEqual(ledger.owner_id, "owner-v1")
             versions = {
                 row[0] for row in ledger.db.execute("SELECT version FROM schema_migrations")
             }
-            self.assertEqual(versions, {1, 2, 3, 4, 5})
+            self.assertEqual(versions, {1, 2, 3, 4, 5, 6, 7})
             required = {
                 "rollout_control_keys",
                 "rollout_approval_grants",

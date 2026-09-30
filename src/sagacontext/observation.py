@@ -25,6 +25,7 @@ import httpx
 from .application import Application
 from .config import Config
 from .daily_report import report
+from .hosts import pinning, settings as host_settings
 
 SCHEMA = 'daily-observation-v1'
 LABEL = 'com.sagacontext.observation'
@@ -82,10 +83,12 @@ def _window(app, rollout_id):
     return dict(row)
 
 
-def start_window(app, token, *, hours=24):
+def start_window(app, token, *, hours=24, hosts=None, home=None):
+    """hosts is the frozen mapping from preflight; None keeps the legacy single-host run."""
     if type(hours) is not int or not 1 <= hours <= 24:
         raise ValueError('invalid_observation_hours')
     config = app.config
+    originals = {}
     if (config.rollout_stop_file != config.ledger_path.parent/'STOP'
             or config.rollout_mode != 'guarded'):
         raise ValueError('observation_configuration_required')
@@ -96,17 +99,46 @@ def start_window(app, token, *, hours=24):
         if app.ledger.db.execute("SELECT 1 FROM rollout_audit a WHERE a.kind='observation_opened' AND NOT EXISTS (SELECT 1 FROM rollout_audit c WHERE c.kind='observation_closed' AND c.rollout_id=a.rollout_id)").fetchone():
             raise ValueError('observation_cleanup_pending')
         try:
+            # Updaters are off and read back before activation; any failure opens nothing.
+            for host in (hosts or {}):
+                originals[host] = host_settings.disable(host, home)
             config.rollout_stop_file.unlink(missing_ok=True)
             run = app.rollout.activate(mode='guarded', workspace=str(app.rollout.host.allowed_workspace()),
                 approval_receipt=str(uuid.uuid4()), deadline=utcnow()+timedelta(hours=hours),
-                max_sessions=10, max_candidates=20, rollback_plan=PLAN, **auth(config, token))
+                max_sessions=10, max_candidates=20, rollback_plan=PLAN, hosts=hosts, **auth(config, token))
+            if originals:
+                atomic_json(_settings_record(config, run['rollout_id']), {'originals':originals, 'restored':False})
             app.ledger.record_rollout_receipt('observation_opened',
                 {'schema':SCHEMA, 'deadline':run['deadline'], 'review_actor':'user_delegated_operator',
                  'session_limit':10, 'candidate_limit':20}, rollout_id=run['rollout_id'])
         except BaseException:
             config.rollout_stop_file.touch(mode=0o600)
+            for host, original in originals.items():
+                host_settings.restore(host, original, home)
             raise
     return run
+
+
+def _settings_record(config, rollout_id):
+    return config.ledger_path.parent/'observations'/rollout_id/'host-settings.json'
+
+
+def restore_host_settings(app, rollout_id, home=None):
+    """Put each updater key back; failures stay recorded and are retried on later ticks."""
+    path = _settings_record(app.config, rollout_id)
+    if not path.exists():
+        return None
+    record = json.loads(path.read_text())
+    if record['restored']:
+        return 'restored'
+    try:
+        for host, original in record['originals'].items():
+            host_settings.restore(host, original, home)
+    except (OSError, ValueError) as error:
+        atomic_json(path, {**record, 'error_class':type(error).__name__})
+        return 'failed'
+    atomic_json(path, {'originals':record['originals'], 'restored':True})
+    return 'restored'
 
 
 def snapshot(app, rollout_id):
@@ -116,7 +148,15 @@ def snapshot(app, rollout_id):
     return {'schema':SCHEMA, 'updated_at':utcnow().isoformat(), 'rollout_id':rollout_id,
             'deadline':run['deadline'], 'source':'new-workspace-events',
             'pending_batch_ids':pending, 'review_actor':'user_delegated_operator',
-            'automatic_review':False, 'report':result}
+            'automatic_review':False, 'report':result,
+            'host_settings_restore':_restore_state(app, rollout_id)}
+
+
+def _restore_state(app, rollout_id):
+    path = _settings_record(app.config, rollout_id)
+    if not path.exists():
+        return None
+    return 'restored' if json.loads(path.read_text())['restored'] else 'pending'
 
 
 def stop_reason(app, run, *, healthy=True, now=None):
@@ -128,6 +168,9 @@ def stop_reason(app, run, *, healthy=True, now=None):
         return 'stop_switch'
     if run['status'] not in {'running','draining'}:
         return 'rollout_stopped'
+    drift = pinning.drift_reason(pinning.run_hosts(run, app.config.rollout_host, app.config.rollout_host_version))
+    if drift:
+        return drift
     if not healthy:
         return 'daemon_unavailable'
     metrics = report(app.ledger, rid)
@@ -178,7 +221,8 @@ def finish_window(app, rollout_id, token, *, reason):
         if any(o['locator'] and (app.rollout_backend is None or app.rollout_backend.inspect_projection(o['locator']) is not None) for o in operations):
             raise ValueError('observation_remote_residual')
         completed = {'rollout_id':rollout_id, 'status':'completed', 'reason':reason,
-                     'remote_exact_absence':True, 'audit':result['audit']}
+                     'remote_exact_absence':True, 'audit':result['audit'],
+                     'host_settings_restore':restore_host_settings(app, rollout_id)}
         atomic_json(root/'final.json', {**snapshot(app, rollout_id), 'closure':completed})
         app.ledger.record_rollout_receipt('observation_closed', completed, rollout_id=rollout_id,
                                          receipt_id='observation-close:'+rollout_id)
@@ -208,6 +252,9 @@ def tick(app, token_provider, *, healthy=True, now=None, finish_id=None):
             failure = {'rollout_id':rid, 'status':'cleanup_required', 'error_class':type(error).__name__}
             app.ledger.record_rollout_receipt('observation_error', failure, rollout_id=rid)
             results.append(failure)
+    for row in app.ledger.db.execute("SELECT rollout_id FROM rollout_audit WHERE owner_id=? AND kind='observation_closed'", (app.owner_id,)).fetchall():
+        if _restore_state(app, row['rollout_id']) == 'pending':
+            restore_host_settings(app, row['rollout_id'])
     return results
 
 
@@ -245,22 +292,50 @@ def install_watchdog(config):
     return {'status':'installed', 'interval_seconds':60}
 
 
-def preflight(config):
+REPO = Path(__file__).resolve().parents[2]
+HOOK_EVENTS = ('SessionStart','UserPromptSubmit','Stop','SessionEnd')
+# Compact/clear must not reopen a session or inject twice (daemon also rejects them).
+CLAUDE_SESSION_START_MATCHER = 'startup|resume'
+
+
+def _hook_commands(groups, event, *, matcher=None):
+    return [h.get('command','') for group in groups.get(event,[])
+            if matcher is None or group.get('matcher') == matcher for h in group.get('hooks',[])]
+
+
+def _require_hooks(groups, host, *, matchers=None):
+    expected = str(REPO/'bin/sagactl-hook')
+    for event in HOOK_EVENTS:
+        commands = _hook_commands(groups, event, matcher=(matchers or {}).get(event))
+        if not any(shlex.split(command) == [expected,host,event] for command in commands):
+            raise ValueError('workspace_hook_missing')
+
+
+def check_host(host, executable, home=None):
+    """Host-specific installation checks, always through the frozen absolute path."""
+    home = home or Path.home()
+    if host == 'codex':
+        features = subprocess.run([executable,'features','list'],capture_output=True,text=True,check=True,timeout=10).stdout
+        if not any(line.split() == ['hooks','stable','true'] for line in features.splitlines()):
+            raise ValueError('host_hooks_disabled')
+        codex_home = Path(os.environ.get('CODEX_HOME', home/'.codex'))
+        _require_hooks(json.loads((codex_home/'hooks.json').read_text())['hooks'], 'codex')
+    elif host == 'claude-code':
+        # Repository-local settings only; the user-level file is never given our hooks.
+        local = REPO/'.claude/settings.local.json'
+        _require_hooks(json.loads(local.read_text()).get('hooks',{}), 'claude-code',
+                       matchers={'SessionStart':CLAUDE_SESSION_START_MATCHER})
+    else:
+        raise ValueError('host_not_supported')
+
+
+def preflight(config, home=None):
+    """Returns the frozen host mapping that start_window binds into the activation."""
     if not daemon_healthy(config):
         raise ValueError('daemon_scheduler_not_ready')
-    if subprocess.check_output(['codex','--version'],text=True).strip() != config.rollout_host_version:
-        raise ValueError('host_version_changed')
-    features = subprocess.run(['codex','features','list'],capture_output=True,text=True,check=True).stdout
-    if not any(line.split() == ['hooks','stable','true'] for line in features.splitlines()):
-        raise ValueError('host_hooks_disabled')
-    # Require installed ordinary hooks; never manufacture events to satisfy this check.
-    home = Path(os.environ.get('CODEX_HOME', Path.home()/'.codex'))
-    hooks = json.loads((home/'hooks.json').read_text())['hooks']
-    for event in ('SessionStart','UserPromptSubmit','Stop','SessionEnd'):
-        commands = [h.get('command','') for group in hooks.get(event,[]) for h in group.get('hooks',[])]
-        expected = str(Path(__file__).resolve().parents[2]/'bin/sagactl-hook')
-        if not any(shlex.split(command) == [expected,'codex',event] for command in commands):
-            raise ValueError('workspace_hook_missing')
+    hosts = pinning.freeze_hosts(config.host_versions(), home)
+    for host, value in hosts.items():
+        check_host(host, value['executable'], home)
     if not all((config.llm_base_url,config.llm_api_key,config.llm_model,config.ov_api_key,config.rollout_backend_namespace)):
         raise ValueError('judge_backend_configuration_missing')
     status = json.loads((config.ledger_path.parent/'observations/watchdog.json').read_text())
@@ -270,6 +345,7 @@ def preflight(config):
         raise ValueError('watchdog_not_ready')
     if sys.platform != 'darwin' or subprocess.run(['launchctl','print',f'gui/{os.getuid()}/{LABEL}'],capture_output=True).returncode:
         raise ValueError('watchdog_not_installed')
+    return hosts
 
 
 def main():
@@ -281,8 +357,7 @@ def main():
     config = Config.load()
     if args.action == 'install-watchdog':
         print(json.dumps(install_watchdog(config))); return
-    if args.action == 'start':
-        preflight(config)
+    hosts = preflight(config) if args.action == 'start' else None
     if args.action == 'finish' and not args.rollout_id:
         parser.error('--rollout-id required')
     with local_lock(config), Application(config) as app:
@@ -291,7 +366,7 @@ def main():
                 raise ValueError('backend_required')
             # Read-only connectivity check. Never activate against an unusable backend.
             app.rollout_backend.search('workspace',config.rollout_generation,1)
-            result = start_window(app, local_token(config), hours=args.hours)
+            result = start_window(app, local_token(config), hours=args.hours, hosts=hosts)
             atomic_json(config.ledger_path.parent/'observations'/result['rollout_id']/'latest.json',snapshot(app,result['rollout_id']))
         elif args.action == 'status':
             result = [snapshot(app,r[0]) for r in app.ledger.db.execute("SELECT rollout_id FROM rollout_audit WHERE kind='observation_opened' AND owner_id=? ORDER BY created_at DESC",(app.owner_id,))]

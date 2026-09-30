@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 .sagacontext/
 OpenViking/data/
+.claude/settings.local.json
