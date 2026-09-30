@@ -4,7 +4,7 @@
 
 ## 当前验收
 
-最新准入：[2026-09-30 G3-CC Claude Code](2026-09-30-g3-claude-code.md)：`2.1.285` 只采集口径 22/22 passed；SessionStart 注入未被模型消费，完整口径 inconclusive，按已拍板只采集。Codex `0.159.2` 重新准入尚未运行。
+最新准入：[2026-09-30 G3-CC Claude Code](2026-09-30-g3-claude-code.md)：`2.1.285` 只采集口径 22/22 passed；SessionStart 注入未被模型消费，完整口径 inconclusive，按已拍板只采集。[Codex `0.159.2` 重新准入](2026-09-30-g3-codex-0.159.2.md) 21/21 passed（`gpt-5.6-terra`），注入被模型消费。
 
 上一观察：[2026-09-11 日常观察](2026-09-11-daily-observation.md)。guarded 窗口已于 2026-09-12 14:39 到期收尾，0 session / 0 candidate（当时只有 Codex 接入 hook）。
 
