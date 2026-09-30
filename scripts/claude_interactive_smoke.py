@@ -2,7 +2,8 @@
 """G3-CC interactive smoke: prepare a temporary workspace, then record what one real
 interactive session (open claude, send one message, /exit) produced.
 
-  prepare --dir D      create D/workspace with recorder hooks; prints the command to run
+  prepare --dir D      create D/workspace with recorder hooks
+  run --dir D          open interactive claude there (provider env passed, user hooks not loaded)
   collect --dir D --capture C   summarise D's receipts into C["interactive_smoke"], remove D
 
 Receipts are the same redacted shapes as the -p probe; nothing raw is kept.
@@ -37,9 +38,26 @@ def prepare(directory: Path) -> dict:
                                  state=directory / "recorder-state.json", probe_id="g3cc-interactive",
                                  scenario="interactive_smoke", started_ns=time.monotonic_ns(), marker="")
     (workspace / ".claude/settings.local.json").write_text(json.dumps(config, indent=2) + "\n")
-    command = (f"cd {shlex.quote(str(workspace))} && DISABLE_AUTOUPDATER=1 "
-               f"{shlex.quote(probe._executable())} --setting-sources project,local")
+    command = f"{shlex.quote(sys.executable)} {shlex.quote(str(Path(__file__).resolve()))} run --dir {shlex.quote(str(directory))}"
     return {"workspace": str(workspace), "run": command}
+
+
+def run(directory: Path) -> None:
+    """Replace this process with interactive Claude Code in the smoke workspace.
+
+    --setting-sources excludes user settings, which is where provider variables live,
+    so pass only those (ANTHROPIC_*) through the environment, as the -p probe does.
+    Values never reach argv, files or output; execve keeps the terminal attached.
+    """
+    import os
+    workspace = directory / "workspace"
+    if not (workspace / ".claude/settings.local.json").exists():
+        raise ValueError("workspace_not_prepared")
+    env = dict(os.environ)
+    env.update({k: v for k, v in probe._child_env(directory / "unused")[0].items() if k.startswith(probe.PROVIDER_ENV_PREFIXES)})
+    env["DISABLE_AUTOUPDATER"] = "1"
+    os.chdir(workspace)
+    os.execve(probe._executable(), [probe._executable(), "--setting-sources", "project,local"], env)
 
 
 def collect(directory: Path, capture_path: Path) -> dict:
@@ -62,13 +80,15 @@ def collect(directory: Path, capture_path: Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("prepare", "collect"))
+    parser.add_argument("action", choices=("prepare", "run", "collect"))
     parser.add_argument("--dir", type=Path, required=True)
     parser.add_argument("--capture", type=Path)
     args = parser.parse_args()
     if args.action == "prepare":
         print(json.dumps(prepare(args.dir), indent=2))
         return 0
+    if args.action == "run":
+        run(args.dir)
     if not args.capture:
         parser.error("--capture required")
     result = collect(args.dir, args.capture)
