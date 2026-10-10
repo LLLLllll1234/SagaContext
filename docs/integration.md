@@ -27,7 +27,7 @@ After configuring the exact workspace in `[rollout].workspace`, install its four
 ./scripts/install.sh --with-hooks --workspace /absolute/path/to/project
 ```
 
-The installer preserves unrelated hook groups and settings, writes an atomic backup, and adds commands pinned to `codex-cli 0.153.4`. Re-running is idempotent. Remove only SagaContext-owned handlers with:
+The installer preserves unrelated hook groups and settings, writes an atomic backup, and adds commands pinned to `codex-cli 0.159.2`. Re-running is idempotent. Remove only SagaContext-owned handlers with:
 
 ```sh
 ./scripts/install.sh --remove-hooks --workspace /absolute/path/to/project

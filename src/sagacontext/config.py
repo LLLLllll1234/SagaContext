@@ -26,7 +26,7 @@ class Config:
     rollout_worker_enabled: bool = False
     rollout_workspaces: tuple[str, ...] = ()
     rollout_host: str = "codex"
-    rollout_host_version: str = "codex-cli 0.153.4"
+    rollout_host_version: str = "codex-cli 0.159.2"
     # host -> exact version. Empty means the legacy single host above.
     rollout_hosts: tuple[tuple[str, str], ...] = ()
     rollout_generation: str = "g1"

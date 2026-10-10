@@ -12,7 +12,7 @@ if __package__ in {None, ""}: sys.path.insert(0, str(Path(__file__).resolve().pa
 from scripts.setup_support import atomic_write, deployment_status, hook_config, install_hooks, merged_hooks, owned_process, setup_lock, start_daemon, stop_daemon
 
 VERSION = "1.0.0"
-HOST_VERSION = "codex-cli 0.153.4"
+HOST_VERSION = "codex-cli 0.159.2"
 
 
 def run(command: list[str], *, cwd: Path, dry_run: bool = False) -> None:
