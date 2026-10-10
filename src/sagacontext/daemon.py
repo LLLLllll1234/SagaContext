@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+import uuid
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -67,8 +68,11 @@ def _auth_kwargs(request: Request, approver: str | None, key_id: str | None,
 def create_app(config: Config | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(api: FastAPI):
+        api.state.instance_id = os.environ.get("SAGACONTEXT_SETUP_INSTANCE_ID") or uuid.uuid4().hex
         runtime = Application(config or Config.load())
         api.state.runtime = runtime
+        from .console.service import ConsoleReadService
+        api.state.console = ConsoleReadService(runtime.ledger.path, runtime.owner_id)
         from .scheduler import SchedulerThread
         scheduler = SchedulerThread(runtime.config) if runtime.config.rollout_worker_enabled else None
         api.state.scheduler = scheduler
@@ -81,7 +85,40 @@ def create_app(config: Config | None = None) -> FastAPI:
                 scheduler.stop()
             runtime.close()
 
-    api = FastAPI(title="SagaContext", version="0.1.0", lifespan=lifespan)
+    api = FastAPI(title="SagaContext", version="1.0.0", lifespan=lifespan)
+    from .console.router import create_console_router
+    from .console.db import ConsoleReadError
+    from fastapi.exceptions import RequestValidationError, ResponseValidationError
+    from fastapi.exception_handlers import request_validation_exception_handler
+    import uuid
+
+    @api.exception_handler(ConsoleReadError)
+    async def console_error(request: Request, error: ConsoleReadError):
+        status = 404 if error.code == "not_found" else 400 if error.code == "invalid_request" else 503
+        return JSONResponse(status_code=status, content={"error": {"code": error.code,
+            "retryable": error.code == "ledger_busy"}, "request_id": str(uuid.uuid4())})
+
+    @api.exception_handler(RequestValidationError)
+    async def validation_error(request: Request, error: RequestValidationError):
+        if request.url.path.startswith("/console/v1/"):
+            return await console_error(request, ConsoleReadError("invalid_request"))
+        return await request_validation_exception_handler(request, error)
+
+    @api.exception_handler(ResponseValidationError)
+    async def console_response_error(request: Request, error: ResponseValidationError):
+        if request.url.path.startswith('/console/v1/'):
+            return await console_error(request, ConsoleReadError('data_invalid'))
+        raise error
+
+    api.include_router(create_console_router())
+
+    @api.middleware('http')
+    async def console_cache_policy(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith('/console/v1/'):
+            response.headers['Cache-Control'] = 'no-store'
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+        return response
 
     @api.get("/health")
     def health(request: Request):
@@ -314,6 +351,8 @@ def create_app(config: Config | None = None) -> FastAPI:
     def outbox(request: Request):
         return _runtime(request).ledger.list_outbox()
 
+    from .console.static import mount_console_static
+    mount_console_static(api, Path(__file__).parent / 'console' / '_static')
     return api
 
 

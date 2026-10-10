@@ -1,0 +1,32 @@
+{
+  "version": "1.0.0",
+  "validated_at": "2026-09-11T07:18:28.535624+00:00",
+  "implementation_base": "3307e2a8be9934d36ea0c25bc0105cad60e983ac",
+  "python": "3.11.14",
+  "source_sha256": {
+    "pyproject.toml": "55e5266f4be833c7916dc9bce543960a909f4643814d9625521141fa3fb70ebb",
+    "uv.lock": "0165d79e3df8290c8a2d7467104a3497f308c065b69d07d916b49f3d0f879aae",
+    "src/sagacontext/daemon.py": "e7ef9aac1d70723be8d8863b078d78a504ebdbd9145f46ed98918286cedcdbe6"
+  },
+  "locked_install": "passed",
+  "pytest": {
+    "passed": 264,
+    "subtests_passed": 96,
+    "warnings": 2
+  },
+  "compileall": "passed",
+  "diff_check": "passed",
+  "wheel_smoke": {
+    "isolated_installed_import": true,
+    "metadata_version": "1.0.0",
+    "openapi_version": "1.0.0",
+    "default_ingestion": "disabled",
+    "default_scheduler": "disabled"
+  },
+  "distributions": {
+    "sagacontext-1.0.0-py3-none-any.whl": "718f045d38466330091b1ddafcbeddc47996006e648fe24867f0018d089c1d59",
+    "sagacontext-1.0.0.tar.gz": "121a6c2c1eac017bb6e85f231029d0e9bc294d82855f86b2ed5ad1708f227b25"
+  },
+  "production_configuration_changed": false,
+  "daily_quality_admitted": false
+}

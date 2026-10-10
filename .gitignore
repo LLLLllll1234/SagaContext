@@ -6,3 +6,10 @@ __pycache__/
 .sagacontext/
 OpenViking/data/
 .claude/settings.local.json
+.superpowers/
+.worktrees/
+web/node_modules/
+web/test-results/
+web/playwright-report/
+dist/
+build/
