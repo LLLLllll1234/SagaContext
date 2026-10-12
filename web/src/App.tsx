@@ -15,6 +15,7 @@ import OverviewPage from "./pages/OverviewPage";
 import ResourcePage from "./pages/ResourcePage";
 import DetailPage from "./pages/DetailPage";
 import DeploymentPage from "./pages/DeploymentPage";
+import OpsPage from "./pages/OpsPage";
 
 export function useWorkspace() {
   const p = useParams();
@@ -74,8 +75,11 @@ function Shell() {
             </div>
           ))}
           <NavLink className="deployment-nav" to="/deployment">
-            部署状态
+            部署与接入
           </NavLink>
+          <a className="deployment-nav" href="/memlab/">
+            Memory Lab ↗
+          </a>
           <div className="aside-foot">
             <span className="dot" />
             本地运行视图
@@ -96,7 +100,8 @@ function Shell() {
               ["tasks", "任务"],
               ["sessions", "会话"],
               ["memories", "记忆与证据"],
-              ["batches", "运行与审核"],
+              ["batches", "审核"],
+              ["ops", "运维"],
             ].map(([path, name]) => (
               <NavLink
                 key={path}
@@ -109,6 +114,7 @@ function Shell() {
           </nav>
           <Routes>
             <Route index element={<OverviewPage />} />
+            <Route path="ops" element={<OpsPage />} />
             <Route path=":resource" element={<ResourcePage />} />
             <Route path=":resource/:objectId" element={<DetailPage />} />
           </Routes>
@@ -141,10 +147,10 @@ function Landing() {
       <EmptyState
         title={result.isLoading ? "正在读取工作区" : "暂无注册工作区"}
       >
-        在本地注册项目后，可查看会话、记忆与运行状态。
+        登记项目并安装工作区 hooks 后，可在这里查看会话、记忆与运行状态。
       </EmptyState>
       <Link className="button" to="/deployment">
-        查看部署状态
+        查看接入步骤
       </Link>
     </main>
   );

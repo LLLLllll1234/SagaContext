@@ -20,14 +20,102 @@ import {
   Card,
   Counts,
   EmptyState,
+  HostBadge,
   Payload,
   QualityRate,
   ReadNotice,
+  ReviewHint,
   RevisionDiff,
   Status,
+  Summary,
+  collectionOnlyHosts,
   label,
+  omissionLabels,
   time,
 } from "../components/Common";
+import type { components } from "../api/schema";
+
+type Injection = components["schemas"]["Injection"];
+function InjectionRecord({
+  injection: i,
+  base,
+  q,
+}: {
+  injection: Injection;
+  base: string;
+  q: URLSearchParams;
+}) {
+  const summaries = i.summaries ?? [];
+  const groups = new Map<string, Injection["omissions"]>();
+  for (const o of i.omissions)
+    groups.set(o.reason, [...(groups.get(o.reason) ?? []), o]);
+  return (
+    <article className="record injection">
+      <div className="record-head">
+        <span className="small">
+          {time(i.created_at)} · 快照序列 {i.ledger_sequence ?? "—"}
+        </span>
+        <Status value={i.status} />
+      </div>
+      {i.reason && <p className="warning">{label(i.reason)}</p>}
+      <div className="injection-grid">
+        <section>
+          <h3>已带入 {i.memory_ids.length} 条</h3>
+          {i.memory_ids.map((m, index) => (
+            <p key={m}>
+              <Link to={`${base}/memories/${m}?${q}`}>
+                <Summary text={summaries[index]} />
+              </Link>{" "}
+              <small>第 {i.revisions[index]} 版</small>
+            </p>
+          ))}
+          {!i.memory_ids.length && <p className="muted">没有带入记忆。</p>}
+        </section>
+        <section>
+          <h3>未带入 {i.omissions.length} 条</h3>
+          {[...groups].map(([reason, items]) => (
+            <div key={reason}>
+              <p className="small">
+                <b>{omissionLabels[reason] ?? reason}</b> · {items.length} 条
+              </p>
+              <ul>
+                {items.map((o) => (
+                  <li key={`${o.memory_id}:${o.revision}`}>
+                    {o.summary ? (
+                      <Link to={`${base}/memories/${o.memory_id}?${q}`}>
+                        {o.summary}
+                      </Link>
+                    ) : (
+                      <span className="muted">
+                        正文不可见{" "}
+                        <small className="mono">
+                          {o.memory_id.slice(0, 8)}
+                        </small>
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {!i.omissions.length && <p className="muted">没有被省略的记忆。</p>}
+        </section>
+        <section>
+          <h3>是否用上</h3>
+          <p>
+            {i.consumption_records.length
+              ? `有 ${i.consumption_records.length} 条消费记录`
+              : "尚无消费证据"}
+          </p>
+          <p className="small">
+            写入上下文不等于模型已使用；只有宿主回报的消费记录才计入。
+          </p>
+          <p className="small">预算明细：当前回执未记录</p>
+        </section>
+      </div>
+    </article>
+  );
+}
 
 function EvidenceList({ items, base }: { items: Evidence[]; base: string }) {
   return (
@@ -144,6 +232,9 @@ export default function DetailPage() {
               查看来源会话 →
             </Link>
           </Card>
+          {data.status === "awaiting_review" && (
+            <ReviewHint batchId={data.batch_id} />
+          )}
           {data.proposals.map((p) => (
             <Card key={p.proposal_id} title={`${label(p.operation)}提案`}>
               <div className="record-head">
@@ -179,34 +270,45 @@ export default function DetailPage() {
       )}
       {"revisions" in data && (
         <>
+          <section className="card memory-lead">
+            <h2>
+              <Summary text={data.summary} />
+            </h2>
+            <div className="memory-tags">
+              <Status value={data.scope.kind} />
+              <span className="tag">{label(data.memory_type)}</span>
+              <Status value={data.state} />
+              <Status value={data.conflict_state} />
+            </div>
+            <p className="small">
+              当前第 {data.current_revision} 版 ·{" "}
+              {data.scope.path_pattern ??
+                data.scope.task_id ??
+                "遵循项目与用户范围"}
+            </p>
+          </section>
           {data.relations.length > 0 && (
             <Card title="取代关系">
               {data.relations.map((r) => (
                 <p key={r.memory_id}>
                   <Link to={`${base}/memories/${r.memory_id}?${q}`}>
                     {r.relation === "replaces" ? "取代了" : "被取代为"}{" "}
-                    {r.memory_id} →
+                    <small className="mono">{r.memory_id.slice(0, 8)}</small> →
                   </Link>
                 </p>
               ))}
             </Card>
           )}
-          <Card title="记忆作用域">
-            <Status value={data.state} /> <Status value={data.scope.kind} />{" "}
-            <Status value={data.conflict_state} />
-            <p className="small">
-              {data.scope.path_pattern ??
-                data.scope.task_id ??
-                "遵循项目与用户范围"}
-            </p>
-          </Card>
           {data.revisions.map((rev) => (
             <Card
               key={rev.revision}
               title={`版本 ${rev.revision} · ${label(rev.operation)}`}
             >
               <p className="small">{time(rev.created_at)}</p>
-              <Payload value={rev.payload} />
+              <details open={rev.revision === data.current_revision}>
+                <summary className="small">字段</summary>
+                <Payload value={rev.payload} />
+              </details>
               <EvidenceList items={rev.evidence} base={base} />
             </Card>
           ))}
@@ -235,7 +337,7 @@ export default function DetailPage() {
           )}
           <Card title="会话状态">
             <p>
-              {data.host} · {time(data.opened_at)} —{" "}
+              <HostBadge host={data.host} /> · {time(data.opened_at)} —{" "}
               {data.closed_at ? time(data.closed_at) : "尚无结束事件"}
             </p>
             {data.bindings.map((b) => (
@@ -277,36 +379,23 @@ export default function DetailPage() {
               </p>
             ))}
           </Card>
-          <Card title="记忆输出与消费证据">
-            {!data.injections.length && <p className="muted">暂无注入回执。</p>}
-            {data.injections.map((i) => (
-              <article className="record" key={i.receipt_id}>
-                <Status value={i.status} />
-                <p className="small">
-                  快照序列 {i.ledger_sequence} · {time(i.created_at)}
-                </p>
-                {i.reason && <p>{label(i.reason)}</p>}
-                {i.memory_ids.map((m, index) => (
-                  <p key={m}>
-                    <Link to={`${base}/memories/${m}?${q}`}>
-                      记忆 {m.slice(0, 8)} · v{i.revisions[index]} →
-                    </Link>
-                  </p>
-                ))}
-                <p>
-                  消费记录：
-                  {i.consumption_records.length
-                    ? `${i.consumption_records.length} 条`
-                    : "尚无证据"}
-                </p>
-                <p className="small">预算明细：当前回执未记录</p>
-                {i.omissions.map((o, index) => (
-                  <p key={index} className="small">
-                    省略 {o.memory_id.slice(0, 8)} · {o.reason}
-                  </p>
-                ))}
-              </article>
-            ))}
+          <Card title="这次会话带入了什么">
+            {collectionOnlyHosts.has(data.host) ? (
+              <p className="muted">
+                此宿主仅采集事件，不注入记忆。会话中的新信息仍会进入候选与审核。
+              </p>
+            ) : data.injections.length ? (
+              data.injections.map((i) => (
+                <InjectionRecord
+                  key={i.receipt_id}
+                  injection={i}
+                  base={base}
+                  q={q}
+                />
+              ))
+            ) : (
+              <p className="muted">暂无注入回执。</p>
+            )}
           </Card>
         </>
       )}

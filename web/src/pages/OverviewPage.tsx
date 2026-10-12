@@ -2,14 +2,22 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useWorkspace } from "../App";
 import { useRead } from "../api/queries";
-import type { Envelope, Overview, ActivityRow } from "../api/types";
+import type {
+  Envelope,
+  Overview,
+  ActivityRow,
+  MemoryRow,
+  Page,
+} from "../api/types";
 import {
   Card,
   Counts,
   EmptyState,
-  QualityRate,
+  HostBadge,
   ReadNotice,
   Status,
+  Summary,
+  collectionOnlyHosts,
   label,
   time,
 } from "../components/Common";
@@ -81,6 +89,40 @@ export function Activity({
     </div>
   );
 }
+function RecentMemories() {
+  const { projectId, workspaceId, base } = useWorkspace();
+  const result = useRead<Envelope<Page<MemoryRow>>>(
+    `/projects/${projectId}/memories?workspace_id=${workspaceId}&limit=5`,
+  );
+  const rows = result.data?.data.items;
+  if (!rows)
+    return (
+      <p className="muted">
+        {result.isLoading ? "正在读取记忆" : "记忆数据不可用"}
+      </p>
+    );
+  if (!rows.length)
+    return (
+      <EmptyState title="还没有适用于本项目的记忆">
+        审核通过的记忆会出现在这里。
+      </EmptyState>
+    );
+  return (
+    <ul className="memory-list">
+      {rows.map((m) => (
+        <li key={m.memory_id}>
+          <Link to={`${base}/memories/${m.memory_id}?project_id=${projectId}`}>
+            <Summary text={m.summary} />
+          </Link>
+          <span className="small">
+            {label(m.scope_kind)} · {label(m.memory_type)} ·{" "}
+            {time(m.created_at)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 export default function OverviewPage() {
   const { workspaceId, base } = useWorkspace();
   const window = useToday();
@@ -98,19 +140,18 @@ export default function OverviewPage() {
       </>
     );
   const runtime = o.runtime.value;
-  const run = o.rollout.value;
   const task = o.tasks.value?.items.find(
     (t) => t.status === "active" && t.session_id,
   );
   const changes = o.memory_changes.value;
-  const quality = run?.observations.wrong_recall;
+  const awaiting = o.rollout.value?.batches.awaiting_review ?? 0;
   return (
     <>
       <div className="title-row">
         <div>
           <p className="eyebrow">WORKSPACE OVERVIEW</p>
           <h1>工作区总览</h1>
-          <p className="muted">任务进展、会话与记忆变化，在同一处查看。</p>
+          <p className="muted">Agent 在这个工作区记住了什么、带回了什么。</p>
         </div>
         <div className="snapshot">
           最近快照
@@ -122,27 +163,20 @@ export default function OverviewPage() {
         error={result.error}
         observed={result.data?.meta.observed_at}
       />
-      <div className="runtime-strip">
-        <div>
-          <span className={`dot ${result.error ? "lost" : ""}`} />
-          <b>{result.error ? "连接异常" : "服务可达"}</b>
-          <span className="sep">/</span>
-          <span>
-            调度器 {result.error ? "未知" : label(runtime?.scheduler)}
-          </span>
-        </div>
-        <div>
+      <Link className="status-line" to={`${base}/ops`}>
+        <span className={`dot ${result.error ? "lost" : ""}`} />
+        <span>
+          {result.error ? "连接异常" : "服务可达"} · 记忆服务{" "}
           <Status value={result.error ? "unknown" : runtime?.effective_mode} />
-          <span className="small">
-            {result.error ? "当前状态未知" : label(runtime?.block_reason)}
-          </span>
-        </div>
-      </div>
-      {runtime?.other_workspace_id && (
-        <div className="notice">
-          另一个工作区有未结束的运行；当前工作区没有占用它的配额。
-        </div>
-      )}
+          {!result.error && runtime?.block_reason && (
+            <span className="small"> {label(runtime.block_reason)}</span>
+          )}
+          {awaiting > 0 && (
+            <span className="small"> · {awaiting} 个批次待审核</span>
+          )}
+        </span>
+        <span>查看运维状态 →</span>
+      </Link>
       <div className="grid">
         <Card title="当前任务" to={`${base}/tasks`}>
           {o.tasks.availability === "unavailable" ? (
@@ -172,53 +206,8 @@ export default function OverviewPage() {
             </EmptyState>
           )}
         </Card>
-        <Card
-          title="运行与待审核"
-          to={run ? `${base}/rollouts/${run.rollout_id}` : `${base}/batches`}
-        >
-          {o.rollout.availability === "unavailable" ? (
-            <p className="muted">运行数据不可用</p>
-          ) : run ? (
-            <>
-              <div className="run-mode">
-                <Status value={run.mode} />
-                <Status value={run.status} />
-              </div>
-              <div className="quotas">
-                {[
-                  ["会话配额占用", run.session_reservations, run.session_limit],
-                  [
-                    "候选配额占用",
-                    run.candidate_reservations,
-                    run.candidate_limit,
-                  ],
-                ].map(([name, used, limit]) => (
-                  <div key={name}>
-                    <small>{name}</small>
-                    <p>
-                      <b>{used}</b> / {limit}
-                    </p>
-                    <meter value={Number(used)} max={Number(limit)} />
-                  </div>
-                ))}
-                <div>
-                  <small>截止时间</small>
-                  <p>{time(run.deadline)}</p>
-                </div>
-              </div>
-              <Link
-                className="queue-link"
-                to={`${base}/batches?status=awaiting_review`}
-              >
-                <span>{run.batches.awaiting_review ?? 0} 个批次等待审核</span>
-                <span>查看提案与证据 →</span>
-              </Link>
-            </>
-          ) : (
-            <EmptyState title="暂无运行记录">
-              已有任务和历史记忆仍可查看。
-            </EmptyState>
-          )}
+        <Card title="适用记忆" to={`${base}/memories`}>
+          <RecentMemories />
         </Card>
         <Card title="最近会话" to={`${base}/sessions`}>
           {o.sessions.availability === "unavailable" ? (
@@ -228,12 +217,16 @@ export default function OverviewPage() {
               <div className="list-row" key={s.session_id}>
                 <div>
                   <Link to={`${base}/sessions/${s.session_id}`}>
-                    {s.host}{" "}
+                    <HostBadge host={s.host} />{" "}
                     <small className="mono">{s.session_id.slice(0, 8)}</small>
                   </Link>
                   <p className="small">
-                    {time(s.opened_at)} —{" "}
-                    {s.closed_at ? time(s.closed_at) : "尚无结束事件"}
+                    {time(s.opened_at)} ·{" "}
+                    {collectionOnlyHosts.has(s.host)
+                      ? "仅采集"
+                      : s.injected_count == null
+                        ? "未带入记忆"
+                        : `带入 ${s.injected_count} 条记忆`}
                   </p>
                 </div>
                 <span className="session-icon">↗</span>
@@ -244,46 +237,21 @@ export default function OverviewPage() {
           )}
           <p className="caption">依据已收到的会话事件展示。</p>
         </Card>
-        <Card title="记忆变化" to={`${base}/memories?view=changes`}>
-          <p className="small">今日 · 本工作区产生的已提交变更</p>
+        <Card title="今日记忆变化" to={`${base}/memories?view=changes`}>
+          <p className="small">本工作区今天提交的变更</p>
           {o.memory_changes.availability === "unavailable" ? (
             <p className="muted">变更数据不可用</p>
           ) : (
-            <>
-              <Counts
-                values={{
-                  new: changes?.operations.new ?? 0,
-                  refine: changes?.operations.refine ?? 0,
-                  supersede: changes?.operations.supersede ?? 0,
-                }}
-              />
-              <p className="small">
-                当前投影：
-                {Object.entries(changes?.projection_states ?? {})
-                  .map(([k, v]) => `${label(k)} ${v}`)
-                  .join(" · ") || "暂无投影记录"}
-              </p>
-            </>
+            <Counts
+              values={{
+                new: changes?.operations.new ?? 0,
+                refine: changes?.operations.refine ?? 0,
+                supersede: changes?.operations.supersede ?? 0,
+              }}
+            />
           )}
-          <div className="quality-line">
-            <span>误召回率</span>
-            {o.rollout.availability === "unavailable" ? (
-              <span className="muted">质量数据不可用</span>
-            ) : quality ? (
-              <QualityRate {...quality} />
-            ) : (
-              <QualityRate yes={0} no={0} unknown={0} />
-            )}
-          </div>
         </Card>
       </div>
-      <Card title="最近活动" to={`${base}/activity?${window}`}>
-        {o.activity.value ? (
-          <Activity items={o.activity.value.items} base={base} />
-        ) : (
-          <p className="muted">活动数据不可用</p>
-        )}
-      </Card>
       <footer>
         任务归属项目 · 会话与运行归属工作区 · 记忆遵循自身作用域
         <span>

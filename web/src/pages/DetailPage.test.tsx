@@ -100,3 +100,73 @@ describe("proposal evidence display", () => {
     ).not.toBeInTheDocument();
   });
 });
+function showAt(entry: string) {
+  render(
+    <MemoryRouter initialEntries={[entry]}>
+      <Routes>
+        <Route path="/:resource/:objectId" element={<DetailPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+const sessionData = (host: string) => ({
+  meta: { observed_at: "2026-09-11T01:00:00Z" },
+  data: {
+    session_id: "s",
+    host,
+    opened_at: "2026-09-11T01:00:00Z",
+    events: [],
+    batches: [],
+    candidates: [],
+    bindings: [],
+    truncated: [],
+    injections: [
+      {
+        receipt_id: "r",
+        created_at: "2026-09-11T01:00:00Z",
+        status: "emitted",
+        reason: null,
+        memory_ids: ["m1", "m2"],
+        revisions: [1, 3],
+        summaries: ["测试统一放 tests/unit", null],
+        omissions: [
+          { memory_id: "o1", revision: 1, reason: "budget", summary: "超长的项目说明" },
+          { memory_id: "o2", revision: 2, reason: "budget", summary: null },
+        ],
+        consumption_records: [],
+      },
+    ],
+  },
+});
+describe("what a session carried in", () => {
+  it("lists carried memories by content and groups omissions by translated reason", () => {
+    mocks.read.mockReturnValue({ data: sessionData("codex") });
+    showAt("/sessions/s");
+    expect(screen.getByText("测试统一放 tests/unit")).toBeInTheDocument();
+    expect(screen.getByText("无可读正文")).toBeInTheDocument();
+    expect(screen.getByText("超出注入预算")).toBeInTheDocument();
+    expect(screen.getByText("超长的项目说明")).toBeInTheDocument();
+    expect(screen.getByText("正文不可见")).toBeInTheDocument();
+    expect(screen.getByText("尚无消费证据")).toBeInTheDocument();
+  });
+  it("explains collection-only hosts instead of showing receipts", () => {
+    mocks.read.mockReturnValue({ data: sessionData("claude-code") });
+    showAt("/sessions/s");
+    expect(screen.getByText(/此宿主仅采集事件，不注入记忆/)).toBeInTheDocument();
+    expect(screen.queryByText("测试统一放 tests/unit")).not.toBeInTheDocument();
+  });
+});
+describe("review guidance", () => {
+  it("shows the existing CLI command for a batch awaiting review", () => {
+    mocks.read.mockReturnValue({
+      data: {
+        meta: { observed_at: "2026-09-11T01:00:00Z" },
+        data: { batch_id: "b-1", session_id: "s", status: "awaiting_review", attempt_count: 0, proposals: [] },
+      },
+    });
+    showAt("/batches/b-1");
+    expect(
+      screen.getByText("bin/sagacontext-daemon-control review --batch-id b-1 --decision approve"),
+    ).toBeInTheDocument();
+  });
+});

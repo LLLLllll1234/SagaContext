@@ -12,10 +12,15 @@ import type {
 } from "../api/types";
 import {
   EmptyState,
+  HostBadge,
   PagedList,
   Payload,
   ReadNotice,
+  ReviewHint,
   Status,
+  Summary,
+  collectionOnlyHosts,
+  label,
   time,
 } from "../components/Common";
 import { Activity, useToday } from "./OverviewPage";
@@ -105,6 +110,7 @@ export default function ResourcePage() {
           </label>
         </div>
       )}
+      {resource === "batches" && <ReviewHint />}
       {resource === "batches" && (
         <div className="filters">
           <label>
@@ -162,7 +168,7 @@ export default function ResourcePage() {
                 <article className="record" key={r.session_id}>
                   <div className="record-head">
                     <Link to={`${base}/sessions/${r.session_id}`}>
-                      {r.host}{" "}
+                      <HostBadge host={r.host} />{" "}
                       <small className="mono">{r.session_id.slice(0, 8)}</small>
                     </Link>
                     <span className="tag">
@@ -170,7 +176,12 @@ export default function ResourcePage() {
                     </span>
                   </div>
                   <p className="small">
-                    {time(r.opened_at)} — {time(r.closed_at)}
+                    {time(r.opened_at)} — {time(r.closed_at)} ·{" "}
+                    {collectionOnlyHosts.has(r.host)
+                      ? "此宿主仅采集，不注入记忆"
+                      : r.injected_count == null
+                        ? "无注入回执"
+                        : `带入 ${r.injected_count} 条 · 省略 ${r.omitted_count ?? 0} 条`}
                   </p>
                   {r.task_id && (
                     <Link to={`${base}/tasks/${r.task_id}`}>关联任务 →</Link>
@@ -182,18 +193,28 @@ export default function ResourcePage() {
               qs.set("project_id", projectId);
               qs.delete("cursor");
               return (
-                <article className="record" key={r.memory_id}>
-                  <div className="record-head">
-                    <Link to={`${base}/memories/${r.memory_id}?${qs}`}>
-                      记忆{" "}
-                      <span className="mono">{r.memory_id.slice(0, 8)}</span> ·
-                      v{r.current_revision}
-                    </Link>
-                    <div>
-                      <Status value={r.scope_kind} /> <Status value={r.state} />
-                    </div>
+                <article className="record memory-record" key={r.memory_id}>
+                  <Link
+                    className="memory-title"
+                    to={`${base}/memories/${r.memory_id}?${qs}`}
+                  >
+                    <Summary text={r.summary} />
+                  </Link>
+                  <div className="memory-tags">
+                    <Status value={r.scope_kind} />
+                    <span className="tag">{label(r.memory_type)}</span>
+                    <Status value={r.state} />
+                    {r.conflict_state === "unresolved" && (
+                      <span className="tag danger">存在冲突</span>
+                    )}
                   </div>
-                  <Payload value={r.payload} />
+                  <p className="small">
+                    第 {r.current_revision} 版 · {time(r.created_at)}
+                  </p>
+                  <details>
+                    <summary className="small">原始字段</summary>
+                    <Payload value={r.payload} />
+                  </details>
                 </article>
               );
             }

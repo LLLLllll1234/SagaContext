@@ -67,7 +67,79 @@ export const labels: Record<string, string> = {
   connection_lost: "连接中断",
   ledger_busy: "账本暂忙",
   not_found: "对象不存在或不可访问",
+  blocked_injection: "未输出",
+  injection_not_admitted_for_host: "此宿主未开放注入",
+  profile: "画像",
+  taste: "偏好",
+  decision: "决定",
+  project_map: "项目结构",
+  gotcha: "环境坑",
+  task_checkpoint: "任务检查点",
+  "claude-code": "Claude Code",
+  codex: "Codex",
 };
+// RecallPolicy omission reasons (recall_policy.py), phrased for why a memory was not carried in.
+export const omissionLabels: Record<string, string> = {
+  budget: "超出注入预算",
+  scope: "不适用于当前路径或任务",
+  conflict: "存在未解决冲突",
+  inactive: "已退场",
+  revision: "版本已更新",
+  generation: "不属于当前运行",
+  duplicate: "与已带入内容重复",
+  missing: "记忆不存在",
+  owner: "不属于当前用户",
+};
+// Mirrors rollout.INJECTION_HOSTS; deployment status reports the authoritative list.
+export const collectionOnlyHosts = new Set(["claude-code"]);
+export function HostBadge({ host }: { host: string }) {
+  return (
+    <span className="host-badge">
+      {label(host)}
+      {collectionOnlyHosts.has(host) && <small> · 仅采集</small>}
+    </span>
+  );
+}
+export function Command({ text }: { text: string }) {
+  const copy = () => {
+    void navigator.clipboard?.writeText(text).catch(() => undefined);
+  };
+  return (
+    <div className="command">
+      <code>{text}</code>
+      <button type="button" onClick={copy} aria-label={`复制命令 ${text}`}>
+        复制
+      </button>
+    </div>
+  );
+}
+export const reviewCommand = (batchId = "BATCH_ID", decision = "approve") =>
+  `bin/sagacontext-daemon-control review --batch-id ${batchId} --decision ${decision}`;
+export function ReviewHint({ batchId }: { batchId?: string }) {
+  return (
+    <div className="notice review-hint">
+      <b>审核需在命令行完成</b>
+      <p className="small">
+        控制台只读。批准或拒绝需要操作员令牌，在仓库根目录执行：
+      </p>
+      <Command text={reviewCommand(batchId, "approve")} />
+      <Command text={reviewCommand(batchId, "reject")} />
+      {!batchId && (
+        <p className="small">
+          列出全部待审核批次：
+          <code>bin/sagacontext-daemon-control pending</code>
+        </p>
+      )}
+    </div>
+  );
+}
+export function Summary({ text }: { text: string | null | undefined }) {
+  return text ? (
+    <span className="summary">{text}</span>
+  ) : (
+    <span className="summary muted">无可读正文</span>
+  );
+}
 export const label = (value: string | null | undefined) =>
   value ? (labels[value] ?? value) : "—";
 export function Status({ value }: { value: string | null | undefined }) {
