@@ -8,6 +8,13 @@ const when = ts => { if (!ts) return '—'; const d = new Date(ts); return isNaN
 const day = ts => { if (!ts) return '—'; const d = new Date(ts); return isNaN(d) ? String(ts).slice(0, 10) : d.toLocaleDateString('zh-CN'); };
 const EV = {source: '<span class="ev ev-source">源码事实</span>', local_data: '<span class="ev ev-local">本地数据</span>', inference: '<span class="ev ev-infer">系统推断</span>'};
 const ev = k => EV[k] || '';
+// Codex parameters resolved by /codex/facts; CP.x is the value, CD.x marks an unverified one.
+const CP = {}, CD = {};
+async function loadParams() {
+  const d = await api('/codex/facts');
+  for (const [k, x] of Object.entries(d.params || {})) { CP[k] = x.value; CD[k] = x.check === 'unverified' ? '<span class="drift" title="本地源码锚点未找到，此值未复核">⚠ 未复核</span>' : ''; }
+}
+const pct = r => Math.round(r * 100) + '%';
 
 const state = {product: 'codex', tab: 'overview', cache: {}, sel: {}, timers: []};
 const main = $('#main');
@@ -35,6 +42,7 @@ async function render() {
   main.innerHTML = '<section class="panel"><p class="muted">正在读取本地数据…</p></section>';
   try {
     const fn = views[state.product][state.tab] || views.fallback;
+    await loadParams();
     main.innerHTML = '';
     await fn(main);
   } catch (e) { main.innerHTML = `<section class="panel"><div class="callout warn">读取失败：${esc(e.message)}</div></section>`; }
@@ -78,11 +86,11 @@ views.codex.overview = async el => {
     <p class="muted">点击“播放”看一遍完整链路。每个节点下的数字是你本机上的真实数量。</p>
     <div class="flow" id="flow">
       ${flowNode('session', '① 会话 rollout.jsonl', '每轮对话追加写入', lc.counts.threads, 'local_data')}
-      ${flowNode('candidate', '② 阶段一抽取', 'gpt-5.6-luna 读过滤后的对话 → raw_memory + rollout_summary', lc.counts.stage1, 'source')}
+      ${flowNode('candidate', '② 阶段一抽取', `${CP.extract_model} 读过滤后的对话 → raw_memory + rollout_summary`, lc.counts.stage1, 'source')}
       ${flowNode('selected', '③ 阶段二整合', '沙箱 agent 在 ~/.codex/memories 里读 git diff 改文件', h.rollout_summaries, 'source')}
       ${flowNode('asset', '④ 记忆资产', 'MEMORY.md 任务组 + memory_summary.md', lc.counts.memory_blocks, 'local_data')}
-      ${flowNode('recall', '⑤ 召回', 'memory_summary 截断到 2500 tokens 注入 developer 指令', lc.counts.citations, 'source')}
-      ${flowNode('forget', '⑥ 取代/遗忘', '30 天未引用 → 证据文件删除 → agent 移除', lc.counts.forgotten, 'inference')}
+      ${flowNode('recall', '⑤ 召回', `memory_summary 截断到 ${CP.summary_token_limit} tokens 注入 developer 指令`, lc.counts.citations, 'source')}
+      ${flowNode('forget', '⑥ 取代/遗忘', `${CP.max_unused_days} 天未引用 → 证据文件删除 → agent 移除`, lc.counts.forgotten, 'inference')}
     </div>
     <div class="row"><button class="primary" id="play-flow">▶ 播放形成过程</button><span class="muted" id="flow-caption">按源码顺序演示一次：触发 → 抽取 → 整合 → 注入 → 引用 → 遗忘。</span></div>
   </section>
@@ -98,11 +106,11 @@ function playFlow(lc) {
   const cap = $('#flow-caption');
   const steps = [
     ['session', '你在 Codex 里开始新的一轮 → app-server 的 turn_start 触发 start_memories_startup_task（不是会话结束时）。'],
-    ['candidate', `挑最多 2 个闲置超过 6 小时、10 天内活跃的别的会话，过滤掉 developer 消息与压缩摘要，交给 gpt-5.6-luna 抽取 → 写入 stage1_outputs（本机 ${lc.counts.stage1} 行）。`],
-    ['selected', `把 ≤256 条 30 天内用过的候选同步成 rollout_summaries/*.md，git diff 后启动沙箱 agent（gpt-5.6-terra）读 diff 更新文件（本机 ${lc.counts.summary_files} 个证据文件）。`],
+    ['candidate', `挑最多 ${CP.max_rollouts_per_startup} 个闲置超过 ${CP.min_rollout_idle_hours} 小时、${CP.max_rollout_age_days} 天内活跃的别的会话，过滤掉 developer 消息与压缩摘要，交给 ${CP.extract_model} 抽取 → 写入 stage1_outputs（本机 ${lc.counts.stage1} 行）。`],
+    ['selected', `把 ≤${CP.max_raw_memories_for_consolidation} 条 ${CP.max_unused_days} 天内用过的候选同步成 rollout_summaries/*.md，git diff 后启动沙箱 agent（${CP.consolidation_model}）读 diff 更新文件（本机 ${lc.counts.summary_files} 个证据文件）。`],
     ['asset', `agent 重写 MEMORY.md（本机 ${lc.counts.memory_blocks} 个任务组）与 memory_summary.md；Rust 只校验文件存在、首行 v1。`],
-    ['recall', `下个会话开始：memory_summary.md 截到 2500 tokens 塞进 developer 指令；模型引用时输出 <oai-mem-citation>，对应线程 usage_count+1（本机 ${lc.counts.citations} 次引用）。`],
-    ['forget', `30 天没被引用的候选不再入选 → 它的证据文件被删除 → agent 在 diff 里看到删除，按提示词移除“只被它支撑的记忆”（本机当前 ${lc.counts.forgotten} 条处于该状态）。`],
+    ['recall', `下个会话开始：memory_summary.md 截到 ${CP.summary_token_limit} tokens 塞进 developer 指令；模型引用时输出 <oai-mem-citation>，对应线程 usage_count+1（本机 ${lc.counts.citations} 次引用）。`],
+    ['forget', `${CP.max_unused_days} 天没被引用的候选不再入选 → 它的证据文件被删除 → agent 在 diff 里看到删除，按提示词移除“只被它支撑的记忆”（本机当前 ${lc.counts.forgotten} 条处于该状态）。`],
   ];
   nodes.forEach(n => n.classList.add('dim'));
   steps.forEach(([id, text], i) => later(() => {
@@ -119,11 +127,11 @@ views.codex.assets = async el => {
   const lc = await api('/codex/lifecycles');
   const lifeByThread = new Map(lc.lifecycles.map(x => [x.thread_id, x]));
   const sum = a.summary;
-  const limit = 2500;
+  const limit = CP.summary_token_limit;
   el.innerHTML = `
   <section class="panel">
     <div class="row between"><h2 style="margin:0">真正注入每个新会话的：memory_summary.md</h2><span>${ev('local_data')} ${ev('source')}</span></div>
-    <p class="muted">源码把这个文件截断到 ${fmt(limit)} tokens 后放进 developer 指令（MEMORY_SUMMARY BEGINS … ENDS）。本机文件约 ${fmt(sum.approx_tokens)} tokens（中文按字、英文按 4 字符/token 粗估）${sum.approx_tokens > limit ? '，<b style="color:var(--danger)">可能已超出，尾部会被截掉</b>' : '，未超出'}。首行 <code>${esc(sum.version_line)}</code> · 更新于 ${when(sum.modified)}。</p>
+    <p class="muted">源码把这个文件截断到 ${fmt(limit)} tokens ${CD.summary_token_limit}后放进 developer 指令（MEMORY_SUMMARY BEGINS … ENDS）。本机文件约 ${fmt(sum.approx_tokens)} tokens（中文按字、英文按 4 字符/token 粗估）${sum.approx_tokens > limit ? '，<b style="color:var(--danger)">可能已超出，尾部会被截掉</b>' : '，未超出'}。首行 <code>${esc(sum.version_line)}</code> · 更新于 ${when(sum.modified)}。</p>
     <div class="window" style="margin:8px 0 12px"><div class="fill" style="width:${Math.min(100, sum.approx_tokens / limit * 100)}%"></div><div class="thr" style="left:${Math.min(100, limit / Math.max(limit, sum.approx_tokens) * 100)}%"></div><div class="lbl">${fmt(sum.approx_tokens)} / ${fmt(limit)} tokens</div></div>
     <div class="grid c2">${(sum.sections || []).map(s => `<div class="item"><b>${esc(s.title)}</b> <small>第 ${s.line_start} 行起 · ${s.items.length} 条</small><ul style="margin:6px 0 0;padding-left:18px">${s.items.slice(0, 6).map(i => `<li class="muted" style="font-size:13px">${esc(i.replace(/^[-*]\s*/, '')).slice(0, 180)}</li>`).join('')}${s.items.length > 6 ? `<li class="muted">… 还有 ${s.items.length - 6} 条</li>` : ''}</ul></div>`).join('')}</div>
     <button class="secondary raw-open" data-raw-title="memory_summary.md 原文" data-raw-text="${esc(sum.text).replace(/"/g,'&quot;')}" style="margin-top:10px">查看 memory_summary.md 原文</button>
@@ -219,12 +227,12 @@ function stepExtra(s, row, l) {
 function transitionExtra(from, to, row) {
   const key = `${from}->${to}`;
   const map = {
-    'session->candidate': ['触发：下一轮开始时，后台挑选其他闲置会话', '传递：过滤后的用户/模型对话', '过滤：去掉 developer 指令与压缩摘要；最多挑 2 个会话，再交给 gpt-5.6-luna。', '解释：当前会话不会抽自己，而是借下一轮启动的机会整理“别的会话”。'],
-    'candidate->selected': ['触发：阶段一写入 stage1_outputs 后进入整合窗口', '传递：raw_memory + rollout_summary + usage_count', '过滤：只选 30 天内、被使用过且不超过 256 条的候选。', '解释：候选先进入待审核队列，只有满足保留条件才会送给阶段二。'],
+    'session->candidate': ['触发：下一轮开始时，后台挑选其他闲置会话', '传递：过滤后的用户/模型对话', `过滤：去掉 developer 指令与压缩摘要；最多挑 ${CP.max_rollouts_per_startup} 个会话，再交给 ${CP.extract_model}。`, '解释：当前会话不会抽自己，而是借下一轮启动的机会整理“别的会话”。'],
+    'candidate->selected': ['触发：阶段一写入 stage1_outputs 后进入整合窗口', '传递：raw_memory + rollout_summary + usage_count', `过滤：只选 ${CP.max_unused_days} 天内、被使用过且不超过 ${CP.max_raw_memories_for_consolidation} 条的候选。`, '解释：候选先进入待审核队列，只有满足保留条件才会送给阶段二。'],
     'selected->summary_file': ['触发：阶段二整合任务启动', '传递：候选序列化为 rollout_summaries/*.md', '过滤：每个文件保留会话叙事和可追溯来源，作为 agent 的工作材料。', '解释：这一步把数据库里的候选变成 agent 能读、能 diff 的证据文件。'],
     'summary_file->asset': ['触发：沙箱 agent 读取证据文件 diff', '传递：更新后的 MEMORY.md / memory_summary.md', '过滤：agent 按提示词合并、改写或移除任务组；Rust 只校验 v1 和文件存在。', '解释：长期记忆不是数据库自动拼接，而是整合 agent 根据证据重写文件。'],
-    'asset->recall': ['触发：新会话启动', '传递：memory_summary.md 前 2500 tokens 注入 developer 指令', '过滤：超出 2500 tokens 的尾部不会进入上下文；模型可按需再搜 MEMORY.md。', '解释：写入文件不会立刻等于“模型记住”，必须在下一次会话启动时被注入。'],
-    'recall->forget': ['触发：长期未被引用或来源证据被清理', '传递：usage_count、引用线程和删除 diff', '过滤：30 天未使用的候选会被 prune；只由它支撑的资产可能在下一次整合中被移除。', '解释：遗忘是下一轮整合根据证据缺失做出的结果，不是一次即时删除。'],
+    'asset->recall': ['触发：新会话启动', `传递：memory_summary.md 前 ${CP.summary_token_limit} tokens 注入 developer 指令`, `过滤：超出 ${CP.summary_token_limit} tokens 的尾部不会进入上下文；模型可按需再搜 MEMORY.md。`, '解释：写入文件不会立刻等于“模型记住”，必须在下一次会话启动时被注入。'],
+    'recall->forget': ['触发：长期未被引用或来源证据被清理', '传递：usage_count、引用线程和删除 diff', `过滤：${CP.max_unused_days} 天未使用的候选会被 prune；只由它支撑的资产可能在下一次整合中被移除。`, '解释：遗忘是下一轮整合根据证据缺失做出的结果，不是一次即时删除。'],
   };
   const x = map[key]; if (!x) return '';
   return `<div class="transition"><div class="transition-arrow">↓</div><div class="transition-body"><b>${esc(x[0])}</b><div><span class="transition-label">${esc(x[1])}</span></div><div><span class="transition-label">${esc(x[2])}</span></div><div class="transition-explain">${ev('inference')} ${esc(x[3])}</div></div></div>`;
@@ -263,7 +271,7 @@ function renderContext(box, r, product) {
     <div class="row between"><div><b>${esc(m.cwd || m.project || '')}</b> <small class="mono">${esc(r.thread_id || r.id)}</small></div><div>${m.cli_version ? `<span class="pill">${esc(m.originator || '')} ${esc(m.cli_version)}</span>` : ''}${m.git_branch ? ` <span class="pill">${esc(m.git_branch)}</span>` : ''}<span class="pill">${fmt(r.bytes)} 字节</span></div></div>
     <div class="grid c4" style="margin:12px 0">
       <div class="stat"><div class="num">${fmt(cv.window)}</div><div class="lbl">模型上下文窗口 ${ev('local_data')}</div></div>
-      <div class="stat"><div class="num">${fmt(cv.auto_compact_threshold)}</div><div class="lbl">自动压缩阈值 = 窗口 × 90% ${ev('source')}</div></div>
+      <div class="stat"><div class="num">${fmt(cv.auto_compact_threshold)}</div><div class="lbl">自动压缩阈值 = 窗口 × ${pct(CP.auto_compact_ratio)} ${CD.auto_compact_ratio}${ev('source')}</div></div>
       <div class="stat"><div class="num">${fmt(cv.peak_context)}</div><div class="lbl">本会话上下文峰值 ${ev('local_data')}</div></div>
       <div class="stat"><div class="num">${comps.length}</div><div class="lbl">压缩次数 ${ev('local_data')}</div></div>
     </div>
@@ -275,7 +283,7 @@ function renderContext(box, r, product) {
       <div><h3 style="margin-top:0">事件流 <small class="muted">（${r.counts.tool_call || 0} 次工具调用 · ${r.counts.user || 0} 条用户消息 · ${r.counts.assistant || 0} 条回复）</small></h3><div class="feed" id="feed">${feedEvents.map((e, i) => `<div class="e" data-i="${i}"><small>#${e.ordinal}</small><span class="k k-${e.kind}">${esc(kindName(e.kind))}</span><span>${esc(e.summary)}</span></div>`).join('')}</div></div>
       <div><h3 style="margin-top:0">此刻发生了什么</h3><div id="narr" class="callout">按播放，随时间观察上下文如何增长、何时压缩、压缩后留下了什么。</div><div id="comp-detail"></div></div>
     </div>
-    ${product === 'codex' ? `<div class="callout source" style="margin-top:12px">${ev('source')} 压缩后历史 = ≤20k tokens 的历史用户消息（新到旧） + 一条 user 角色摘要（前缀 “Another language model started to solve this problem…”）。assistant 回复、推理、工具调用与输出全部丢弃。<br>${ev('source')} 压缩摘要不会进入长期记忆：阶段一序列化时 Compacted 项被丢弃（memories/write/src/phase1.rs）。${r.memory_prompt_tokens ? `<br>${ev('local_data')} 本会话开始时注入的 MEMORY_SUMMARY 约 ${fmt(r.memory_prompt_tokens)} tokens（粗估，上限 2500）。` : ''}${r.citations.length ? `<br>${ev('local_data')} 本会话模型引用了记忆 ${r.citations.length} 次。` : ''}</div>` : `<div class="callout infer" style="margin-top:12px">${ev('inference')} ${esc(r.note || '')}</div>`}
+    ${product === 'codex' ? `<div class="callout source" style="margin-top:12px">${ev('source')} 压缩后历史 = ≤${fmt(CP.user_message_budget_tokens)} tokens 的历史用户消息（新到旧） + 一条 user 角色摘要（前缀 “Another language model started to solve this problem…”）。assistant 回复、推理、工具调用与输出全部丢弃。<br>${ev('source')} 压缩摘要不会进入长期记忆：阶段一序列化时 Compacted 项被丢弃（memories/write/src/phase1.rs）。${r.memory_prompt_tokens ? `<br>${ev('local_data')} 本会话开始时注入的 MEMORY_SUMMARY 约 ${fmt(r.memory_prompt_tokens)} tokens（粗估，上限 2500）。` : ''}${r.citations.length ? `<br>${ev('local_data')} 本会话模型引用了记忆 ${r.citations.length} 次。` : ''}</div>` : `<div class="callout infer" style="margin-top:12px">${ev('inference')} ${esc(r.note || '')}</div>`}
   </section>`;
   drawChart($('#chart'), cv);
   // playback
@@ -300,13 +308,13 @@ function renderContext(box, r, product) {
   function narrate(e, ctx) {
     const map = {
       session_meta: '会话开始。系统提示、developer 指令、环境上下文进入窗口。',
-      memory_injection: '长期记忆进入短期上下文：memory_summary.md（截到 2500 tokens）作为 developer 消息注入。这是“召回”的第一步，后续模型按需再搜 MEMORY.md。',
+      memory_injection: `长期记忆进入短期上下文：memory_summary.md（截到 ${CP.summary_token_limit} tokens）作为 developer 消息注入。这是“召回”的第一步，后续模型按需再搜 MEMORY.md。`,
       harness: 'harness 注入的环境/权限说明，也占上下文。',
       turn: '新一轮开始。此时 app-server 会顺手为“别的”闲置会话触发记忆抽取（不是为这个会话）。',
-      user: '你的消息追加进历史。压缩时用户消息是唯一会被保留的原文（≤20k tokens）。',
+      user: `你的消息追加进历史。压缩时用户消息是唯一会被保留的原文（≤${fmt(CP.user_message_budget_tokens)} tokens）。`,
       assistant: e.detail && e.detail.cited_memory ? '模型回复并附带 <oai-mem-citation>：引用到的线程 usage_count+1，这决定它们在下次整合里的排序与是否被保留。' : '模型回复追加进历史。压缩时会被丢弃。',
       tool_call: '工具调用，占上下文。', tool_output: `工具输出 ${fmt(e.detail && e.detail.chars)} 字进入上下文，这是上下文膨胀的主因。`,
-      token_count: cv.auto_compact_threshold && ctx >= cv.auto_compact_threshold ? `上下文 ${fmt(ctx)} tokens，已到达 90% 阈值——下一次采样前/后会触发压缩。` : `上下文 ${fmt(ctx)} tokens${cv.window ? `（窗口 ${fmt(cv.window)}，阈值 ${fmt(cv.auto_compact_threshold)}）` : ''}。`,
+      token_count: cv.auto_compact_threshold && ctx >= cv.auto_compact_threshold ? `上下文 ${fmt(ctx)} tokens，已到达 ${pct(CP.auto_compact_ratio)} 阈值——下一次采样前/后会触发压缩。` : `上下文 ${fmt(ctx)} tokens${cv.window ? `（窗口 ${fmt(cv.window)}，阈值 ${fmt(cv.auto_compact_threshold)}）` : ''}。`,
       compacted: '压缩发生。历史被替换为 replacement_history：只保留最近的用户消息与一条交接摘要。',
       summary_message: '压缩摘要以 user 角色消息进入新的历史。', developer: 'developer 指令。', agent_message: '子 agent 消息。', unparsed: '这一行无法解析（保留为未解析事件）。',
     };
@@ -339,7 +347,7 @@ function drawChart(el, cv) {
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
     ${ticks.map(v => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(v)}" y2="${y(v)}" stroke="#eef1f3"/><text x="${P.l - 8}" y="${y(v) + 4}" font-size="11" text-anchor="end" fill="#8a97a0">${v >= 1000 ? (v / 1000) + 'k' : v}</text>`).join('')}
     ${cv.window ? `<line x1="${P.l}" x2="${W - P.r}" y1="${y(cv.window)}" y2="${y(cv.window)}" stroke="#66747f" stroke-dasharray="4 4"/><text x="${W - P.r}" y="${y(cv.window) - 4}" font-size="11" text-anchor="end" fill="#66747f">窗口 ${fmt(cv.window)}</text>` : ''}
-    ${cv.auto_compact_threshold ? `<line x1="${P.l}" x2="${W - P.r}" y1="${y(cv.auto_compact_threshold)}" y2="${y(cv.auto_compact_threshold)}" stroke="#b3382c" stroke-dasharray="2 4"/><text x="${W - P.r}" y="${y(cv.auto_compact_threshold) + 12}" font-size="11" text-anchor="end" fill="#b3382c">90% 阈值（源码推算）</text>` : ''}
+    ${cv.auto_compact_threshold ? `<line x1="${P.l}" x2="${W - P.r}" y1="${y(cv.auto_compact_threshold)}" y2="${y(cv.auto_compact_threshold)}" stroke="#b3382c" stroke-dasharray="2 4"/><text x="${W - P.r}" y="${y(cv.auto_compact_threshold) + 12}" font-size="11" text-anchor="end" fill="#b3382c">${pct(CP.auto_compact_ratio)} 阈值（源码推算）</text>` : ''}
     <path d="${d}" fill="none" stroke="#20625a" stroke-width="2"/>
     ${cv.compactions.map(c => `<line x1="${x(c.ordinal)}" x2="${x(c.ordinal)}" y1="${P.t}" y2="${H - P.b}" stroke="#b3382c" stroke-width="2"/><text x="${x(c.ordinal) + 4}" y="${P.t + 12}" font-size="11" fill="#b3382c">压缩 #${c.window_number ?? ''}</text>`).join('')}
     <line id="cursor" x1="${P.l}" x2="${P.l}" y1="${P.t}" y2="${H - P.b}" stroke="#1f2a33" stroke-width="1"/>
@@ -380,7 +388,7 @@ views.claude.overview = async el => {
     <table><tr><th></th><th>Codex</th><th>Claude Code</th></tr>
     <tr><td>长期记忆载体</td><td>~/.codex/memories/{memory_summary.md, MEMORY.md, rollout_summaries/}，全局一份</td><td>~/.claude/projects/&lt;项目&gt;/memory/*.md + MEMORY.md 索引，按项目分</td></tr>
     <tr><td>谁来写</td><td>后台两阶段：抽取模型 → 沙箱整合 agent（源码事实）</td><td>会话中的模型自己写文件（从 originSessionId 字段推断）</td></tr>
-    <tr><td>召回方式</td><td>memory_summary 截 2500 tokens 注入 + 模型按需搜 MEMORY.md（源码事实）</td><td>MEMORY.md 索引进入上下文（推断）</td></tr>
+    <tr><td>召回方式</td><td>memory_summary 截 ${CP.summary_token_limit} tokens 注入 + 模型按需搜 MEMORY.md（源码事实）</td><td>MEMORY.md 索引进入上下文（推断）</td></tr>
     <tr><td>压缩落盘</td><td>rollout 里的 compacted 行，带 replacement_history</td><td>转录里 isCompactSummary:true 的 user 消息</td></tr>
     <tr><td>压缩 ↔ 长期记忆</td><td>独立：抽取时丢弃压缩摘要（源码事实）</td><td>未知</td></tr>
     </table></section>`;

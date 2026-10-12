@@ -147,3 +147,6 @@ details summary{cursor:pointer;color:var(--brand)}
 .fact.missing{border-color:var(--danger)}
 .twocol{display:grid;grid-template-columns:320px 1fr;gap:16px}
 @media(max-width:900px){.grid.c3,.grid.c4,.grid.c2,.twocol,.asset-grid{grid-template-columns:1fr}.top{flex-wrap:wrap}}
+.back-console{font-size:13px;text-decoration:none;color:var(--muted);white-space:nowrap}
+.back-console:hover{color:var(--brand)}
+.drift{color:var(--infer);font-size:12px}

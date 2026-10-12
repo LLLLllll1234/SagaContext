@@ -138,6 +138,20 @@ class MemLabTests(unittest.TestCase):
         source_facts._read.cache_clear()
         self.assertEqual(source_facts.verify_fact(f, root)["status"], "drifted")
 
+    def test_parameters_read_from_source_or_marked_unverified(self):
+        missing = source_facts.verify_all(Path(self.tmp.name) / "nope")["params"]
+        self.assertEqual(set(missing), set(source_facts.PARAMETERS))
+        self.assertTrue(all(x["check"] == "unverified" for x in missing.values()))
+        self.assertEqual(missing["summary_token_limit"]["value"], 2500)
+        root = Path(self.tmp.name) / "codex"
+        fact = next(f for f in source_facts.FACTS if f.id == "recall.injection")
+        path = root / "codex-rs" / fact.file
+        path.parent.mkdir(parents=True)
+        path.write_text("const MEMORY_TOOL_DEVELOPER_INSTRUCTIONS_SUMMARY_TOKEN_LIMIT: usize = 3_000;\n")
+        source_facts._read.cache_clear()
+        read = source_facts.verify_all(root)["params"]["summary_token_limit"]
+        self.assertEqual((read["value"], read["check"]), (3000, "read"))
+
     def test_api_is_read_only_and_serves_pages(self):
         import os
         from unittest.mock import patch
