@@ -119,7 +119,8 @@ def create_fixture(root: Path, *, populated: bool = True) -> ConsoleFixture:
         ledger.record_rollout_receipt("injection", {
             "status":"emitted", "mode":"guarded", "memory_ids":[case.memory_id], "revisions":[1],
             "generation":"fixture", "ledger_sequence":ledger.sequence, "session_digest":"fixture-session",
-            "bundle_digest":"fixture-bundle", "omissions":[],
+            "bundle_digest":"fixture-bundle",
+            "omissions":[{"memory_id":"fixture-omitted","revision":1,"reason":"budget"}],
         }, rollout_id=case.rollout_id, workspace_id=case.workspace_a, session_id=case.session_a,
             receipt_id="demo-injection")
         # Another owner shares the SQLite file, not any project identity.

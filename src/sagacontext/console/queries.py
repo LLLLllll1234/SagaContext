@@ -55,7 +55,13 @@ def sessions(db, owner_id, workspace_id, cursor=None, limit=50):
     workspace(db, owner_id, workspace_id)
     return page(db, """SELECT s.session_id,s.host,s.opened_at,s.closed_at,
         (SELECT b.task_id FROM task_bindings b WHERE b.session_id=s.session_id AND b.owner_id=s.owner_id AND b.end_event_id IS NULL LIMIT 1) AS task_id,
-        (SELECT MAX(e.received_at) FROM events e WHERE e.session_id=s.session_id AND e.owner_id=s.owner_id) AS last_event_at
+        (SELECT MAX(e.received_at) FROM events e WHERE e.session_id=s.session_id AND e.owner_id=s.owner_id) AS last_event_at,
+        (SELECT json_array_length(a.payload_json,'$.memory_ids') FROM rollout_audit a WHERE a.owner_id=s.owner_id
+          AND a.workspace_id=s.workspace_id AND a.session_id=s.session_id AND a.kind='injection'
+          ORDER BY a.created_at DESC,a.receipt_id DESC LIMIT 1) AS injected_count,
+        (SELECT json_array_length(a.payload_json,'$.omissions') FROM rollout_audit a WHERE a.owner_id=s.owner_id
+          AND a.workspace_id=s.workspace_id AND a.session_id=s.session_id AND a.kind='injection'
+          ORDER BY a.created_at DESC,a.receipt_id DESC LIMIT 1) AS omitted_count
         FROM sessions s WHERE s.owner_id=? AND s.workspace_id=?""", (owner_id,workspace_id),
         keys=("opened_at","session_id"),scope=("sessions",owner_id,workspace_id),cursor=cursor,limit=limit)
 

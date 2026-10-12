@@ -7,7 +7,7 @@ from sagacontext.ledger import Scope, TaskContext
 from sagacontext.ledger.access import scope_allows
 from . import queries
 from .db import ConsoleReadError
-from .serialize import safe_payload, safe_text
+from .serialize import payload_summary, safe_payload, safe_text
 
 
 def context_for(db,owner_id,workspace_id,context=None):
@@ -62,7 +62,7 @@ def memory(db,owner_id,workspace_id,memory_id,context=None):
         if scope_allows(Scope.model_validate_json(item['scope_json']),context):
             relations.append({'memory_id':safe_text(item['memory_id']),'relation':item['relation']})
     return {'memory_id':memory_id,'current_revision':row['current_revision'],'memory_type':row['memory_type'],
-        'scope':safe_payload(json.loads(row['scope_json'])),'state':row['state'],'conflict_state':row['conflict_state'],
+        'scope':safe_payload(json.loads(row['scope_json'])),'summary':payload_summary(revisions[0]['payload']) if revisions else None,'state':row['state'],'conflict_state':row['conflict_state'],
         'relations':relations,'revisions':revisions}
 
 
@@ -92,7 +92,17 @@ def memories(db,owner_id,project_id,workspace_id,context=None,cursor=None,limit=
     for item in result['items']:
         item.update(safe_payload({key:value for key,value in item.items() if key!='payload_json'}))
         item['payload']=safe_payload(json.loads(item.pop('payload_json')))
+        item['summary']=payload_summary(item['payload'])
     return result
+
+
+def summary_for(db,owner_id,context,memory_id,revision):
+    """Readable body of one revision, only when the memory is visible in the default workspace context."""
+    head=db.execute("SELECT scope_json,state FROM memories WHERE memory_id=? AND owner_id=?",(memory_id,owner_id)).fetchone()
+    if not head or head['state']=='deleted' or not scope_allows(Scope.model_validate_json(head['scope_json']),context):
+        return None
+    rev=db.execute('SELECT payload_json FROM revisions WHERE memory_id=? AND revision=?',(memory_id,revision)).fetchone()
+    return payload_summary(safe_payload(json.loads(rev[0]))) if rev else None
 
 
 def batch(db,owner_id,workspace_id,batch_id,context=None):
@@ -136,7 +146,7 @@ def batch(db,owner_id,workspace_id,batch_id,context=None):
 
 
 def session(db,owner_id,workspace_id,session_id):
-    queries.workspace(db,owner_id,workspace_id)
+    context=context_for(db,owner_id,workspace_id)
     row=db.execute('SELECT session_id,host,opened_at,closed_at FROM sessions WHERE session_id=? AND owner_id=? AND workspace_id=?',(session_id,owner_id,workspace_id)).fetchone()
     if not row:
         raise ConsoleReadError('not_found')
@@ -157,7 +167,10 @@ def session(db,owner_id,workspace_id,session_id):
         safe={key:payload.get(key) for key in fields}
         safe['memory_ids']=safe['memory_ids'] or []
         safe['revisions']=safe['revisions'] or []
-        safe['omissions']=safe['omissions'] or []
+        safe['omissions']=[{**o,'summary':summary_for(db,owner_id,context,o.get('memory_id'),o.get('revision'))}
+            if isinstance(o,dict) else o for o in safe['omissions'] or []]
+        safe['summaries']=[summary_for(db,owner_id,context,m,r) for m,r in zip(safe['memory_ids'],safe['revisions'])] \
+            if isinstance(safe['memory_ids'],list) and isinstance(safe['revisions'],list) else []
         safe['consumption_records']=[dict(r) for r in db.execute('SELECT receipt_id,status,created_at FROM rollout_consumption_receipts WHERE owner_id=? AND session_digest=? AND bundle_digest=? ORDER BY created_at,receipt_id',(owner_id,payload.get('session_digest'),payload.get('bundle_digest')))] if payload.get('bundle_digest') else []
         injections.append(safe_payload({'receipt_id':receipt['receipt_id'],'created_at':receipt['created_at'],**safe}))
     bindings=[dict(r) for r in db.execute('SELECT task_id,start_event_id,end_event_id FROM task_bindings WHERE owner_id=? AND session_id=? ORDER BY created_at, binding_id',(owner_id,session_id))]

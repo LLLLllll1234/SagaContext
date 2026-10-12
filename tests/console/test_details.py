@@ -135,3 +135,38 @@ def test_session_reports_truncated_collections(console_case):
     session=c.service.session(c.workspace_a,c.session_a)['data']
     assert len(session['events'])==100
     assert session['truncated']==['events']
+
+
+def test_memory_rows_and_detail_carry_a_readable_summary(console_case):
+    c=console_case
+    row=c.service.memories(c.project_a,c.workspace_a)['data']['items'][0]
+    assert row['summary']=='记录失败原因'
+    assert c.service.memory(c.workspace_a,c.memory_id)['data']['summary']=='记录失败原因'
+
+
+def test_summary_is_derived_after_redaction_and_absent_without_body(console_case):
+    c=console_case
+    with sqlite3.connect(c.path) as db:
+        db.execute('UPDATE revisions SET payload_json=? WHERE memory_id=? AND revision=1',
+                   (json.dumps({'rule':'token=abc'}),c.memory_id))
+    assert 'abc' not in (c.service.memories(c.project_a,c.workspace_a)['data']['items'][0]['summary'] or '')
+    with sqlite3.connect(c.path) as db:
+        db.execute('UPDATE revisions SET payload_json=? WHERE memory_id=? AND revision=1',
+                   (json.dumps({'key':'errors','weight':3}),c.memory_id))
+    assert c.service.memories(c.project_a,c.workspace_a)['data']['items'][0]['summary'] is None
+
+
+def test_injection_lists_summaries_and_hides_out_of_scope_bodies(console_case):
+    c=console_case
+    injection=c.service.session(c.workspace_a,c.session_a)['data']['injections'][0]
+    assert injection['summaries']==['记录失败原因']
+    assert injection['omissions']==[{'memory_id':'fixture-omitted','revision':1,'reason':'budget','summary':None}]
+    with sqlite3.connect(c.path) as db:
+        db.execute("UPDATE memories SET state='deleted' WHERE memory_id=?",(c.memory_id,))
+    assert c.service.session(c.workspace_a,c.session_a)['data']['injections'][0]['summaries']==[None]
+
+
+def test_session_rows_count_the_latest_injection(console_case):
+    c=console_case
+    rows={r['session_id']:r for r in c.service.sessions(c.workspace_a)['data']['items']}
+    assert (rows[c.session_a]['injected_count'],rows[c.session_a]['omitted_count'])==(1,1)

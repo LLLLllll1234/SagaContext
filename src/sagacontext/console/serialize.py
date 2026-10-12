@@ -24,6 +24,23 @@ def safe_text(value: str) -> str:
     return value
 
 
+# Body precedence follows memfile.render, then the generic text fields seen in fixtures.
+SUMMARY_FIELDS = ("rule", "content", "decision", "goal", "symptom", "topic", "text", "summary")
+SUMMARY_LIMIT = 160
+
+
+def payload_summary(payload: JsonValue) -> str | None:
+    """One readable line from an already-sanitized payload, or None when it has no body."""
+    if not isinstance(payload, dict):
+        return None
+    for key in SUMMARY_FIELDS:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip() and value != HIDDEN:
+            text = " ".join(value.split())
+            return text if len(text) <= SUMMARY_LIMIT else text[:SUMMARY_LIMIT - 1] + "…"
+    return None
+
+
 def safe_payload(value: JsonValue) -> JsonValue:
     if isinstance(value, dict):
         return {safe_text(key): HIDDEN if re.sub(r"[^a-z]", "", key.lower()) in _FIELDS

@@ -62,6 +62,7 @@ def test_deployment_is_typed_and_does_not_read_the_domain_or_network(client, mon
         'openviking_configured': False,
         'llm_configured': False,
         'console_assets_available': True,
+        'hosts': [{'host': 'codex', 'frozen_version': payload['hosts'][0]['frozen_version'], 'injection': 'enabled'}],
     }
     assert payload['instance_id']
     assert client.get('/console/v1/deployment').json()['instance_id'] == payload['instance_id']
@@ -101,3 +102,14 @@ def test_corrupt_stored_json_returns_data_invalid(client,console_case):
     assert response.status_code==503
     assert response.json()['error']['code']=='data_invalid'
     assert 'private-data' not in response.text
+
+
+def test_deployment_reports_each_host_with_its_injection_capability(console_case, tmp_path):
+    config = Config(state_path=tmp_path / 'unused', ledger_path=console_case.path, port=37780,
+                    rollout_hosts=(('claude-code', '2.1.285'), ('codex', '0.159.2')))
+    with TestClient(create_app(config), base_url='http://localhost:37780') as client:
+        hosts = client.get('/console/v1/deployment').json()['hosts']
+    assert hosts == [
+        {'host': 'claude-code', 'frozen_version': '2.1.285', 'injection': 'collection_only'},
+        {'host': 'codex', 'frozen_version': '0.159.2', 'injection': 'enabled'},
+    ]

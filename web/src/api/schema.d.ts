@@ -405,6 +405,8 @@ export interface components {
             llm_configured: boolean;
             /** Console Assets Available */
             console_assets_available: boolean;
+            /** Hosts */
+            hosts: components["schemas"]["HostStatus"][];
         };
         /** Envelope[BatchDetail] */
         Envelope_BatchDetail_: {
@@ -492,6 +494,18 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HostStatus */
+        HostStatus: {
+            /** Host */
+            host: string;
+            /** Frozen Version */
+            frozen_version: string;
+            /**
+             * Injection
+             * @enum {string}
+             */
+            injection: "enabled" | "collection_only";
+        };
         /** Injection */
         Injection: {
             /** Receipt Id */
@@ -506,6 +520,8 @@ export interface components {
             memory_ids: string[];
             /** Revisions */
             revisions: number[];
+            /** Summaries */
+            summaries?: (string | null)[];
             /** Generation */
             generation: string | null;
             /** Ledger Sequence */
@@ -542,6 +558,8 @@ export interface components {
             /** Conflict State */
             conflict_state: string;
             scope: components["schemas"]["MemoryScope"];
+            /** Summary */
+            summary?: string | null;
             /** Relations */
             relations: components["schemas"]["MemoryRelation"][];
             /** Revisions */
@@ -573,6 +591,8 @@ export interface components {
             scope_kind: string;
             /** Created At */
             created_at: string;
+            /** Summary */
+            summary?: string | null;
             payload: components["schemas"]["JsonValue"];
         };
         /** MemoryScope */
@@ -675,6 +695,8 @@ export interface components {
             revision: number;
             /** Reason */
             reason: string;
+            /** Summary */
+            summary?: string | null;
         };
         /** Page[ActivityRow] */
         Page_ActivityRow_: {
@@ -852,6 +874,10 @@ export interface components {
             task_id?: string | null;
             /** Last Event At */
             last_event_at?: string | null;
+            /** Injected Count */
+            injected_count?: number | null;
+            /** Omitted Count */
+            omitted_count?: number | null;
             /** Events */
             events: components["schemas"]["EventRow"][];
             /** Batches */
@@ -879,6 +905,10 @@ export interface components {
             task_id?: string | null;
             /** Last Event At */
             last_event_at?: string | null;
+            /** Injected Count */
+            injected_count?: number | null;
+            /** Omitted Count */
+            omitted_count?: number | null;
         };
         /** SnapshotMeta */
         SnapshotMeta: {

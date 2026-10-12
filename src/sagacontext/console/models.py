@@ -28,6 +28,12 @@ class Envelope(_StrictModel, Generic[T]):
     data: T
 
 
+class HostStatus(_StrictModel):
+    host: str
+    frozen_version: str
+    injection: Literal['enabled', 'collection_only']
+
+
 class DeploymentStatus(_StrictModel):
     product: Literal['sagacontext']
     version: Literal['1.0.0']
@@ -39,6 +45,7 @@ class DeploymentStatus(_StrictModel):
     openviking_configured: bool
     llm_configured: bool
     console_assets_available: bool
+    hosts: list[HostStatus]
 
 
 class Module(_StrictModel, Generic[T]):
@@ -69,6 +76,9 @@ class SessionRow(_StrictModel):
     closed_at: str | None = None
     task_id: str | None = None
     last_event_at: str | None = None
+    # From the latest injection receipt; None when the session has none.
+    injected_count: int | None = None
+    omitted_count: int | None = None
 
 
 class TaskRow(_StrictModel):
@@ -217,6 +227,7 @@ class MemoryRow(_StrictModel):
     conflict_state: str
     scope_kind: str
     created_at: str
+    summary: str | None = None
     payload: JsonValue
 
 
@@ -232,6 +243,7 @@ class MemoryDetail(_StrictModel):
     state: str
     conflict_state: str
     scope: MemoryScope
+    summary: str | None = None
     relations: list[MemoryRelation]
     revisions: list[Revision]
 
@@ -285,6 +297,7 @@ class Omission(_StrictModel):
     memory_id: str
     revision: int
     reason: str
+    summary: str | None = None
 
 
 class Injection(_StrictModel):
@@ -294,6 +307,8 @@ class Injection(_StrictModel):
     reason: str | None
     memory_ids: list[str]
     revisions: list[int]
+    # Parallel to memory_ids; None when the body is unreadable or out of scope.
+    summaries: list[str | None] = Field(default_factory=list)
     generation: str | None
     ledger_sequence: int | None
     omissions: list[Omission]
