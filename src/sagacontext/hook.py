@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import uuid
 from pathlib import Path
@@ -9,6 +10,13 @@ from pathlib import Path
 import httpx
 
 from .config import Config
+
+# Background meta sessions (skill-evolution reviewer) and explicit opt-outs never sample.
+EXCLUDE_ENV = ("SKILL_EVOLUTION_REVIEW", "SAGACONTEXT_HOOK_DISABLE")
+
+
+def excluded(environ=os.environ) -> bool:
+    return any(environ.get(name) == "1" for name in EXCLUDE_ENV)
 
 
 def prepare(payload: dict, config: Config, host: str, event: str) -> dict | None:
@@ -25,6 +33,8 @@ def prepare(payload: dict, config: Config, host: str, event: str) -> dict | None
               "source_event_ref": payload.get("event_id") or str(uuid.uuid4())}
     if event == "UserPromptSubmit":
         record["prompt"] = payload.get("prompt", "")
+    if event == "SessionStart" and isinstance(payload.get("source"), str):
+        record["source"] = payload["source"]
     return record
 
 
@@ -32,13 +42,16 @@ def main() -> None:
     output = {}
     try:
         host, event = sys.argv[1:3]
+        if excluded():
+            print(json.dumps(output))
+            return
         config = Config.load()
         record = prepare(json.load(sys.stdin), config, host, event)
         if record is not None:
             with httpx.Client(trust_env=False, timeout=7) as client:
                 response = client.post(f"http://{config.host}:{config.port}/events",
                     params={"host": host, "event": event}, json=record,
-                    headers={"X-SagaContext-Host-Version": config.rollout_host_version,
+                    headers={"X-SagaContext-Host-Version": config.host_versions().get(host, ""),
                              "X-SagaContext-Generation": config.rollout_generation})
                 if response.status_code == 200 and event == "SessionStart":
                     result = response.json()

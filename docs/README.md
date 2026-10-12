@@ -14,6 +14,16 @@
 - 一键部署与接入：[V1 部署指南](deployment.md)。
 - 接入边界与恢复：[集成指南](integration.md)。
 
+## 已拍板
+
+- **已拍板（2026-09-30）下一阶段先补 Claude Code 宿主准入，再做双宿主日常观察。** 2026-09-11 首轮 24 小时观察窗口（rollout `5d6b4431…`）到期收尾，0 session / 0 candidate；原因是本机仅 Codex 接入 `sagactl-hook`，日常主要使用的 Claude Code 未接入。顺序：G3-CC 隔离准入探针 → Claude Code 宿主适配（SessionStart 注入格式、marker 消费复核）→ 仅限本仓库 workspace 的 hook 接入 → 沿用既有边界（本项目、仅 new proposal、10 session / 20 candidate、24 小时）重开观察。
+- **已拍板（2026-09-30）双宿主结构与版本冻结。** 单个 rollout 同时接收 codex 与 claude-code 事件，共用配额；窗口期冻结每个宿主的精确版本和可执行文件路径，并关闭两者的自动更新。Codex 已自动更新到 `codex-cli 0.159.2`，此前基于 0.153.4 的准入不外推，本期在 0.159.2 上重跑 G3，与 G3-CC 同期进行。设计见 [Claude Code 宿主准入与双宿主观察](superpowers/specs/2026-09-30-claude-code-admission-design.md)。
+- **已拍板（2026-09-30）Claude Code 本期只采集、不注入。** G3-CC 实测（2.1.285）：事件、关联、重复、非零退出、超时、resume 连续性、source 字段、hook 环境继承均通过；但 SessionStart `additionalContext` 虽被宿主接收并写入 transcript，五个场景的模型都未消费 marker。CLAUDE.md 与 `--append-system-prompt` 在同一环境可见，原因（第三方 provider 转发或模型忽略）未查明。本期 Claude Code 事件照常进入候选、Judge 与审核，SessionStart 不注入；召回与消费指标只统计 Codex。之后用官方端点对照查明原因，再决定是否开放注入。
+- **已拍板（2026-09-30）未跟踪 artifact 的处理：对应用启动运行有帮助才提交，否则不提交。** 启动与测试所需的是 `src/sagacontext/memlab/` 源码和 `tests/memlab/`；`artifacts/` 下未跟踪的探针/Judge 运行输出不被源码或测试引用（测试引用的回放文件已在版本库中），不提交。
+
+- **已拍板（2026-10-10）V1 与双宿主合并到 `codex/dual-host-admission-2026-09-30`。** 以 `origin/main`（a0fe5bb）为合并源；本地 `main` 上的 a132c50 只保留了 Memory Lab 静态资源、丢失 console 挂载且无法导入 daemon，不作为合并基础。合并前 HEAD 留有本地引用 `backup/pre-v1-integration-2026-10-10`。新安装默认的 Codex 版本改为已重新准入的 `codex-cli 0.159.2`；S3/G6 探针、`codex_shadow` 和历史测试 fixture 保留 0.153.4，作为历史验收记录。
+- **已拍板（2026-10-10）pytest 是唯一受支持的测试入口**（`uv run --locked pytest -q`）。原因：`tests/test_multi_host.py`、`tests/hosts/test_claude_probe.py` 和 `tests/console/` 使用 pytest fixture，`unittest discover` 收集不到；另外，前序测试遗留的 SQLite `ResourceWarning` 会混进 CLI 输出，导致 `test_cli` 在 discover 下解析失败。历史报告里出现的 unittest 命令只代表当时的运行方式。
+
 ## 全量文档目录
 
 下表按阶段由新到旧排列。验收数字属于对应日期的运行快照；S0–S2 的限制、旧探针失败和早期草案不覆盖 S3 的当前结论。保留原文件名和位置，避免破坏既有引用。

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SagaContext · Memory Lab</title>
+<link rel="stylesheet" href="/memlab/static/memlab.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">S</span><div><b>SagaContext Memory Lab</b><small>Coding Agent 记忆机制观察与学习平台 · 只读</small></div></div>
+  <nav class="products" id="products">
+    <button data-product="codex" class="active">Codex</button>
+    <button data-product="claude">Claude Code</button>
+  </nav>
+  <div class="legend">
+    <span class="ev ev-source">源码事实</span><span class="ev ev-local">本地数据</span><span class="ev ev-infer">系统推断</span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="overview" class="active">总览</button>
+  <button data-tab="assets">记忆资产</button>
+  <button data-tab="pipeline">形成过程</button>
+  <button data-tab="context">短期上下文</button>
+  <button data-tab="source">源码对照</button>
+</nav>
+
+<main id="main"><section class="panel"><p class="muted">正在读取本地数据…</p></section></main>
+
+<aside id="drawer" class="drawer hidden">
+  <div class="drawer-head"><b id="drawer-title"></b><button id="drawer-close">✕</button></div>
+  <div id="drawer-body" class="drawer-body"></div>
+</aside>
+<div id="toast" class="toast hidden"></div>
+<script src="/memlab/static/memlab.js"></script>
+</body>
+</html>

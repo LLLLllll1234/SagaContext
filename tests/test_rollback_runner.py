@@ -15,7 +15,7 @@ class RollbackRunnerTests(unittest.TestCase):
     def _run_row(self, ledger, root, rollout_id="r", plan="p"):
         now = datetime.now(timezone.utc)
         ledger.register_project("workspace", root)
-        ledger.db.execute("INSERT INTO rollout_runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        ledger.db.execute("INSERT INTO rollout_runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)",
             (rollout_id, "owner", "w", str(root), "guarded", "stopping", "ops", "k", "a", "d",
              now.isoformat(), (now + timedelta(hours=1)).isoformat(), now.isoformat(), "test", 10, 20,
              "g1", 2, plan, "{}", "rollout-plan-v1", now.isoformat()))
@@ -42,7 +42,7 @@ class RollbackRunnerTests(unittest.TestCase):
                 runtime = RolloutRuntime(ledger, config)
                 now = datetime.now(timezone.utc)
                 # A synthetic run with no commits completes safely because there is no locator.
-                ledger.db.execute("INSERT INTO rollout_runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                ledger.db.execute("INSERT INTO rollout_runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)",
                     ("r", "owner", "w", str(root), "guarded", "stopping", "ops", "k", "a", "d", now.isoformat(), (now + timedelta(hours=1)).isoformat(), now.isoformat(), "test", 10, 20, "g1", 2, "p", "{}", "rollout-plan-v1", now.isoformat()))
                 ledger.db.commit()
                 result = RollbackRunner(ledger).run("r", "p")

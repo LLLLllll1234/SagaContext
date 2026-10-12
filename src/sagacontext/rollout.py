@@ -20,6 +20,7 @@ from .maintenance import BatchService, BatchWorker, CandidateInput, DeltaProposa
 from .recall_policy import RecallPolicy
 from .rollback import RollbackRunner
 from .event_content import event_payload
+from .hosts.pinning import TRUST_CLASS, canonical_hosts, run_hosts
 
 
 class ProposalJudge(Protocol):
@@ -29,6 +30,11 @@ class ProposalJudge(Protocol):
 
 EVENT_KIND = {"SessionStart": "session_opened", "UserPromptSubmit": "user_message", "Stop": "checkpoint_requested", "SessionEnd": "session_closed"}
 EVENTS = frozenset(EVENT_KIND)
+# Claude Code also fires SessionStart on compact/clear; only these open a session.
+SESSION_START_SOURCES = {"claude-code": frozenset({"startup", "resume"})}
+# Hosts whose SessionStart context was shown to reach the model (G3 marker consumption).
+# claude-code is collection-only: G3-CC 2026-09-30 observed no model consumption.
+INJECTION_HOSTS = frozenset({"codex"})
 
 
 class RuntimeMode(StrEnum):
@@ -125,7 +131,11 @@ class NormalHostAdapter:
     def ingest(self, record: dict[str, Any], *, rollout: dict[str, Any] | None = None) -> GateReceipt:
         event = str(record.get("hook_event_name", "")); workspace = _path(record.get("cwd")); mode = _safe_mode(rollout["mode"] if rollout else self.config.rollout_mode)
         def reject(reason: str) -> GateReceipt:
-            audit = self.ledger.record_rollout_receipt("event_rejection", {"event": event, "reason": reason, "mode": mode.value})
+            # Host and a bounded source identifier let window reports count unexpected host behaviour.
+            detail = {"event": event, "reason": reason, "mode": mode.value, "host": str(record.get("host", ""))[:32]}
+            if event == "SessionStart" and isinstance(record.get("source"), str) and record["source"].replace("_", "").replace("-", "").isalnum():
+                detail["source"] = record["source"][:32]
+            audit = self.ledger.record_rollout_receipt("event_rejection", detail, rollout_id=rollout["rollout_id"] if rollout else None)
             return GateReceipt(status="rejected", reason=reason, audit_receipt_id=audit["receipt_id"])
         if mode is RuntimeMode.OFF: return reject("mode_off")
         if self.kill_switch_active(): return reject("kill_switch")
@@ -133,8 +143,10 @@ class NormalHostAdapter:
         if _utc(rollout["deadline"]) <= datetime.now(timezone.utc): return reject("deadline_exceeded")
         if event not in EVENTS or not workspace: return reject("unverified_host_event" if event not in EVENTS else "missing_workspace")
         if self.allowed_workspace() is None or workspace != self.allowed_workspace(): return reject("workspace_not_allowed")
-        if str(record.get("host", self.config.rollout_host)) != self.config.rollout_host: return reject("host_not_allowed")
-        if str(record.get("host_version", "")) != self.config.rollout_host_version: return reject("host_version_not_verified")
+        host = str(record.get("host", self.config.rollout_host)); hosts = run_hosts(rollout, self.config.rollout_host, self.config.rollout_host_version)
+        if host not in hosts: return reject("host_not_allowed")
+        if str(record.get("host_version", "")) != hosts[host]["version"]: return reject("host_version_not_verified")
+        if event == "SessionStart" and host in SESSION_START_SOURCES and record.get("source") not in SESSION_START_SOURCES[host]: return reject("session_start_source_not_allowed")
         generation = str(record.get("source_generation", record.get("generation", "")))
         if generation != rollout["generation"]: return reject("generation_not_verified")
         source_key = str(record.get("source_event_ref", record.get("source_event_key", ""))); host_session = str(record.get("session_id", record.get("host_session_id", "")))
@@ -143,10 +155,10 @@ class NormalHostAdapter:
         except (OSError, ValueError): return reject("workspace_identity_mismatch")
         if not identity or (record.get("owner_id") and record["owner_id"] != self.ledger.owner_id): return reject("workspace_identity_mismatch")
         with self.ledger._write_transaction():
-            existing = self.ledger.db.execute("SELECT session_id FROM sessions WHERE owner_id=? AND host=? AND host_session_id=?", (self.ledger.owner_id, self.config.rollout_host, host_session)).fetchone()
+            existing = self.ledger.db.execute("SELECT session_id FROM sessions WHERE owner_id=? AND host=? AND host_session_id=?", (self.ledger.owner_id, host, host_session)).fetchone()
             if existing:
                 session_id = existing["session_id"]
-                reservation = self.ledger.db.execute("SELECT 1 FROM rollout_sessions WHERE rollout_id=? AND host_session_id=?", (rollout["rollout_id"], host_session)).fetchone()
+                reservation = self.ledger.db.execute("SELECT 1 FROM rollout_sessions WHERE rollout_id=? AND session_id=?", (rollout["rollout_id"], session_id)).fetchone()
                 if not reservation:
                     count = self.ledger.db.execute("SELECT COUNT(*) FROM rollout_sessions WHERE rollout_id=?", (rollout["rollout_id"],)).fetchone()[0]
                     if count >= rollout["max_sessions"]: return reject("session_limit")
@@ -156,11 +168,11 @@ class NormalHostAdapter:
             else:
                 count = self.ledger.db.execute("SELECT COUNT(*) FROM rollout_sessions WHERE rollout_id=?", (rollout["rollout_id"],)).fetchone()[0]
                 if count >= rollout["max_sessions"]: return reject("session_limit")
-                session_id = self.ledger.open_session(self.config.rollout_host, host_session, identity["workspace_id"])
+                session_id = self.ledger.open_session(host, host_session, identity["workspace_id"])
                 self.ledger.db.execute("INSERT INTO rollout_sessions VALUES (?,?,?,?,?,NULL)", (rollout["rollout_id"], session_id, host_session, "reserved", datetime.now(timezone.utc).isoformat()))
                 if count + 1 >= rollout["max_sessions"]:
                     self.ledger.db.execute("UPDATE rollout_runs SET status='draining' WHERE rollout_id=? AND status='running'", (rollout["rollout_id"],))
-            receipt = self.journal.append(JournalEvent(host=self.config.rollout_host, host_version=self.config.rollout_host_version, session_id=session_id, workspace_id=identity["workspace_id"], event_kind=EVENT_KIND[event], occurred_at=datetime.now(timezone.utc), trust_class="codex_verified_receipt", source_generation=generation, source_event_key=source_key, source_locator={"source_event_ref": source_key, "session_ref": host_session}, payload=event_payload(record, event), parser_version="normal-rollout-v2"))
+            receipt = self.journal.append(JournalEvent(host=host, host_version=hosts[host]["version"], session_id=session_id, workspace_id=identity["workspace_id"], event_kind=EVENT_KIND[event], occurred_at=datetime.now(timezone.utc), trust_class=TRUST_CLASS.get(host, "codex_verified_receipt"), source_generation=generation, source_event_key=source_key, source_locator={"source_event_ref": source_key, "session_ref": host_session}, payload=event_payload(record, event), parser_version="normal-rollout-v2"))
             self.ledger.db.execute("INSERT OR IGNORE INTO rollout_events VALUES (?,?)", (rollout["rollout_id"], receipt.event_id))
         audit = self.ledger.record_rollout_receipt("event", {"event": event, "event_id": receipt.event_id}, workspace_id=identity["workspace_id"], session_id=session_id, rollout_id=rollout["rollout_id"])
         return GateReceipt(status="accepted", event_id=receipt.event_id, session_id=session_id, workspace_id=identity["workspace_id"], audit_receipt_id=audit["receipt_id"])
@@ -289,13 +301,19 @@ class RolloutRuntime:
     def activate(self, *, mode: RuntimeMode | str, workspace: str, approver: str, approval_receipt: str,
                  deadline: datetime, max_sessions: int = 10, max_candidates: int = 20, generation: str | None = None,
                  rollback_plan: dict[str, Any] | None = None, token: str | None = None, key_id: str | None = None,
-                 issued_at: str | None = None, expires_at: str | None = None) -> dict[str, Any]:
+                 issued_at: str | None = None, expires_at: str | None = None,
+                 hosts: dict[str, Any] | None = None) -> dict[str, Any]:
         new_mode = _safe_mode(mode)
         if new_mode not in {RuntimeMode.SHADOW, RuntimeMode.GUARDED}: raise ValueError("active_unreachable")
         workspace_path = _path(workspace)
         if workspace_path is None or self.host.allowed_workspace() != workspace_path: raise ValueError("workspace_not_allowed")
         plan = rollback_plan or {"schema_version": "rollout-plan-v1", "resources": "rollout-scoped", "compensate_inflight": True}; plan_digest = _digest(plan)
         fields = {"mode": new_mode.value, "workspace": str(workspace_path), "deadline": _utc(deadline).isoformat(timespec="microseconds").replace("+00:00", "Z"), "max_sessions": max_sessions, "max_candidates": max_candidates, "generation": generation or self.config.rollout_generation, "rollback_plan_digest": plan_digest}
+        # Frozen hosts join the signed fields; legacy activations keep their original digest.
+        frozen = canonical_hosts(hosts) if hosts is not None else None
+        if frozen is not None:
+            if set(frozen) != set(self.config.host_versions()) or any(frozen[h]["version"] != v for h, v in self.config.host_versions().items()): raise ValueError("hosts_not_configured")
+            fields["hosts"] = frozen
         if _utc(deadline) > datetime.now(timezone.utc) + timedelta(hours=24): raise ValueError("deadline_too_long")
         now = datetime.now(timezone.utc); rollout_id = str(uuid.uuid4())
         with self._control_transaction(action="activation", fields=fields, token=token,
@@ -318,7 +336,7 @@ class RolloutRuntime:
             if self.ledger.db.execute("SELECT 1 FROM rollout_runs WHERE owner_id=? AND status IN ('running','draining','stopping','cleanup_required')", (self.ledger.owner_id,)).fetchone():
                 raise ValueError("rollout_already_live")
             result = {"rollout_id": rollout_id, "mode": new_mode.value, "status": "running", "deadline": _utc(deadline).isoformat()}
-            self.ledger.db.execute("INSERT INTO rollout_runs(rollout_id,owner_id,workspace_id,workspace_root,mode,status,approver,key_id,approval_receipt,approval_digest,started_at,deadline,max_sessions,max_candidates,generation,control_epoch,rollback_plan_digest,rollback_plan_json,plan_schema_version,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (rollout_id,self.ledger.owner_id,self.ledger.resolve_project(workspace_path)["workspace_id"],str(workspace_path),new_mode.value,"running",approver,key_id,approval_receipt,request_digest,now.isoformat(),_utc(deadline).isoformat(),max_sessions,max_candidates,generation or self.config.rollout_generation,1,plan_digest,_canonical(plan),"rollout-plan-v1",now.isoformat()))
+            self.ledger.db.execute("INSERT INTO rollout_runs(rollout_id,owner_id,workspace_id,workspace_root,mode,status,approver,key_id,approval_receipt,approval_digest,started_at,deadline,max_sessions,max_candidates,generation,control_epoch,rollback_plan_digest,rollback_plan_json,plan_schema_version,created_at,hosts_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (rollout_id,self.ledger.owner_id,self.ledger.resolve_project(workspace_path)["workspace_id"],str(workspace_path),new_mode.value,"running",approver,key_id,approval_receipt,request_digest,now.isoformat(),_utc(deadline).isoformat(),max_sessions,max_candidates,generation or self.config.rollout_generation,1,plan_digest,_canonical(plan),"rollout-plan-v1",now.isoformat(),_canonical(frozen) if frozen is not None else None))
             self.ledger.db.execute("INSERT INTO rollout_action_receipts VALUES (?,?,?,?,?,?,?)", (self.ledger.owner_id,approval_receipt,"activation",request_digest,rollout_id,_canonical(result),now.isoformat()))
         return result
 
@@ -515,6 +533,7 @@ class RolloutRuntime:
     def session_start(self, record: dict[str, Any], backend: BackendAdapter | None, *, query: str, context: TaskContext | None = None, hits: list[BackendHit] | None = None) -> tuple[dict[str, Any], InjectionReceipt]:
         gate=self.ingest({**record,"hook_event_name":"SessionStart"}); session_digest=_digest({"host":record.get("host",self.config.rollout_host),"session_id":record.get("session_id", ""),"workspace":record.get("cwd", "")})
         if gate.status != "accepted" or self.mode is not RuntimeMode.GUARDED: return self._blocked_injection(gate.reason or "injection_disabled",session_digest,gate)
+        if str(record.get("host", self.config.rollout_host)) not in INJECTION_HOSTS: return self._blocked_injection("injection_not_admitted_for_host",session_digest,gate)
         identity=self.ledger.resolve_project(self.host.allowed_workspace() or Path(".")); context=context or TaskContext(owner_id=self.ledger.owner_id,project_id=identity["project_id"],workspace_id=gate.workspace_id)
         if hits is None:
             if backend is None: return self._blocked_injection("backend_not_configured",session_digest,gate)

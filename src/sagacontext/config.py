@@ -26,7 +26,9 @@ class Config:
     rollout_worker_enabled: bool = False
     rollout_workspaces: tuple[str, ...] = ()
     rollout_host: str = "codex"
-    rollout_host_version: str = "codex-cli 0.153.4"
+    rollout_host_version: str = "codex-cli 0.159.2"
+    # host -> exact version. Empty means the legacy single host above.
+    rollout_hosts: tuple[tuple[str, str], ...] = ()
     rollout_generation: str = "g1"
     rollout_backend_namespace: str = ""
     rollout_stop_file: Path | None = None
@@ -88,6 +90,8 @@ class Config:
             ),
             configured_digest=rollout.get("previous_token_digest", ""),
         )
+        hosts_value = rollout.get("hosts", {})
+        hosts = tuple(sorted((str(k), str(v)) for k, v in hosts_value.items())) if isinstance(hosts_value, dict) else ()
         return cls(
             state_path=root / "state.db",
             ledger_path=root / "ledger-v3.db",
@@ -109,6 +113,7 @@ class Config:
             rollout_workspaces=workspaces,
             rollout_host=str(rollout.get("host", defaults.rollout_host)),
             rollout_host_version=str(rollout.get("host_version", defaults.rollout_host_version)),
+            rollout_hosts=hosts,
             rollout_generation=str(rollout.get("generation", defaults.rollout_generation)),
             rollout_backend_namespace=str(rollout.get("backend_namespace", defaults.rollout_backend_namespace)),
             rollout_stop_file=Path(str(stop_value)).expanduser() if stop_value else root / "STOP",
@@ -126,6 +131,10 @@ class Config:
                 rollout.get("previous_rotated_at", defaults.rollout_previous_rotated_at)
             ),
         )
+
+    def host_versions(self) -> dict[str, str]:
+        """Configured host -> exact version; the legacy fields are a one-entry mapping."""
+        return dict(self.rollout_hosts) if self.rollout_hosts else {self.rollout_host: self.rollout_host_version}
 
 
 def _configured_token_digest(

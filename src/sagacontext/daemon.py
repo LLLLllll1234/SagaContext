@@ -18,6 +18,8 @@ from .ledger.schema import SCHEMA_VERSION
 from .rollout import RuntimeMode
 from .maintenance.judge import OpenAIProposalJudge
 from .llm import OpenAIJudge
+from .memlab.api import router as memlab_router
+from fastapi.responses import RedirectResponse
 
 
 class ProjectRegistration(BaseModel):
@@ -129,6 +131,13 @@ def create_app(config: Config | None = None) -> FastAPI:
             "scheduler": "disabled" if request.app.state.scheduler is None else (
                 "error" if request.app.state.scheduler.error_class else "running"),
         }
+
+    api.include_router(memlab_router)
+
+    @api.get("/console/memory/view", include_in_schema=False)
+    def memory_learning_page():
+        """Legacy path from the first skeleton; the console now lives under /memlab/."""
+        return RedirectResponse("/memlab/")
 
     @api.post("/events")
     async def ingest_event(

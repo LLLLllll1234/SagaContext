@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 
 MIGRATION_1 = """
 CREATE TABLE owners(
@@ -548,4 +548,26 @@ CREATE TABLE rollout_compensation_receipts(
 CREATE INDEX compensation_by_operation ON rollout_compensation_receipts(outbox_id,created_at);
 ALTER TABLE rollback_runs ADD COLUMN lease_token TEXT;
 ALTER TABLE rollback_runs ADD COLUMN lease_until TEXT;
+"""
+
+# Frozen host -> {version, executable} per rollout. NULL marks runs from before v6.
+MIGRATION_6 = """
+ALTER TABLE rollout_runs ADD COLUMN hosts_json TEXT;
+"""
+
+# rollout_sessions drops UNIQUE(rollout_id, host_session_id): two hosts may reuse an
+# id, and session_id is already unique per (owner, host, host_session_id).
+MIGRATION_7 = """
+CREATE TABLE rollout_sessions_v7(
+    rollout_id TEXT NOT NULL REFERENCES rollout_runs(rollout_id),
+    session_id TEXT NOT NULL REFERENCES sessions(session_id),
+    host_session_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('reserved','closed')),
+    reserved_at TEXT NOT NULL,
+    closed_at TEXT,
+    PRIMARY KEY(rollout_id, session_id)
+);
+INSERT INTO rollout_sessions_v7 SELECT rollout_id,session_id,host_session_id,status,reserved_at,closed_at FROM rollout_sessions;
+DROP TABLE rollout_sessions;
+ALTER TABLE rollout_sessions_v7 RENAME TO rollout_sessions;
 """

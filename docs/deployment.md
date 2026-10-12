@@ -30,7 +30,7 @@ SagaContext V1 的安装默认是安全的：daemon 绑定 loopback，`rollout.m
 
 `--with-hooks` 只生成四个事件入口：`SessionStart`、`UserPromptSubmit`、`Stop`、`SessionEnd`。它不会启用 guarded；配置和 operator token 仍由用户显式提供。已有 `.codex/hooks.json` 会保留到 `hooks.json.sagacontext-backup`，写入采用临时文件替换。
 
-hooks 接入要求宿主版本严格为 `codex-cli 0.153.4`；版本不匹配或命令不存在时，脚本会在任何写入前失败。
+hooks 接入要求宿主版本严格为 `codex-cli 0.159.2`；版本不匹配或命令不存在时，脚本会在任何写入前失败。
 
 `--install-service` 注册一个直接由 launchd/systemd 托管的 daemon 服务，服务环境固定为 `rollout.mode=off`；脚本不会把一次性安装命令伪装成长驻服务。服务注册前仍会完成 `uv sync --locked` 和配置检查。
 

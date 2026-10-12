@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -27,16 +28,21 @@ SAFE_ENUMS = {
         "SubagentStop",
         "Stop",
         "Interrupt",
+        "Notification",
     },
-    "permission_mode": {"default", "read-only", "workspace-write", "danger-full-access"},
+    # Codex sandbox modes, then Claude Code permission modes.
+    "permission_mode": {"default", "read-only", "workspace-write", "danger-full-access",
+                        "auto", "acceptEdits", "bypassPermissions", "manual", "dontAsk", "plan"},
     "source": {"startup", "resume", "clear", "compact"},
     "trigger": {"manual", "auto"},
-    "tool_name": {"shell", "Bash", "apply_patch"},
+    "tool_name": {"shell", "Bash", "apply_patch", "Read"},
+    "reason": {"clear", "logout", "prompt_input_exit", "other"},
 }
 REFERENCE_FIELDS = {
     "session": ("session_id",),
     "workspace": ("cwd", "workspace"),
-    "task": ("turn_id", "task_id", "thread_id"),
+    # Claude Code links a turn's events by prompt_id.
+    "task": ("turn_id", "task_id", "thread_id", "prompt_id"),
     "tool_call": ("tool_use_id", "tool_call_id", "call_id"),
 }
 
@@ -73,12 +79,23 @@ def _shape_entries(value: Any, prefix: str = "$") -> list[str]:
     return [f"{prefix}:{kind}"]
 
 
+# Enum-like fields whose unknown values are kept verbatim when they look like an
+# identifier, so new host behaviour is visible. Anything else still maps to "other".
+RAW_IDENTIFIER_FIELDS = {"source", "reason"}
+IDENTIFIER = re.compile(r"[a-z][a-z0-9_-]{0,31}")
+
+
 def _safe_enums(payload: dict[str, Any]) -> dict[str, str]:
     result: dict[str, str] = {}
     for key, allowed in SAFE_ENUMS.items():
         value = payload.get(key)
         if isinstance(value, str):
-            result[key] = value if value in allowed else "other"
+            if value in allowed:
+                result[key] = value
+            elif key in RAW_IDENTIFIER_FIELDS and IDENTIFIER.fullmatch(value):
+                result[key] = "unlisted:" + value
+            else:
+                result[key] = "other"
     return result
 
 
