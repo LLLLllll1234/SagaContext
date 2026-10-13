@@ -75,6 +75,8 @@ export const labels: Record<string, string> = {
   mode_off: "运行模式为关闭",
   rollout_not_active: "当前没有进行中的运行",
   missing_event_identity: "事件缺少会话标识",
+  unverified_host_event: "宿主事件类型不受支持",
+  missing_workspace: "事件缺少工作区",
   host_not_allowed: "宿主不在允许列表",
   host_version_not_verified: "宿主版本未通过准入",
   generation_not_verified: "运行代次未通过校验",

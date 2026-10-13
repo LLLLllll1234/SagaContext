@@ -257,9 +257,11 @@ export default function OverviewPage() {
                     {time(s.opened_at)} ·{" "}
                     {collectionOnlyHosts.has(s.host)
                       ? "仅采集"
-                      : s.injected_count == null
-                        ? "未带入记忆"
-                        : `带入 ${s.injected_count} 条记忆`}
+                      : s.injection_status === "blocked"
+                        ? "注入被拦截"
+                        : s.injection_status == null
+                          ? "未带入记忆"
+                          : `带入 ${s.injected_count ?? 0} 条记忆`}
                   </p>
                 </div>
                 <span className="session-icon">↗</span>

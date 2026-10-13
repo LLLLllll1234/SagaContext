@@ -95,6 +95,7 @@ describe("overview states", () => {
           host: "codex",
           opened_at: "2026-09-11T01:00:00Z",
           injected_count: 2,
+          injection_status: "emitted",
         },
       ],
     });
@@ -102,6 +103,24 @@ describe("overview states", () => {
     show();
     expect(screen.getAllByText(/仅采集/).length).toBeGreaterThan(0);
     expect(screen.getByText(/带入 2 条记忆/)).toBeInTheDocument();
+  });
+  it("labels a blocked session instead of reporting zero carried in", () => {
+    const data = snapshot();
+    data.data.sessions = moduleValue({
+      items: [
+        {
+          session_id: "s-blocked",
+          host: "codex",
+          opened_at: "2026-09-11T01:00:00Z",
+          injection_status: "blocked",
+          injected_count: 0,
+        },
+      ],
+    });
+    route({ data });
+    show();
+    expect(screen.getByText(/注入被拦截/)).toBeInTheDocument();
+    expect(screen.queryByText(/带入 0 条/)).not.toBeInTheDocument();
   });
   it("does not present a stale successful response as current health", () => {
     route({
