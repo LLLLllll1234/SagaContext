@@ -1,7 +1,9 @@
 :root{
-  --ink:#1f2a33;--muted:#66747f;--line:#dde4e8;--paper:#fff;--bg:#f3f6f7;--brand:#20625a;--soft:#e8f2ee;
-  --source:#1f5fa8;--source-bg:#e6f0fb;--local:#20625a;--local-bg:#e8f2ee;--infer:#a2621b;--infer-bg:#fbf0e2;
-  --danger:#b3382c;--danger-bg:#fbe9e7;--ok:#2d7a4f;
+  /* Shared palette: keep in step with web/src/tokens.css (bg, paper, ink, muted, green, pale, border, amber). */
+  --ink:#293a2e;--muted:#7c877e;--line:#dfe5dc;--paper:#fff;--bg:#f5f6f2;--brand:#3c6e50;--soft:#eaf1e8;
+  /* Evidence levels keep their own hues; local data uses the shared green. */
+  --source:#1f5fa8;--source-bg:#e6f0fb;--local:#3c6e50;--local-bg:#eaf1e8;--infer:#b48730;--infer-bg:#faf0d8;
+  --danger:#b3382c;--danger-bg:#fbe9e7;--ok:#3c6e50;
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
@@ -19,7 +21,7 @@ a{color:var(--brand)}
 button{font:inherit;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);cursor:pointer}
 button:hover{background:var(--soft);color:var(--brand)}
 button.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
-button.primary:hover{background:#184d47;color:#fff}
+button.primary:hover{background:#2f5a40;color:#fff}
 button:disabled{opacity:.5;cursor:default}
 select,input{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
 
@@ -111,7 +113,7 @@ tr.clickable:hover td{background:#f7faf9}
 .event-filters .filter.active{background:var(--soft);border-color:#b9d8cc;color:var(--brand)}
 .event-filters .filter-reset{margin-left:auto;font-size:12px;padding:3px 8px}
 .window{position:relative;height:38px;border:1px solid var(--line);border-radius:8px;background:#fbfcfc;overflow:hidden}
-.window .fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#8fc7b4,#20625a);transition:width .25s}
+.window .fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#9dbba8,var(--brand));transition:width .25s}
 .window .thr{position:absolute;top:0;bottom:0;width:2px;background:var(--danger)}
 .window .lbl{position:absolute;right:10px;top:8px;font-size:12.5px;font-weight:600}
 .window.flash .fill{background:linear-gradient(90deg,#f3b7ae,#b3382c)}
@@ -119,7 +121,7 @@ tr.clickable:hover td{background:#f7faf9}
 .feed .e{display:grid;grid-template-columns:70px 90px 1fr;gap:8px;padding:5px 10px;border-bottom:1px solid #eef1f3;font-size:12.5px}
 .feed .e.now{background:var(--soft)}
 .feed .k{font-weight:600}
-.k-user{color:#1f5fa8}.k-assistant{color:#20625a}.k-tool_call,.k-tool_output{color:#66747f}.k-compacted{color:#b3382c}.k-token_count{color:#8a97a0}.k-memory_injection{color:#a2621b}.k-turn{color:#000}.k-reasoning{color:#a3adb4}.k-summary_message{color:#b3382c}.k-harness,.k-developer{color:#a3adb4}
+.k-user{color:#1f5fa8}.k-assistant{color:var(--brand)}.k-tool_call,.k-tool_output{color:var(--muted)}.k-compacted{color:#b3382c}.k-token_count{color:#8a97a0}.k-memory_injection{color:var(--infer)}.k-turn{color:#000}.k-reasoning{color:#a3adb4}.k-summary_message{color:#b3382c}.k-harness,.k-developer{color:#a3adb4}
 .feed .e.kept{background:#fdf5f4}
 
 /* drawer */

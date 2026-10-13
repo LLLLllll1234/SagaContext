@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -10,6 +11,7 @@ from types import SimpleNamespace
 from fastapi.responses import JSONResponse
 
 from scripts.console_fixture import create_fixture
+from scripts.memlab_fixture import build_home
 from sagacontext.config import Config
 from sagacontext.console.service import ConsoleReadService
 from sagacontext.daemon import create_app
@@ -25,6 +27,11 @@ def fixture_app(*, port: int = 37781, scenario: str = 'normal'):
         with TemporaryDirectory(prefix='sagacontext-console-') as directory:
             root = Path(directory)
             case = create_fixture(root, populated=scenario != 'empty')
+            # Memory Lab reads homes from the environment; point it at synthetic ones only.
+            (root / 'claude').mkdir()
+            saved = {key: os.environ.get(key) for key in ('CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'SAGACONTEXT_CODEX_SOURCE')}
+            os.environ.update(CODEX_HOME=str(build_home(root)), CLAUDE_CONFIG_DIR=str(root / 'claude'),
+                              SAGACONTEXT_CODEX_SOURCE=str(root / 'no-codex-source'))
             config = Config(state_path=root/'unused.db', ledger_path=case.path, port=port,
                             rollout_mode='guarded', rollout_worker_enabled=False,
                             rollout_stop_file=root/'STOP')
@@ -34,13 +41,20 @@ def fixture_app(*, port: int = 37781, scenario: str = 'normal'):
             app.state.console_fixture = True
             app.state.fixture = case
             app.state.overview_reads = 0
-            yield
+            try:
+                yield
+            finally:
+                for key, value in saved.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
 
     api.router.lifespan_context = lifespan
 
     @api.middleware('http')
     async def fixture_boundary(request, call_next):
-        if request.method != 'GET' or not request.url.path.startswith('/console/'):
+        if request.method != 'GET' or not request.url.path.startswith(('/console/', '/memlab/')):
             return JSONResponse({'error': {'code': 'fixture_readonly'}}, status_code=404)
         if scenario == 'stale' and request.url.path.endswith('/overview'):
             api.state.overview_reads += 1

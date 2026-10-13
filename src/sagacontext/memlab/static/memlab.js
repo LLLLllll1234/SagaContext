@@ -348,7 +348,7 @@ function drawChart(el, cv) {
     ${ticks.map(v => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(v)}" y2="${y(v)}" stroke="#eef1f3"/><text x="${P.l - 8}" y="${y(v) + 4}" font-size="11" text-anchor="end" fill="#8a97a0">${v >= 1000 ? (v / 1000) + 'k' : v}</text>`).join('')}
     ${cv.window ? `<line x1="${P.l}" x2="${W - P.r}" y1="${y(cv.window)}" y2="${y(cv.window)}" stroke="#66747f" stroke-dasharray="4 4"/><text x="${W - P.r}" y="${y(cv.window) - 4}" font-size="11" text-anchor="end" fill="#66747f">窗口 ${fmt(cv.window)}</text>` : ''}
     ${cv.auto_compact_threshold ? `<line x1="${P.l}" x2="${W - P.r}" y1="${y(cv.auto_compact_threshold)}" y2="${y(cv.auto_compact_threshold)}" stroke="#b3382c" stroke-dasharray="2 4"/><text x="${W - P.r}" y="${y(cv.auto_compact_threshold) + 12}" font-size="11" text-anchor="end" fill="#b3382c">${pct(CP.auto_compact_ratio)} 阈值（源码推算）</text>` : ''}
-    <path d="${d}" fill="none" stroke="#20625a" stroke-width="2"/>
+    <path d="${d}" fill="none" stroke="#3c6e50" stroke-width="2"/>
     ${cv.compactions.map(c => `<line x1="${x(c.ordinal)}" x2="${x(c.ordinal)}" y1="${P.t}" y2="${H - P.b}" stroke="#b3382c" stroke-width="2"/><text x="${x(c.ordinal) + 4}" y="${P.t + 12}" font-size="11" fill="#b3382c">压缩 #${c.window_number ?? ''}</text>`).join('')}
     <line id="cursor" x1="${P.l}" x2="${P.l}" y1="${P.t}" y2="${H - P.b}" stroke="#1f2a33" stroke-width="1"/>
     <text x="${P.l}" y="${H - 8}" font-size="11" fill="#8a97a0">rollout 行序 →</text>

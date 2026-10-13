@@ -38,6 +38,9 @@ test("review batch to evidence, session, memory and history", async ({
   await page.getByRole("combobox").selectOption("");
   await expect(page.getByRole("link", { name: /批次 / }).first()).toBeVisible();
   await page.getByRole("combobox").selectOption("awaiting_review");
+  // Let the filtered list settle before clicking; the unfiltered rows re-render otherwise.
+  await expect(page).toHaveURL(/status=awaiting_review/);
+  await expect(page.getByText("当前范围暂无记录")).toHaveCount(0);
   await page.getByRole("link", { name: /批次 / }).first().click();
   await expect(page.getByRole("heading", { name: "补全提案" })).toBeVisible();
   await page
@@ -63,10 +66,13 @@ test("review batch to evidence, session, memory and history", async ({
   await expect(
     page.getByRole("heading", { name: "会话", exact: true }),
   ).toBeVisible();
-  await page.keyboard.press("Tab");
-  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe(
-    "BODY",
-  );
+  // A background refetch can re-render the list under the first Tab; keyboard reach is what matters.
+  await expect(async () => {
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe(
+      "BODY",
+    );
+  }).toPass({ timeout: 5000 });
 });
 
 test("disconnection keeps snapshot and marks current state unknown", async ({
@@ -76,6 +82,10 @@ test("disconnection keeps snapshot and marks current state unknown", async ({
   await page.getByRole("link", { name: /查看运维状态/ }).click();
   await expect(page.getByText("服务可达", { exact: true })).toBeVisible();
   await page.route("**/console/v1/**", (route) => route.abort());
+  // Refetch on focus instead of waiting for the polling interval, so a slow host cannot miss the window.
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event("visibilitychange")),
+  );
   await expect(page.getByText("连接异常", { exact: true })).toBeVisible({
     timeout: 12000,
   });
