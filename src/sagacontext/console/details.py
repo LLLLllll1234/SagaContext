@@ -46,8 +46,9 @@ def memory(db,owner_id,workspace_id,memory_id,context=None):
     revisions=[]
     for rev in db.execute('SELECT revision,operation,payload_json,created_at FROM revisions WHERE memory_id=? ORDER BY revision DESC',(memory_id,)):
         eids=[r[0] for r in db.execute('SELECT evidence_id FROM revision_evidence WHERE memory_id=? AND revision=?',(memory_id,rev['revision']))]
+        payload=safe_payload(json.loads(rev['payload_json']))
         revisions.append({'revision':rev['revision'],'operation':rev['operation'],'created_at':rev['created_at'],
-            'payload':safe_payload(json.loads(rev['payload_json'])),'evidence':evidence(db,owner_id,workspace_id,eids)})
+            'summary':payload_summary(payload),'payload':payload,'evidence':evidence(db,owner_id,workspace_id,eids)})
     relations=[]
     related=db.execute("""SELECT DISTINCT other.memory_id,
         CASE WHEN own.operation='supersede' THEN 'replaced_by' ELSE 'replaces' END AS relation,

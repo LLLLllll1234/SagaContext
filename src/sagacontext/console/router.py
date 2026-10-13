@@ -44,8 +44,8 @@ def create_console_router():
         return _service(request).overview(workspace_id,start,end,state)
 
     @router.get('/workspaces/{workspace_id}/sessions',response_model=Envelope[SessionPage])
-    def sessions(workspace_id: str,request: Request,cursor: str | None=None,limit: Limit=50):
-        return _service(request).sessions(workspace_id,cursor,limit)
+    def sessions(workspace_id: str,request: Request,cursor: str | None=None,limit: Limit=50,injection: str | None=None):
+        return _service(request).sessions(workspace_id,cursor,limit,injection)
 
     @router.get('/projects/{project_id}/tasks',response_model=Envelope[TaskPage])
     def tasks(project_id: str,request: Request,workspace_id: str | None=None,cursor: str | None=None,limit: Limit=50):

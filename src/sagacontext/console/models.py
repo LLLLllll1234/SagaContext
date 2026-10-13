@@ -79,6 +79,7 @@ class SessionRow(_StrictModel):
     # From the latest injection receipt; None when the session has none.
     injected_count: int | None = None
     omitted_count: int | None = None
+    injection_status: str | None = None
 
 
 class TaskRow(_StrictModel):
@@ -215,6 +216,7 @@ class Revision(_StrictModel):
     revision: int
     operation: str
     created_at: str
+    summary: str | None = None
     payload: JsonValue
     evidence: list[Evidence]
 

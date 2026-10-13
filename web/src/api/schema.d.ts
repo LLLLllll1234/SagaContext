@@ -783,6 +783,8 @@ export interface components {
             operation: string;
             /** Created At */
             created_at: string;
+            /** Summary */
+            summary?: string | null;
             payload: components["schemas"]["JsonValue"];
             /** Evidence */
             evidence: components["schemas"]["Evidence"][];
@@ -882,6 +884,8 @@ export interface components {
             injected_count?: number | null;
             /** Omitted Count */
             omitted_count?: number | null;
+            /** Injection Status */
+            injection_status?: string | null;
             /** Events */
             events: components["schemas"]["EventRow"][];
             /** Batches */
@@ -913,6 +917,8 @@ export interface components {
             injected_count?: number | null;
             /** Omitted Count */
             omitted_count?: number | null;
+            /** Injection Status */
+            injection_status?: string | null;
         };
         /** SnapshotMeta */
         SnapshotMeta: {
@@ -1079,6 +1085,7 @@ export interface operations {
             query?: {
                 cursor?: string | null;
                 limit?: number;
+                injection?: string | null;
             };
             header?: never;
             path: {
