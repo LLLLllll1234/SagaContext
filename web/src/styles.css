@@ -762,6 +762,17 @@ pre {
 .card details {
   margin-top: 8px;
 }
+.proposal-change {
+  border-left: 3px solid var(--pale);
+  padding: 4px 0 4px 14px;
+  margin: 12px 0;
+}
+.proposal-change p {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0;
+}
 .memory-lead h2 {
   margin-bottom: 12px;
 }

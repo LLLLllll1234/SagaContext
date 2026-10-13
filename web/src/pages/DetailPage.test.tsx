@@ -36,7 +36,9 @@ describe("proposal evidence display", () => {
       },
     });
     show();
-    expect(screen.getByRole("heading", {name:"对象不存在或不可访问"})).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "对象不存在或不可访问" }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/cached private/)).not.toBeInTheDocument();
   });
   it("hides every payload of an unavailable proposal", () => {
@@ -125,12 +127,17 @@ const sessionData = (host: string) => ({
         receipt_id: "r",
         created_at: "2026-09-11T01:00:00Z",
         status: "emitted",
-        reason: null,
+        reason: null as string | null,
         memory_ids: ["m1", "m2"],
         revisions: [1, 3],
         summaries: ["测试统一放 tests/unit", null],
         omissions: [
-          { memory_id: "o1", revision: 1, reason: "budget", summary: "超长的项目说明" },
+          {
+            memory_id: "o1",
+            revision: 1,
+            reason: "budget",
+            summary: "超长的项目说明",
+          },
           { memory_id: "o2", revision: 2, reason: "budget", summary: null },
         ],
         consumption_records: [],
@@ -152,7 +159,9 @@ describe("what a session carried in", () => {
   it("explains collection-only hosts instead of showing receipts", () => {
     mocks.read.mockReturnValue({ data: sessionData("claude-code") });
     showAt("/sessions/s");
-    expect(screen.getByText(/此宿主仅采集事件，不注入记忆/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/此宿主仅采集事件，不注入记忆/),
+    ).toBeInTheDocument();
     expect(screen.queryByText("测试统一放 tests/unit")).not.toBeInTheDocument();
   });
 });
@@ -161,12 +170,105 @@ describe("review guidance", () => {
     mocks.read.mockReturnValue({
       data: {
         meta: { observed_at: "2026-09-11T01:00:00Z" },
-        data: { batch_id: "b-1", session_id: "s", status: "awaiting_review", attempt_count: 0, proposals: [] },
+        data: {
+          batch_id: "b-1",
+          session_id: "s",
+          status: "awaiting_review",
+          attempt_count: 0,
+          proposals: [],
+        },
       },
     });
     showAt("/batches/b-1");
     expect(
-      screen.getByText("bin/sagacontext-daemon-control review --batch-id b-1 --decision approve"),
+      screen.getByText(
+        "bin/sagacontext-daemon-control review --batch-id b-1 --decision approve",
+      ),
     ).toBeInTheDocument();
   });
+});
+describe("blocked receipts and proposal summaries", () => {
+  it("explains a blocked receipt in one sentence with a translated reason", () => {
+    const data = sessionData("codex");
+    data.data.injections = [
+      {
+        ...data.data.injections[0],
+        status: "blocked",
+        reason: "kill_switch",
+        memory_ids: [],
+        revisions: [],
+        summaries: [],
+        omissions: [],
+      },
+    ];
+    mocks.read.mockReturnValue({ data });
+    showAt("/sessions/s");
+    expect(screen.getByText("停止开关已生效")).toBeInTheDocument();
+    expect(screen.queryByText(/已带入/)).not.toBeInTheDocument();
+    expect(screen.queryByText("kill_switch")).not.toBeInTheDocument();
+  });
+  it("shows a proposal as a one-line change and folds the raw fields", () => {
+    mocks.read.mockReturnValue({
+      data: {
+        meta: { observed_at: "2026-09-11T01:00:00Z" },
+        data: {
+          batch_id: "b",
+          session_id: "s",
+          status: "settled",
+          attempt_count: 0,
+          proposals: [
+            {
+              proposal_id: "p",
+              operation: "refine",
+              status: "committed",
+              availability: "available",
+              target_id: "m",
+              expected_revision: 1,
+              old_summary: "记录失败原因",
+              new_summary: "记录失败原因与可重试类别",
+              old_payload: { rule: "记录失败原因" },
+              new_payload: { rule: "记录失败原因与可重试类别" },
+              evidence: [],
+            },
+          ],
+        },
+      },
+    });
+    showAt("/batches/b");
+    expect(screen.getByText("原内容")).toBeInTheDocument();
+    expect(screen.getByText("记录失败原因与可重试类别")).toBeInTheDocument();
+    expect(screen.getByText("字段对照").closest("details")).not.toHaveAttribute(
+      "open",
+    );
+  });
+});
+it("states a no-change proposal instead of an empty body", () => {
+  mocks.read.mockReturnValue({
+    data: {
+      meta: { observed_at: "2026-09-11T01:00:00Z" },
+      data: {
+        batch_id: "b",
+        session_id: "s",
+        status: "settled",
+        attempt_count: 0,
+        proposals: [
+          {
+            proposal_id: "p",
+            operation: "no_change",
+            status: "no_change",
+            availability: "available",
+            target_id: null,
+            new_summary: null,
+            new_payload: {},
+            evidence: [],
+          },
+        ],
+      },
+    },
+  });
+  showAt("/batches/b");
+  expect(
+    screen.getByText("判定为无变化，不修改任何记忆。"),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("无可读正文")).not.toBeInTheDocument();
 });

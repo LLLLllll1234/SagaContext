@@ -46,6 +46,18 @@ function InjectionRecord({
   q: URLSearchParams;
 }) {
   const summaries = i.summaries ?? [];
+  if (i.status === "blocked")
+    return (
+      <article className="record injection">
+        <div className="record-head">
+          <span className="small">{time(i.created_at)}</span>
+          <Status value="blocked" />
+        </div>
+        <p>
+          这次没有带入记忆：<b>{label(i.reason)}</b>。
+        </p>
+      </article>
+    );
   const groups = new Map<string, Injection["omissions"]>();
   for (const o of i.omissions)
     groups.set(o.reason, [...(groups.get(o.reason) ?? []), o]);
@@ -252,10 +264,31 @@ export default function DetailPage() {
                       {p.scope.path_pattern ?? p.scope.task_id ?? ""}
                     </p>
                   )}
-                  <RevisionDiff
-                    oldText={p.old_payload}
-                    newText={p.new_payload}
-                  />
+                  {p.operation === "no_change" ? (
+                    <p className="muted">判定为无变化，不修改任何记忆。</p>
+                  ) : (
+                    <div className="proposal-change">
+                      {p.target_id && (
+                        <p>
+                          <span className="eyebrow">原内容</span>
+                          <Summary text={p.old_summary} />
+                        </p>
+                      )}
+                      <p>
+                        <span className="eyebrow">
+                          {p.target_id ? "改为" : "新内容"}
+                        </span>
+                        <Summary text={p.new_summary} />
+                      </p>
+                    </div>
+                  )}
+                  <details>
+                    <summary className="small">字段对照</summary>
+                    <RevisionDiff
+                      oldText={p.old_payload}
+                      newText={p.new_payload}
+                    />
+                  </details>
                   {p.target_id && (
                     <Link to={`${base}/memories/${p.target_id}?${q}`}>
                       目标记忆 · 期望版本 {p.expected_revision ?? "—"} →
