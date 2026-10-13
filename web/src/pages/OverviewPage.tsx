@@ -89,7 +89,35 @@ export function Activity({
     </div>
   );
 }
-function RecentMemories() {
+// Why there is no memory yet, in the order a user would act on it.
+export function emptyMemoryHint(
+  awaiting: number,
+  mode: string | null | undefined,
+  base: string,
+): { text: string; to?: string; link?: string } {
+  if (awaiting > 0)
+    return {
+      text: `有 ${awaiting} 个批次等待审核，审核通过后记忆才会写入。`,
+      to: `${base}/batches?status=awaiting_review`,
+      link: "查看待审核批次 →",
+    };
+  if (!mode || mode === "off")
+    return {
+      text: "记忆服务未启用，会话不会产生候选记忆。",
+      to: "/deployment",
+      link: "查看接入步骤 →",
+    };
+  return {
+    text: "运行已开启，会话结束后产生的候选记忆审核通过后会出现在这里。",
+  };
+}
+function RecentMemories({
+  awaiting,
+  mode,
+}: {
+  awaiting: number;
+  mode: string | null | undefined;
+}) {
   const { projectId, workspaceId, base } = useWorkspace();
   const result = useRead<Envelope<Page<MemoryRow>>>(
     `/projects/${projectId}/memories?workspace_id=${workspaceId}&limit=5`,
@@ -101,12 +129,14 @@ function RecentMemories() {
         {result.isLoading ? "正在读取记忆" : "记忆数据不可用"}
       </p>
     );
-  if (!rows.length)
+  if (!rows.length) {
+    const hint = emptyMemoryHint(awaiting, mode, base);
     return (
       <EmptyState title="还没有适用于本项目的记忆">
-        审核通过的记忆会出现在这里。
+        {hint.text} {hint.to && <Link to={hint.to}>{hint.link}</Link>}
       </EmptyState>
     );
+  }
   return (
     <ul className="memory-list">
       {rows.map((m) => (
@@ -207,7 +237,10 @@ export default function OverviewPage() {
           )}
         </Card>
         <Card title="适用记忆" to={`${base}/memories`}>
-          <RecentMemories />
+          <RecentMemories
+            awaiting={awaiting}
+            mode={result.error ? undefined : runtime?.effective_mode}
+          />
         </Card>
         <Card title="最近会话" to={`${base}/sessions`}>
           {o.sessions.availability === "unavailable" ? (

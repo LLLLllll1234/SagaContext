@@ -272,3 +272,50 @@ it("states a no-change proposal instead of an empty body", () => {
   ).toBeInTheDocument();
   expect(screen.queryByText("无可读正文")).not.toBeInTheDocument();
 });
+describe("memory timeline", () => {
+  it("lists every revision by content with the current one marked and relations at the ends", () => {
+    mocks.read.mockReturnValue({
+      data: {
+        meta: { observed_at: "2026-09-11T01:00:00Z" },
+        data: {
+          memory_id: "m",
+          current_revision: 2,
+          memory_type: "convention",
+          state: "retired",
+          conflict_state: "none",
+          summary: "测试统一放 tests/unit",
+          scope: { kind: "project" },
+          relations: [
+            { memory_id: "next", relation: "replaced_by" },
+            { memory_id: "old", relation: "replaces" },
+          ],
+          revisions: [
+            {
+              revision: 2,
+              operation: "refine",
+              created_at: "2026-09-12T01:00:00Z",
+              summary: "测试统一放 tests/unit",
+              payload: {},
+              evidence: [],
+            },
+            {
+              revision: 1,
+              operation: "new",
+              created_at: "2026-09-11T01:00:00Z",
+              summary: "测试放 tests",
+              payload: {},
+              evidence: [],
+            },
+          ],
+        },
+      },
+    });
+    showAt("/memories/m");
+    const items = screen.getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("已被新记忆取代");
+    expect(items[1]).toHaveClass("current");
+    expect(items[1]).toHaveTextContent("第 2 版");
+    expect(items[2]).toHaveTextContent("测试放 tests");
+    expect(items[3]).toHaveTextContent("取代了一条旧记忆");
+  });
+});

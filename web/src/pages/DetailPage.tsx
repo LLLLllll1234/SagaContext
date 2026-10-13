@@ -320,31 +320,62 @@ export default function DetailPage() {
                 "遵循项目与用户范围"}
             </p>
           </section>
-          {data.relations.length > 0 && (
-            <Card title="取代关系">
-              {data.relations.map((r) => (
-                <p key={r.memory_id}>
-                  <Link to={`${base}/memories/${r.memory_id}?${q}`}>
-                    {r.relation === "replaces" ? "取代了" : "被取代为"}{" "}
-                    <small className="mono">{r.memory_id.slice(0, 8)}</small> →
-                  </Link>
-                </p>
+          <section className="card">
+            <header>
+              <h2>变化时间线</h2>
+            </header>
+            <ol className="timeline">
+              {data.relations
+                .filter((r) => r.relation === "replaced_by")
+                .map((r) => (
+                  <li key={r.memory_id} className="timeline-relation">
+                    <Link to={`${base}/memories/${r.memory_id}?${q}`}>
+                      已被新记忆取代 →
+                    </Link>
+                  </li>
+                ))}
+              {data.revisions.map((rev) => (
+                <li
+                  key={rev.revision}
+                  className={
+                    rev.revision === data.current_revision ? "current" : ""
+                  }
+                >
+                  <div className="timeline-head">
+                    <Status value={rev.operation} />
+                    <span className="small">
+                      第 {rev.revision} 版 · {time(rev.created_at)}
+                      {rev.revision === data.current_revision && " · 当前"}
+                    </span>
+                  </div>
+                  <p>
+                    <Summary text={rev.summary} />
+                  </p>
+                  {rev.evidence.length > 0 && (
+                    <details>
+                      <summary className="small">
+                        来源证据 {rev.evidence.length} 条
+                      </summary>
+                      <EvidenceList items={rev.evidence} base={base} />
+                    </details>
+                  )}
+                  <details>
+                    <summary className="small">字段</summary>
+                    <Payload value={rev.payload} />
+                  </details>
+                </li>
               ))}
-            </Card>
-          )}
-          {data.revisions.map((rev) => (
-            <Card
-              key={rev.revision}
-              title={`版本 ${rev.revision} · ${label(rev.operation)}`}
-            >
-              <p className="small">{time(rev.created_at)}</p>
-              <details open={rev.revision === data.current_revision}>
-                <summary className="small">字段</summary>
-                <Payload value={rev.payload} />
-              </details>
-              <EvidenceList items={rev.evidence} base={base} />
-            </Card>
-          ))}
+              {data.relations
+                .filter((r) => r.relation === "replaces")
+                .map((r) => (
+                  <li key={r.memory_id} className="timeline-relation">
+                    <Link to={`${base}/memories/${r.memory_id}?${q}`}>
+                      取代了一条旧记忆 →
+                    </Link>
+                  </li>
+                ))}
+            </ol>
+          </section>
         </>
       )}
       {"injections" in data && (

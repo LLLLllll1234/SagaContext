@@ -127,3 +127,16 @@ test("deployment shows hosts and onboarding without claiming hooks state", async
   await expect(page.getByText("采集并注入")).toBeVisible();
   await expect(page.getByRole("link", { name: "返回项目目录" })).toBeVisible();
 });
+
+test("session filter and memory timeline", async ({ page }) => {
+  await page.goto("/console/");
+  await page.getByRole("link", { name: "会话", exact: true }).click();
+  await page.getByRole("combobox").selectOption("blocked");
+  await expect(page.getByText("当前范围暂无记录")).toBeVisible();
+  await page.getByRole("combobox").selectOption("emitted");
+  await expect(page.getByText(/带入 1 条 · 省略 1 条/)).toBeVisible();
+  await page.getByRole("link", { name: "记忆与证据", exact: true }).click();
+  await page.getByRole("link", { name: "记录失败原因", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "变化时间线" })).toBeVisible();
+  await expect(page.locator(".timeline > li.current")).toContainText("当前");
+});

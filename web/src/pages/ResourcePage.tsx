@@ -110,6 +110,22 @@ export default function ResourcePage() {
           </label>
         </div>
       )}
+      {resource === "sessions" && (
+        <div className="filters">
+          <label>
+            记忆带入{" "}
+            <select
+              value={search.get("injection") ?? ""}
+              onChange={(e) => filters("injection", e.target.value)}
+            >
+              <option value="">全部会话</option>
+              <option value="emitted">有带入</option>
+              <option value="blocked">被拦截</option>
+              <option value="none">无回执</option>
+            </select>
+          </label>
+        </div>
+      )}
       {resource === "batches" && <ReviewHint />}
       {resource === "batches" && (
         <div className="filters">
@@ -179,9 +195,11 @@ export default function ResourcePage() {
                     {time(r.opened_at)} — {time(r.closed_at)} ·{" "}
                     {collectionOnlyHosts.has(r.host)
                       ? "此宿主仅采集，不注入记忆"
-                      : r.injected_count == null
-                        ? "无注入回执"
-                        : `带入 ${r.injected_count} 条 · 省略 ${r.omitted_count ?? 0} 条`}
+                      : r.injection_status === "blocked"
+                        ? "最近一次注入被拦截"
+                        : r.injection_status == null
+                          ? "无注入回执"
+                          : `带入 ${r.injected_count ?? 0} 条 · 省略 ${r.omitted_count ?? 0} 条`}
                   </p>
                   {r.task_id && (
                     <Link to={`${base}/tasks/${r.task_id}`}>关联任务 →</Link>

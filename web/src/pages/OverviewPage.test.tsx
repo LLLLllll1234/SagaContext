@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import OverviewPage from "./OverviewPage";
+import OverviewPage, { emptyMemoryHint } from "./OverviewPage";
 import { ConsoleApiError } from "../api/client";
 
 const mocks = vi.hoisted(() => ({ read: vi.fn() }));
@@ -117,5 +117,22 @@ describe("overview states", () => {
     route({ data: snapshot() }, { data: { data: { items: [] } } });
     show();
     expect(screen.getByText("还没有适用于本项目的记忆")).toBeInTheDocument();
+  });
+});
+describe("empty memory next step", () => {
+  it("points at pending review first, then at setup, then explains waiting", () => {
+    const base = "/b";
+    expect(emptyMemoryHint(2, "guarded", base).to).toBe(
+      "/b/batches?status=awaiting_review",
+    );
+    expect(emptyMemoryHint(0, "off", base).to).toBe("/deployment");
+    expect(emptyMemoryHint(0, undefined, base).to).toBe("/deployment");
+    expect(emptyMemoryHint(0, "guarded", base).to).toBeUndefined();
+  });
+  it("shows the off-mode next step on an empty overview", () => {
+    route({ data: snapshot() }, { data: { data: { items: [] } } });
+    show();
+    expect(screen.getByText(/记忆服务未启用/)).toBeInTheDocument();
+    expect(screen.getByText("查看接入步骤 →")).toBeInTheDocument();
   });
 });
