@@ -135,10 +135,11 @@ def batch(db,owner_id,workspace_id,batch_id,context=None):
                 break
         if not allowed:
             old=None
+        new=safe_payload(json.loads(p['payload_patch_json'])) if allowed else None
         proposals.append({'proposal_id':p['proposal_id'],'candidate_id':p['candidate_id'],'operation':p['operation'],
             'target_id':p['target_id'] if allowed else None,'expected_revision':p['expected_revision'] if allowed else None,
             'status':p['status'],'scope':scope.model_dump() if allowed else None,'old_payload':old,
-            'new_payload':safe_payload(json.loads(p['payload_patch_json'])) if allowed else None,
+            'old_summary':payload_summary(old),'new_summary':payload_summary(new),'new_payload':new,
             'rationale':safe_text(p['rationale_redacted'] or '') if allowed else None,
             'evidence':evidence(db,owner_id,workspace_id,json.loads(p['evidence_ids_json'])) if allowed else [],
             'availability':'available' if allowed else 'unavailable'})

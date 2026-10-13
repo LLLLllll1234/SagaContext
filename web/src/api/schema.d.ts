@@ -764,6 +764,10 @@ export interface components {
             scope: components["schemas"]["MemoryScope"] | null;
             old_payload: components["schemas"]["JsonValue"];
             new_payload: components["schemas"]["JsonValue"];
+            /** Old Summary */
+            old_summary?: string | null;
+            /** New Summary */
+            new_summary?: string | null;
             /** Rationale */
             rationale: string | null;
             /** Evidence */

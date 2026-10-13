@@ -152,7 +152,7 @@ def test_summary_is_derived_after_redaction_and_absent_without_body(console_case
     assert 'abc' not in (c.service.memories(c.project_a,c.workspace_a)['data']['items'][0]['summary'] or '')
     with sqlite3.connect(c.path) as db:
         db.execute('UPDATE revisions SET payload_json=? WHERE memory_id=? AND revision=1',
-                   (json.dumps({'key':'errors','weight':3}),c.memory_id))
+                   (json.dumps({'weight':3,'tags':['a']}),c.memory_id))
     assert c.service.memories(c.project_a,c.workspace_a)['data']['items'][0]['summary'] is None
 
 
@@ -170,3 +170,13 @@ def test_session_rows_count_the_latest_injection(console_case):
     c=console_case
     rows={r['session_id']:r for r in c.service.sessions(c.workspace_a)['data']['items']}
     assert (rows[c.session_a]['injected_count'],rows[c.session_a]['omitted_count'])==(1,1)
+
+
+def test_proposals_carry_old_and_new_summaries_only_when_available(console_case):
+    c=console_case
+    proposal=next(p for p in c.service.batch(c.workspace_a,c.batch_id)['data']['proposals'] if p['proposal_id']=='demo-proposal')
+    assert (proposal['old_summary'],proposal['new_summary'])==('记录失败原因','记录失败原因与可重试类别')
+    with sqlite3.connect(c.path) as db:
+        db.execute("UPDATE memories SET state='deleted' WHERE memory_id=?",(c.memory_id,))
+    hidden=next(p for p in c.service.batch(c.workspace_a,c.batch_id)['data']['proposals'] if p['proposal_id']=='demo-proposal')
+    assert (hidden['old_summary'],hidden['new_summary'])==(None,None)

@@ -30,3 +30,22 @@ def test_payload_summary_prefers_memfile_fields_and_truncates():
     assert payload_summary(['rule']) is None
     long = payload_summary({'rule': 'x' * 500})
     assert len(long) == SUMMARY_LIMIT and long.endswith('…')
+
+
+def test_payload_summary_reads_judge_structured_payloads():
+    from sagacontext.console.serialize import payload_summary
+    assert payload_summary({'key': 'workspace-decision', 'command': 'uv run --locked pytest -q'}) \
+        == 'workspace-decision：uv run --locked pytest -q'
+    assert payload_summary({'key': 'async-cancel', 'symptom': 'task hangs', 'fix': 'cancel task'}) == 'task hangs'
+    assert payload_summary({'key': 'output-style'}) == 'output-style'
+    assert payload_summary({'weight': 3}) is None
+
+
+def test_every_judge_dataset_payload_has_a_summary():
+    from pathlib import Path
+    import yaml
+    from sagacontext.console.serialize import payload_summary
+    cases = yaml.safe_load(Path('bench/cases/real_judge/cases-v4.yaml').read_text())['cases']
+    bodies = [case['expected_body'] for case in cases if case.get('expected_body')]
+    assert bodies
+    assert [b for b in bodies if payload_summary(b) is None] == []

@@ -258,6 +258,8 @@ class Proposal(_StrictModel):
     scope: MemoryScope | None
     old_payload: JsonValue
     new_payload: JsonValue
+    old_summary: str | None = None
+    new_summary: str | None = None
     rationale: str | None
     evidence: list[Evidence]
     availability: str
