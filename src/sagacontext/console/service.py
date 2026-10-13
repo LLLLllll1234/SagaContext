@@ -44,8 +44,8 @@ class ConsoleReadService:
             return {"items":result}
         return self._read(operation)
 
-    def sessions(self, workspace_id, cursor=None, limit=50):
-        return self._read(lambda db:queries.sessions(db,self.owner_id,workspace_id,cursor,limit))
+    def sessions(self, workspace_id, cursor=None, limit=50, injection=None):
+        return self._read(lambda db:queries.sessions(db,self.owner_id,workspace_id,cursor,limit,injection))
 
     def tasks(self, project_id, workspace_id=None, cursor=None, limit=50):
         return self._read(lambda db:queries.tasks(db,self.owner_id,project_id,workspace_id,cursor,limit))

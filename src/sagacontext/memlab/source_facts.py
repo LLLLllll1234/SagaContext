@@ -312,10 +312,59 @@ def verify_fact(fact: SourceFact, root: Path) -> dict[str, Any]:
     return result
 
 
+# Narrative parameters used by the UI: name -> (fact id, constants key, or None to use the anchor capture).
+PARAMETERS: dict[str, tuple[str, str | None]] = {
+    "extract_model": ("stage1.model", None),
+    "consolidation_model": ("stage2.agent", None),
+    "summary_token_limit": ("recall.injection", None),
+    "user_message_budget_tokens": ("compaction.kept", None),
+    "max_rollouts_per_startup": ("selection.candidates", None),
+    "max_rollout_age_days": ("selection.candidates", "max_rollout_age_days"),
+    "min_rollout_idle_hours": ("selection.candidates", "min_rollout_idle_hours"),
+    "max_raw_memories_for_consolidation": ("stage2.selection", None),
+    "max_unused_days": ("stage2.selection", "max_unused_days"),
+    "auto_compact_ratio": ("compaction.threshold", "auto_compact_ratio"),
+}
+# Registry beliefs, used when a value cannot be read from the local checkout.
+PARAMETER_DEFAULTS: dict[str, Any] = {
+    "extract_model": "gpt-5.6-luna", "consolidation_model": "gpt-5.6-terra",
+    "summary_token_limit": 2500, "user_message_budget_tokens": 20000,
+    "max_rollouts_per_startup": 2, "max_rollout_age_days": 10, "min_rollout_idle_hours": 6,
+    "max_raw_memories_for_consolidation": 256, "max_unused_days": 30, "auto_compact_ratio": 0.9,
+}
+
+
+def _literal(value: str) -> Any:
+    digits = value.replace("_", "")
+    return int(digits) if digits.isdigit() else value
+
+
+def resolve_parameters(facts: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Each parameter's value and how it was checked.
+
+    ``read``: taken from the anchor capture in local source. ``anchor``: the fact's anchor
+    was found but this value is the registry's belief. ``unverified``: the anchor is
+    missing or drifted, so the value is only the registry default.
+    """
+    by_id = {f["id"]: f for f in facts}
+    result = {}
+    for name, (fact_id, key) in PARAMETERS.items():
+        fact = by_id[fact_id]
+        value, check = PARAMETER_DEFAULTS[name], "unverified"
+        if fact["status"] == "verified":
+            if key is None and fact.get("captured") is not None:
+                value, check = _literal(fact["captured"]), "read"
+            else:
+                value, check = fact["constants"].get(key, value) if key else value, "anchor"
+        result[name] = {"value": value, "check": check, "fact_id": fact_id}
+    return result
+
+
 def verify_all(root: Path | None = None) -> dict[str, Any]:
     root = root or default_source_root()
     facts = [verify_fact(f, root) for f in FACTS]
     counts = {"verified": 0, "drifted": 0, "missing": 0}
     for f in facts:
         counts[f["status"]] += 1
-    return {"source": source_revision(root), "facts": facts, "counts": counts}
+    return {"source": source_revision(root), "facts": facts, "counts": counts,
+            "params": resolve_parameters(facts)}

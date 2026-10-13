@@ -9,6 +9,8 @@ from pathlib import Path
 
 from fastapi import Request
 
+from sagacontext.rollout import INJECTION_HOSTS
+
 
 def deployment_status(request: Request) -> dict[str, object]:
     """Return configuration facts that are safe to expose to the loopback UI."""
@@ -41,4 +43,9 @@ def deployment_status(request: Request) -> dict[str, object]:
             config.llm_base_url and config.llm_api_key and config.llm_model
         ),
         "console_assets_available": (static_root / "index.html").is_file(),
+        "hosts": [
+            {"host": host, "frozen_version": version,
+             "injection": "enabled" if host in INJECTION_HOSTS else "collection_only"}
+            for host, version in sorted(config.host_versions().items())
+        ],
     }

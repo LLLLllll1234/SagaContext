@@ -38,3 +38,19 @@ def test_empty_and_stale_scenarios():
                 assert response.json()['data']['sessions']['value']['items'] == []
             else:
                 assert client.get(path).status_code == 503
+
+
+def test_fixture_serves_memlab_from_synthetic_homes_and_restores_environment(monkeypatch):
+    import os
+    monkeypatch.setenv('CODEX_HOME', '/real/codex')
+    monkeypatch.delenv('CLAUDE_CONFIG_DIR', raising=False)
+    api = fixture_app()
+    with TestClient(api, base_url='http://localhost:37781') as client:
+        root = api.state.fixture.path.parent
+        assert Path(os.environ['CODEX_HOME']).is_relative_to(root)
+        overview = client.get('/memlab/api/overview').json()
+        assert overview['codex']['home']['cli_version'] == '0.154.0'
+        params = client.get('/memlab/api/codex/facts').json()['params']
+        assert params['summary_token_limit']['check'] == 'unverified'
+    assert os.environ['CODEX_HOME'] == '/real/codex'
+    assert 'CLAUDE_CONFIG_DIR' not in os.environ

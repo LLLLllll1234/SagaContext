@@ -41,3 +41,16 @@ def test_only_legal_routes_and_contained_assets_are_served(static_client, tmp_pa
     assert client.get('/console/deployment/unknown').status_code == 404
     assert client.get('/console/random').status_code == 404
     assert client.get('/console/', headers={'Host': 'evil.invalid:37781'}).status_code == 403
+
+
+def test_every_injection_block_reason_has_a_console_label():
+    # Blocked receipts show label(reason); a new reject() code without a label leaks a raw enum.
+    import re
+    from pathlib import Path
+    source = Path('src/sagacontext/rollout.py').read_text()
+    reasons = set(re.findall(r'reject\("([a-z_]+)"', source))
+    reasons |= set(re.findall(r'_blocked_injection\("([a-z_]+)"', source))
+    reasons |= {r for pair in re.findall(r'"([a-z_]+)" if event not in EVENTS else "([a-z_]+)"', source) for r in pair}
+    labels = Path('web/src/components/Common.tsx').read_text()
+    assert reasons
+    assert sorted(r for r in reasons if not re.search(rf'\b{r}:', labels)) == []

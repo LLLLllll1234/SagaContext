@@ -24,6 +24,13 @@
 - **已拍板（2026-10-10）V1 与双宿主合并到 `codex/dual-host-admission-2026-09-30`。** 以 `origin/main`（a0fe5bb）为合并源；本地 `main` 上的 a132c50 只保留了 Memory Lab 静态资源、丢失 console 挂载且无法导入 daemon，不作为合并基础。合并前 HEAD 留有本地引用 `backup/pre-v1-integration-2026-10-10`。新安装默认的 Codex 版本改为已重新准入的 `codex-cli 0.159.2`；S3/G6 探针、`codex_shadow` 和历史测试 fixture 保留 0.153.4，作为历史验收记录。
 - **已拍板（2026-10-10）pytest 是唯一受支持的测试入口**（`uv run --locked pytest -q`）。原因：`tests/test_multi_host.py`、`tests/hosts/test_claude_probe.py` 和 `tests/console/` 使用 pytest fixture，`unittest discover` 收集不到；另外，前序测试遗留的 SQLite `ResourceWarning` 会混进 CLI 输出，导致 `test_cli` 在 discover 下解析失败。历史报告里出现的 unittest 命令只代表当时的运行方式。
 
+- **已拍板（2026-10-12）控制台前端优化的五个边界。**
+  - 记忆正文不写入 schema 约定。控制台在后端派生只读的 `summary`，字段优先序沿用 `memfile.render`（`rule → content → decision → goal → symptom → topic`），其后补 `text`、`summary`；都没有时返回空，前端显示“无可读正文”。
+  - 预算明细本轮不做 ledger 迁移。注入回执保持现有字段，页面继续标注“当前回执未记录”；省略原因已足以解释大部分未带入情况。
+  - 控制台不读工作区文件。部署页只展示 daemon 已持有的宿主、冻结版本和注入能力（来自 `rollout.INJECTION_HOSTS`）；hooks 是否安装不展示状态，只给出检查和安装命令。
+  - 不新增审核 CLI。`bin/sagacontext-daemon-control review --batch-id … --decision approve|reject` 已存在（`operator.py`），控制台在待审核批次上给出这条命令，界面仍只读。
+  - Memory Lab 本轮不并入 React。两个前端并存，只互加入口；Memory Lab 的源码参数改为从 `/memlab/api/codex/facts` 读取，锚点未复核时显式标注。
+
 ## 全量文档目录
 
 下表按阶段由新到旧排列。验收数字属于对应日期的运行快照；S0–S2 的限制、旧探针失败和早期草案不覆盖 S3 的当前结论。保留原文件名和位置，避免破坏既有引用。

@@ -1,13 +1,104 @@
 import { Link } from "react-router-dom";
 import { useRead } from "../api/queries";
-import type { DeploymentStatus } from "../api/types";
-import { EmptyState, ReadNotice, Status } from "../components/Common";
+import type { DeploymentStatus, Directory, Envelope } from "../api/types";
+import {
+  Command,
+  EmptyState,
+  ReadNotice,
+  Status,
+  label,
+} from "../components/Common";
 
 const configured = (value: boolean) => (value ? "已配置" : "未配置");
 
+type Step = {
+  title: string;
+  state: "done" | "todo" | "unknown";
+  note: string;
+  command?: string;
+};
+const mark = { done: "✓", todo: "○", unknown: "?" };
+const stateLabel = {
+  done: "已完成",
+  todo: "未完成",
+  unknown: "无法从控制台判断",
+};
+
+export function onboardingSteps(
+  deployment: DeploymentStatus | undefined,
+  directory: Directory | undefined,
+  reachable: boolean,
+): Step[] {
+  const registered = directory
+    ? directory.items.some((p) => p.workspaces.length)
+    : undefined;
+  return [
+    {
+      title: "本地服务可达",
+      state: reachable ? "done" : "todo",
+      note: reachable ? "控制台已读到部署状态。" : "启动仅绑定本机的服务。",
+      command: reachable ? undefined : "./scripts/install.sh --start",
+    },
+    {
+      title: "安装工作区 hooks",
+      state: "unknown",
+      note: "控制台不读取工作区文件，请在终端确认或安装。",
+      command:
+        "./scripts/install.sh --with-hooks --workspace /absolute/path/to/project",
+    },
+    {
+      title: "注册项目与工作区",
+      state:
+        registered === undefined ? "unknown" : registered ? "done" : "todo",
+      note: registered
+        ? "已有可查看的工作区。"
+        : "在 Ledger 中登记项目名称与仓库路径。",
+      command: registered
+        ? undefined
+        : 'uv run sagactl project-register "项目名" /absolute/path/to/project',
+    },
+    {
+      title: "选择运行模式",
+      state: deployment && deployment.rollout_mode !== "off" ? "done" : "todo",
+      note:
+        deployment && deployment.rollout_mode !== "off"
+          ? `当前为${label(deployment.rollout_mode)}模式。`
+          : "默认关闭。开启观察或受控模式需要单独授权，见集成指南。",
+    },
+  ];
+}
+function Onboarding({ steps }: { steps: Step[] }) {
+  return (
+    <section className="onboarding" aria-label="接入进度">
+      <h2>接入进度</h2>
+      <ol>
+        {steps.map((step) => (
+          <li key={step.title} className={`step-${step.state}`}>
+            <span className="step-mark" aria-label={stateLabel[step.state]}>
+              {mark[step.state]}
+            </span>
+            <div>
+              <b>{step.title}</b>
+              <p className="small">{step.note}</p>
+              {step.command && <Command text={step.command} />}
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="caption">控制台只读；复制按钮只复制命令，不会执行。</p>
+    </section>
+  );
+}
+
 export default function DeploymentPage() {
   const result = useRead<DeploymentStatus>("/deployment");
+  const directory = useRead<Envelope<Directory>>("/projects");
   const deployment = result.data;
+  const steps = onboardingSteps(
+    deployment,
+    directory.data?.data,
+    Boolean(deployment) && !result.error,
+  );
 
   return (
     <main className="deployment-page">
@@ -26,6 +117,7 @@ export default function DeploymentPage() {
         </Link>
       </div>
       <ReadNotice error={result.error} />
+      <Onboarding steps={steps} />
       {!deployment ? (
         <EmptyState
           title={result.isLoading ? "正在读取部署状态" : "部署状态暂不可用"}
@@ -87,6 +179,31 @@ export default function DeploymentPage() {
                   </dd>
                 </div>
               </dl>
+            </article>
+            <article>
+              <h2>已接入宿主</h2>
+              {deployment.hosts.length ? (
+                <dl>
+                  {deployment.hosts.map((h) => (
+                    <div key={h.host}>
+                      <dt>
+                        {label(h.host)}{" "}
+                        <small className="mono">{h.frozen_version}</small>
+                      </dt>
+                      <dd>
+                        {h.injection === "enabled"
+                          ? "采集并注入"
+                          : "仅采集，不注入"}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="muted">未配置宿主</p>
+              )}
+              <p className="caption">
+                版本为窗口期冻结值；hooks 是否已装请在终端确认。
+              </p>
             </article>
           </section>
         </>

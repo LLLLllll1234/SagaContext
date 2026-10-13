@@ -24,6 +24,37 @@ def safe_text(value: str) -> str:
     return value
 
 
+# Body precedence follows memfile.render, then the generic text fields seen in fixtures,
+# then the structured fields the Judge contract writes (command, fix, path, format, ...).
+SUMMARY_FIELDS = ("rule", "content", "decision", "goal", "symptom", "topic", "text", "summary")
+DETAIL_FIELDS = ("command", "fix", "path", "format", "value", "applies_when")
+SUMMARY_LIMIT = 160
+
+
+def _line(value: JsonValue) -> str | None:
+    if isinstance(value, str) and value.strip() and value != HIDDEN:
+        return " ".join(value.split())
+    return None
+
+
+def payload_summary(payload: JsonValue) -> str | None:
+    """One readable line from an already-sanitized payload, or None when it has no body.
+
+    Judge payloads are a ``key`` plus structured fields, so ``{key, command}`` reads as
+    ``key：command``; ``key`` alone is the last resort.
+    """
+    if not isinstance(payload, dict):
+        return None
+    text = next((t for t in map(_line, (payload.get(k) for k in SUMMARY_FIELDS)) if t), None)
+    if text is None:
+        detail = next((t for t in map(_line, (payload.get(k) for k in DETAIL_FIELDS)) if t), None)
+        key = _line(payload.get("key"))
+        text = f"{key}：{detail}" if key and detail else detail or key
+    if text is None:
+        return None
+    return text if len(text) <= SUMMARY_LIMIT else text[:SUMMARY_LIMIT - 1] + "…"
+
+
 def safe_payload(value: JsonValue) -> JsonValue:
     if isinstance(value, dict):
         return {safe_text(key): HIDDEN if re.sub(r"[^a-z]", "", key.lower()) in _FIELDS
