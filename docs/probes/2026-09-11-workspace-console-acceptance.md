@@ -103,3 +103,21 @@ API 类型可通过 `scripts.console_openapi` 导出，只保留读取接口可�
 | compileall / git diff --check | 通过 |
 
 预算明细仍未记录在回执中，页面照实标注。本次只用合成 fixture 验证，没有读取真实 Ledger。
+
+### 2026-10-12 缺口修复
+
+用本机 Ledger 做只读核对后，修复了上一轮在真实数据上不成立的部分。
+
+- 正文摘要：真实提案和 Judge v4 数据集的字段是 `key` 加 `command`、`fix`、`path`、`format` 等结构化字段。摘要现在会读这些字段，生成形如 `key：command` 的一行，最后用 `key` 兜底。v4 全部 `expected_body` 都能生成摘要，有测试覆盖。本机 5 个提案中 3 个生成了摘要，另外 2 个是 payload 为空的 `no_change`，页面显示“判定为无变化”。
+- 拦截原因：补齐注入门禁和注入阶段的全部拦截原因（`kill_switch`、`rollout_not_active`、`missing_event_identity` 等）。blocked 回执改为一句“这次没有带入记忆：……”。
+- 提案：批次详情先显示“原内容 / 改为”一行对照，字段 JSON 收进折叠区。`Proposal` 新增 `old_summary`、`new_summary`，不可见时为空。
+- Memory Lab：配色改用控制台的同一套变量，证据等级保留各自的色相。合成 fixture 服务现在也提供 `/memlab/`，Codex 和 Claude 的数据目录都指向临时目录，退出后恢复原环境变量。
+- 浏览器验证：新增 3 条 Memory Lab Playwright 测试，覆盖 Codex 和 Claude 共 10 个标签页（逐页断言标题，确认无页面报错、无 `${`、无 `undefined`）、参数替换和“⚠ 未复核”标注、两个前端互相跳转。
+
+| 检查 | 实际结果 |
+|---|---|
+| Python 全量回归 | 390 tests、96 subtests 通过 |
+| 前端组件 | 27 tests 通过 |
+| Playwright Chromium | 8 条测试，`--repeat-each=5` 连续两轮共 80/80 通过 |
+
+重复运行时发现两处时序不稳的断言并已修正：断线测试改为主动触发重新读取，键盘可达性断言允许后台刷新后重试。
